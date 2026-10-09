@@ -1,0 +1,2195 @@
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const http = require('http');
+const https = require('https');
+const { exec, execSync, spawn } = require('child_process');
+const { pathToFileURL } = require('url');
+const { writeRaceConfig } = require('./src/iniWriter');
+const AdmZip = require('adm-zip');
+
+const stateFilePath = path.join(app.getPath('userData'), 'user-state.json');
+const settingsFilePath = path.join(app.getPath('userData'), 'settings.json');
+const presetsFilePath = path.join(app.getPath('userData'), 'presets.json');
+const modsHistoryFilePath = path.join(app.getPath('userData'), 'mods-history.json');
+const sessionHistoryFilePath = path.join(app.getPath('userData'), 'session-history.json');
+
+function formatFallbackName(rawName) {
+  if (!rawName) return '';
+  return rawName.replace(/^ks_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function sanitizeJsonText(text) {
+  if (!text) return '{}';
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  return text
+    .replace(/[\r\n\t]/g, ' ')
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
+}
+
+function readJsonSafe(filePath) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(sanitizeJsonText(raw));
+  } catch (e) {
+    console.warn('[readJsonSafe] échec parse', filePath, ':', e.message);
+    return null;
+  }
+}
+
+function findImageUrl(folderPath, fileNames) {
+  if (!folderPath || !fs.existsSync(folderPath)) return '';
+  const extensions = ['', '.png', '.jpg', '.jpeg', '.PNG', '.JPG', '.JPEG'];
+  for (const name of fileNames) {
+    for (const ext of extensions) {
+      const fullPath = path.join(folderPath, name + ext);
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return pathToFileURL(fullPath).href;
+      }
+    }
+  }
+  return '';
+}
+
+/**
+ * Nettoie un nom de circuit renvoyé par le serveur.
+ * Gère le préfixe CSP "csp/XXXX/../".
+ */
+function cleanTrackPath(rawTrack) {
+  if (!rawTrack) return { track: '', trackConfig: '', trackFull: '' };
+  let s = String(rawTrack).trim();
+  s = s.replace(/^csp\/[^/]*\/\.\.\//i, '');
+  s = s.replace(/^csp\//i, '');
+  let track = s;
+  let layout = '';
+  const dashIdx = s.indexOf('-');
+  if (dashIdx > 0) {
+    track = s.substring(0, dashIdx);
+    layout = s.substring(dashIdx + 1);
+  }
+  return { track, trackConfig: layout, trackFull: s };
+}
+
+const OFFICIAL_KUNOS_CARS = new Set([
+  'abarth500','abarth500_s1','alfa_romeo_giulietta_qv','alfa_romeo_giulietta_qv_le',
+  'ktm_x_bow_r','lotus_exige_s','bmw_1m','bmw_1m_s3','bmw_m3_e30','bmw_m3_e30_drift',
+  'bmw_m3_e30_dtm','bmw_m3_e30_gra','bmw_m3_e30_s1','bmw_m3_e92','bmw_m3_e92_drift',
+  'bmw_m3_e92_s1','bmw_m3_gt2','bmw_z4','bmw_z4_drift','bmw_z4_gt3','bmw_z4_s1',
+  'ferrari_458','ferrari_458_s3','ferrari_f40','ferrari_f40_s3','lotus_2_eleven',
+  'lotus_2_eleven_gt4','lotus_elise_sc','lotus_elise_sc_s1','lotus_evora_gte',
+  'lotus_evora_gte_carbon','lotus_evora_s','lotus_exige_240r','lotus_exige_s_v6',
+  'lotus_exos_125','lotus_exos_125_s1','mclaren_mp412c','mclaren_mp412c_gt3',
+  'p4-5_2011','pagani_huayra','pagani_zonda_r','ruf_yellowbird'
+]);
+
+const OFFICIAL_KUNOS_TRACKS = new Set([
+  'imola','magione','monza','monza66','mugello','nurburgring','silverstone',
+  'silverstone66','spa','trento-bondone','vallelunga','drag'
+]);
+
+const PURE_TYPE_TO_FOLDER = {
+  1: 'Daycycle',
+  2: 'Timed',
+  3: 'Stamp',
+  4: 'Live'
+};
+
+const RACEINI_WEATHER = {
+  'clear': 15, 'no_clouds': 15, 'noclouds': 15,
+  'few_clouds': 16, 'fewclouds': 16,
+  'scattered_clouds': 17, 'scatteredclouds': 17,
+  'broken_clouds': 18, 'brokenclouds': 18,
+  'overcast': 19, 'overcast_clouds': 19, 'overcastclouds': 19,
+  'fog': 20,
+  'mist': 21,
+  'light_drizzle': 3, 'lightdrizzle': 3,
+  'drizzle': 4,
+  'heavy_drizzle': 5, 'heavydrizzle': 5,
+  'light_rain': 6, 'lightrain': 6,
+  'rain': 7,
+  'heavy_rain': 8, 'heavyrain': 8,
+  'light_thunderstorm': 0, 'lightthunderstorm': 0,
+  'thunderstorm': 1,
+  'heavy_thunderstorm': 2, 'heavythunderstorm': 2,
+  'light_snow': 9, 'lightsnow': 9,
+  'snow': 10,
+  'heavy_snow': 11, 'heavysnow': 11,
+  'light_sleet': 12, 'lightsleet': 12,
+  'sleet': 13,
+  'heavy_sleet': 14, 'heavysleet': 14,
+  'smoke': 22, 'haze': 23, 'sand': 24, 'dust': 25,
+  'squalls': 26, 'tornado': 27, 'hurricane': 28,
+  'cold': 29, 'hot': 30, 'windy': 31, 'hail': 32
+};
+
+const PURECTRL_CM_WEATHER = {
+  'no_clouds': 1, 'noclouds': 1,
+  'clear': 2,
+  'few_clouds': 3, 'fewclouds': 3,
+  'scattered_clouds': 4, 'scatteredclouds': 4,
+  'windy': 5,
+  'broken_clouds': 6, 'brokenclouds': 6,
+  'overcast': 7, 'overcast_clouds': 7, 'overcastclouds': 7,
+  'haze': 8,
+  'mist': 9,
+  'fog': 10,
+  'dust': 11,
+  'sand': 12,
+  'smoke': 13,
+  'light_drizzle': 14, 'lightdrizzle': 14,
+  'drizzle': 15,
+  'heavy_drizzle': 16, 'heavydrizzle': 16,
+  'light_rain': 17, 'lightrain': 17,
+  'rain': 18,
+  'heavy_rain': 19, 'heavyrain': 19,
+  'light_thunderstorm': 20, 'lightthunderstorm': 20,
+  'thunderstorm': 21,
+  'heavy_thunderstorm': 22, 'heavythunderstorm': 22,
+  'squalls': 23,
+  'tornado': 24,
+  'hurricane': 25,
+  'light_snow': 26, 'lightsnow': 26,
+  'snow': 27,
+  'heavy_snow': 28, 'heavysnow': 28,
+  'light_sleet': 29, 'lightsleet': 29,
+  'sleet': 30,
+  'heavy_sleet': 31, 'heavysleet': 31,
+  'random_dry': 32,
+  'random_rainy': 33,
+  'random_bad': 34,
+  'random': 35,
+  'predefined': 36
+};
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280, height: 860,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false
+    }
+  });
+  win.loadFile(path.join(__dirname, 'public', 'index.html'));
+}
+
+app.whenReady().then(createWindow);
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+/* ============================================================
+   IPC — ÉTAT & SETTINGS
+   ============================================================ */
+ipcMain.handle('get-app-state', () => {
+  try {
+    if (fs.existsSync(stateFilePath)) {
+      const raw = fs.readFileSync(stateFilePath, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('[get-app-state] ERREUR:', err.message);
+    try { fs.copyFileSync(stateFilePath, stateFilePath + '.broken-' + Date.now()); } catch (e) {}
+  }
+  return {};
+});
+
+ipcMain.handle('save-app-state', (event, state) => {
+  try {
+    const tempPath = stateFilePath + '.tmp';
+    fs.writeFileSync(tempPath, JSON.stringify(state, null, 2), 'utf8');
+    fs.renameSync(tempPath, stateFilePath);
+    return true;
+  } catch (err) {
+    console.error('[save-app-state] ERREUR:', err.message);
+    return false;
+  }
+});
+
+ipcMain.handle('get-settings', () => {
+  try {
+    if (fs.existsSync(settingsFilePath)) {
+      const raw = fs.readFileSync(settingsFilePath, 'utf8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.error('[get-settings] ERREUR:', err.message);
+    try { fs.copyFileSync(settingsFilePath, settingsFilePath + '.broken-' + Date.now()); } catch (e) {}
+  }
+  return {};
+});
+
+ipcMain.handle('save-settings', (event, settings) => {
+  try {
+    const tempPath = settingsFilePath + '.tmp';
+    fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2), 'utf8');
+    fs.renameSync(tempPath, settingsFilePath);
+    return true;
+  } catch (err) {
+    console.error('[save-settings] ERREUR:', err.message);
+    return false;
+  }
+});
+
+/* ============================================================
+   IPC — PRESETS DE SESSION
+   ============================================================ */
+ipcMain.handle('get-presets', () => {
+  try {
+    if (fs.existsSync(presetsFilePath)) {
+      const data = JSON.parse(fs.readFileSync(presetsFilePath, 'utf8'));
+      return Array.isArray(data) ? data : [];
+    }
+  } catch (err) { console.error('[Presets] Lecture :', err); }
+  return [];
+});
+
+ipcMain.handle('save-preset', (event, preset) => {
+  try {
+    let list = [];
+    if (fs.existsSync(presetsFilePath)) {
+      const data = JSON.parse(fs.readFileSync(presetsFilePath, 'utf8'));
+      if (Array.isArray(data)) list = data;
+    }
+    if (!preset.id) preset.id = 'preset_' + Date.now();
+    preset.createdAt = preset.createdAt || Date.now();
+    preset.updatedAt = Date.now();
+
+    const idx = list.findIndex(p => p.id === preset.id);
+    if (idx >= 0) list[idx] = preset;
+    else list.push(preset);
+
+    fs.writeFileSync(presetsFilePath, JSON.stringify(list, null, 2), 'utf8');
+    return { success: true, preset };
+  } catch (err) {
+    console.error('[Presets] Écriture :', err);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('delete-preset', (event, id) => {
+  try {
+    if (!fs.existsSync(presetsFilePath)) return { success: true };
+    let list = JSON.parse(fs.readFileSync(presetsFilePath, 'utf8'));
+    if (!Array.isArray(list)) list = [];
+    list = list.filter(p => p.id !== id);
+    fs.writeFileSync(presetsFilePath, JSON.stringify(list, null, 2), 'utf8');
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+/* ============================================================
+   IPC — HISTORIQUE DES MODS
+   ============================================================ */
+function getModsHistory() {
+  try {
+    if (fs.existsSync(modsHistoryFilePath)) {
+      const data = JSON.parse(fs.readFileSync(modsHistoryFilePath, 'utf8'));
+      return Array.isArray(data) ? data : [];
+    }
+  } catch (e) { console.error('[ModsHistory] lecture:', e); }
+  return [];
+}
+
+function saveModsHistory(list) {
+  try {
+    fs.writeFileSync(modsHistoryFilePath, JSON.stringify(list, null, 2), 'utf8');
+    return true;
+  } catch (e) { console.error('[ModsHistory] écriture:', e); return false; }
+}
+
+function getPreviewForItem(destPath, kind) {
+  const uiDir = path.join(destPath, 'ui');
+  let p = findImageUrl(uiDir, ['preview']);
+  if (p) return p;
+  p = findImageUrl(uiDir, ['badge']);
+  if (p) return p;
+
+  if (kind === 'car') {
+    const skinsDir = path.join(destPath, 'skins');
+    if (fs.existsSync(skinsDir)) {
+      try {
+        const skins = fs.readdirSync(skinsDir, { withFileTypes: true })
+          .filter(e => e.isDirectory()).map(e => e.name);
+        for (const s of skins) {
+          p = findImageUrl(path.join(skinsDir, s), ['preview']);
+          if (p) return p;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (kind === 'track') {
+    if (fs.existsSync(uiDir)) {
+      try {
+        const subDirs = fs.readdirSync(uiDir, { withFileTypes: true })
+          .filter(e => e.isDirectory()).map(e => e.name);
+        for (const sub of subDirs) {
+          p = findImageUrl(path.join(uiDir, sub), ['preview']);
+          if (p) return p;
+        }
+      } catch (e) {}
+    }
+  }
+
+  return null;
+}
+
+function getItemName(destPath, kind) {
+  let jsonFile = null;
+  if (kind === 'car') jsonFile = path.join(destPath, 'ui', 'ui_car.json');
+  else if (kind === 'track') jsonFile = path.join(destPath, 'ui', 'ui_track.json');
+
+  const data = jsonFile ? readJsonSafe(jsonFile) : null;
+  if (data && data.name) return data.name;
+  return formatFallbackName(path.basename(destPath));
+}
+
+ipcMain.handle('get-mods-history', () => getModsHistory());
+
+ipcMain.handle('delete-mod-from-history', async (event, historyId, itemId) => {
+  const list = getModsHistory();
+  const entryIdx = list.findIndex(e => e.id === historyId);
+  if (entryIdx < 0) throw new Error("Entrée d'historique introuvable.");
+
+  const entry = list[entryIdx];
+  const itemIdx = (entry.items || []).findIndex(i => i.id === itemId);
+  if (itemIdx < 0) throw new Error("Mod introuvable dans l'historique.");
+
+  const item = entry.items[itemIdx];
+  const fullPath = item.dest;
+
+  const normalized = path.normalize(fullPath);
+  const sep = path.sep;
+  const isSafe = normalized.includes('content' + sep + 'cars') ||
+                 normalized.includes('content' + sep + 'tracks') ||
+                 normalized.includes(sep + 'apps' + sep) ||
+                 normalized.includes(sep + 'extension' + sep) ||
+                 normalized.includes(sep + 'system' + sep);
+  if (!isSafe) throw new Error("Chemin non autorisé pour suppression : " + normalized);
+
+  let missing = false;
+  if (fs.existsSync(fullPath)) {
+    try {
+      fs.rmSync(fullPath, { recursive: true, force: true });
+    } catch (e) {
+      throw new Error("Impossible de supprimer : " + e.message);
+    }
+  } else {
+    missing = true;
+  }
+
+  entry.items.splice(itemIdx, 1);
+  if (entry.items.length === 0) list.splice(entryIdx, 1);
+  saveModsHistory(list);
+  return { success: true, missing };
+});
+
+/* ============================================================
+   IPC — HISTORIQUE DES SESSIONS
+   ============================================================ */
+function getSessionHistory() {
+  try {
+    if (fs.existsSync(sessionHistoryFilePath)) {
+      const data = JSON.parse(fs.readFileSync(sessionHistoryFilePath, 'utf8'));
+      return Array.isArray(data) ? data : [];
+    }
+  } catch (e) { console.error('[SessionHistory] lecture:', e); }
+  return [];
+}
+
+function saveSessionHistory(list) {
+  try {
+    fs.writeFileSync(sessionHistoryFilePath, JSON.stringify(list, null, 2), 'utf8');
+    return true;
+  } catch (e) { console.error('[SessionHistory] écriture:', e); return false; }
+}
+
+ipcMain.handle('get-session-history', () => getSessionHistory());
+
+ipcMain.handle('delete-session-history-entry', (event, id) => {
+  try {
+    let list = getSessionHistory();
+    list = list.filter(e => e.id !== id);
+    saveSessionHistory(list);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('clear-session-history', () => {
+  try {
+    saveSessionHistory([]);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+/* ============================================================
+   IPC — DOSSIERS & OS
+   ============================================================ */
+ipcMain.handle('select-ac-folder', async () => {
+  const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  if (!result.canceled && result.filePaths.length > 0) {
+    const acPath = result.filePaths[0];
+    const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+    settings.acPath = acPath;
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    return acPath;
+  }
+  return null;
+});
+
+ipcMain.handle('select-documents-folder', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Sélectionnez votre dossier Documents',
+    properties: ['openDirectory'],
+    buttonLabel: 'Choisir ce dossier'
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    const documentsPath = result.filePaths[0];
+    const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+    settings.documentsPath = documentsPath;
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    return documentsPath;
+  }
+  return null;
+});
+
+ipcMain.handle('get-documents-path', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  if (settings.documentsPath && fs.existsSync(settings.documentsPath)) return settings.documentsPath + '  (choix manuel)';
+  try {
+    const electronDocs = app.getPath('documents');
+    if (electronDocs && fs.existsSync(electronDocs)) return electronDocs + '  (Windows)';
+  } catch (e) {}
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, 'Documents'), path.join(home, 'OneDrive', 'Documents'),
+    path.join(home, 'OneDrive - Personal', 'Documents'), path.join(home, 'OneDrive - Business', 'Documents')
+  ];
+  for (const c of candidates) if (fs.existsSync(path.join(c, 'Assetto Corsa'))) return c + '  (auto)';
+  for (const c of candidates) if (fs.existsSync(c)) return c + '  (auto)';
+  return 'Non détecté';
+});
+
+ipcMain.handle('open-folder', async (event, type, id) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  if (!id) throw new Error("Identifiant manquant.");
+  const subDir = type === 'track' ? 'tracks' : 'cars';
+  const folderPath = path.join(acPath, 'content', subDir, id);
+  if (!fs.existsSync(folderPath)) throw new Error(`Dossier introuvable : ${folderPath}`);
+  const err = await shell.openPath(folderPath);
+  if (err) throw new Error(err);
+  return true;
+});
+
+// Ouvre un lien externe dans le navigateur par défaut
+ipcMain.handle('open-external', async (event, url) => {
+  if (!url || typeof url !== 'string') throw new Error('URL invalide.');
+  if (!/^https?:\/\//i.test(url)) throw new Error('URL non autorisée (http/https uniquement).');
+  await shell.openExternal(url);
+  return true;
+});
+
+ipcMain.handle('select-mod-file', async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Sélectionner une archive",
+    properties: ['openFile'],
+    filters: [
+      { name: 'Archives', extensions: ['zip','rar','7z','tar','gz','tgz'] },
+      { name: 'Toutes', extensions: ['*'] }
+    ]
+  });
+  if (!result.canceled && result.filePaths.length > 0) return result.filePaths[0];
+  return null;
+});
+
+ipcMain.handle('scan-assets', async () => {
+  const assetsDir = path.join(__dirname, 'public', 'assets');
+  const manufacturersDir = path.join(assetsDir, 'manufacturers');
+  const flagsDir = path.join(assetsDir, 'flags');
+  const result = { manufacturers: [], flags: [] };
+  try { if (fs.existsSync(manufacturersDir))
+    result.manufacturers = fs.readdirSync(manufacturersDir).filter(f => f.toLowerCase().endsWith('.png'));
+  } catch (e) {}
+  try { if (fs.existsSync(flagsDir))
+    result.flags = fs.readdirSync(flagsDir).filter(f => f.toLowerCase().endsWith('.png'));
+  } catch (e) {}
+  return result;
+});
+
+/* ============================================================
+   SCAN DU CONTENU AC
+   ============================================================ */
+function scanCars(acPath) {
+  const carsDir = path.join(acPath, 'content', 'cars');
+  if (!fs.existsSync(carsDir)) return [];
+  const cars = [];
+  try {
+    const folders = fs.readdirSync(carsDir);
+    for (const folder of folders) {
+      const carPath = path.join(carsDir, folder);
+      if (!fs.statSync(carPath).isDirectory()) continue;
+      const uiJsonPath = path.join(carPath, 'ui', 'ui_car.json');
+      let name = '', author = '', tags = [], brand = '';
+
+      const ui = readJsonSafe(uiJsonPath);
+      if (ui) {
+        if (ui.name && ui.name.trim()) name = ui.name.trim();
+        author = ui.author || '';
+        if (ui.brand) brand = ui.brand;
+        if (Array.isArray(ui.tags)) tags = ui.tags;
+      }
+
+      if (!name) name = formatFallbackName(folder);
+      const folderLower = folder.toLowerCase();
+      const authorLower = author.toLowerCase();
+      const isKunos = folderLower.startsWith('ks_') || OFFICIAL_KUNOS_CARS.has(folderLower) || authorLower.includes('kunos');
+
+      const skinsDir = path.join(carPath, 'skins');
+      const skins = [];
+      if (fs.existsSync(skinsDir)) {
+        try {
+          const skinFolders = fs.readdirSync(skinsDir);
+          for (const sf of skinFolders) {
+            const skinPath = path.join(skinsDir, sf);
+            if (fs.statSync(skinPath).isDirectory()) {
+              let skinName = '';
+              const skinUiPath = path.join(skinPath, 'ui_skin.json');
+              const sui = readJsonSafe(skinUiPath);
+              if (sui && sui.skinname && sui.skinname.trim()) skinName = sui.skinname.trim();
+              if (!skinName) skinName = formatFallbackName(sf);
+              skins.push({ id: sf, name: skinName, preview: findImageUrl(skinPath, ['preview']) });
+            }
+          }
+        } catch (e) {}
+      }
+      const mainPreview = (skins.length > 0 && skins[0].preview) ? skins[0].preview
+        : findImageUrl(path.join(carPath, 'ui'), ['badge', 'preview']);
+      cars.push({ id: folder, name, author: author || 'Inconnu', brand, isKunos, tags, skins, preview: mainPreview });
+    }
+  } catch (err) { console.error("Erreur scan cars :", err); }
+  cars.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }));
+  return cars;
+}
+
+function scanTracks(acPath) {
+  const tracksDir = path.join(acPath, 'content', 'tracks');
+  if (!fs.existsSync(tracksDir)) return [];
+  const tracks = [];
+  try {
+    const folders = fs.readdirSync(tracksDir);
+    for (const folder of folders) {
+      const trackPath = path.join(tracksDir, folder);
+      if (!fs.statSync(trackPath).isDirectory()) continue;
+
+      const uiDir = path.join(trackPath, 'ui');
+      const rootUiJsonPath = path.join(uiDir, 'ui_track.json');
+
+      let name = '', author = '', tags = [], country = '';
+
+      const ui = readJsonSafe(rootUiJsonPath);
+      if (ui) {
+        if (ui.name && ui.name.trim()) name = ui.name.trim();
+        author = ui.author || '';
+        if (ui.country) country = ui.country;
+        if (Array.isArray(ui.tags)) tags = ui.tags;
+      }
+
+      const variants = [];
+      let firstVariantUi = null;
+      if (fs.existsSync(uiDir)) {
+        try {
+          const uiSub = fs.readdirSync(uiDir);
+          for (const item of uiSub) {
+            const subPath = path.join(uiDir, item);
+            if (!fs.statSync(subPath).isDirectory()) continue;
+            const varUiPath = path.join(subPath, 'ui_track.json');
+            let varName = '', varData = null;
+            varData = readJsonSafe(varUiPath);
+            if (varData && varData.name && varData.name.trim()) varName = varData.name.trim();
+            if (!varName) varName = formatFallbackName(item);
+            if (!firstVariantUi && varData) firstVariantUi = varData;
+            variants.push({
+              id: item, name: varName,
+              preview: findImageUrl(subPath, ['preview']),
+              outline: findImageUrl(subPath, ['outline'])
+            });
+          }
+        } catch (e) {}
+      }
+
+      if (firstVariantUi) {
+        if (!country && firstVariantUi.country) country = firstVariantUi.country;
+        if (!author  && firstVariantUi.author)  author  = firstVariantUi.author;
+        if (tags.length === 0 && Array.isArray(firstVariantUi.tags)) tags = firstVariantUi.tags;
+      }
+
+      if (!name) name = formatFallbackName(folder);
+
+      if (variants.length === 0) {
+        variants.push({
+          id: '', name: 'Default',
+          preview: findImageUrl(uiDir, ['preview']),
+          outline: findImageUrl(uiDir, ['outline'])
+        });
+      }
+
+      const folderLower = folder.toLowerCase();
+      const authorLower = author.toLowerCase();
+      const isKunos = folderLower.startsWith('ks_') || OFFICIAL_KUNOS_TRACKS.has(folderLower) || authorLower.includes('kunos');
+
+      tracks.push({ id: folder, name, author: author || 'Inconnu', country, isKunos, tags, variants });
+    }
+  } catch (err) { console.error("Erreur scan tracks :", err); }
+  tracks.sort((a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' }));
+  return tracks;
+}
+
+function scanWeather(acPath) {
+  const weatherDir = path.join(acPath, 'content', 'weather');
+  if (!fs.existsSync(weatherDir)) return [];
+  const weatherList = [];
+  try {
+    const items = fs.readdirSync(weatherDir);
+    for (const item of items) {
+      const fullPath = path.join(weatherDir, item);
+      if (fs.statSync(fullPath).isDirectory()) weatherList.push(item);
+    }
+  } catch (err) { console.error(err); }
+  return weatherList.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+}
+
+function scanPurePlans(acPath) {
+  if (!acPath || !fs.existsSync(acPath)) return [];
+  const plansRoot = path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'Plans');
+  if (!fs.existsSync(plansRoot)) return [];
+  const plans = [];
+  function walk(dir, prefix) {
+    let items;
+    try { items = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const item of items) {
+      const full = path.join(dir, item.name);
+      if (item.isDirectory()) {
+        walk(full, prefix ? `${prefix}/${item.name}` : item.name);
+      } else if (item.isFile() && item.name.toLowerCase().endsWith('.json') && !item.name.startsWith('last_used')) {
+        const rel = prefix ? `${prefix}/${item.name}` : item.name;
+        plans.push({ id: rel, name: path.basename(item.name, '.json'), folder: prefix || '' });
+      }
+    }
+  }
+  walk(plansRoot, '');
+  plans.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+  return plans;
+}
+
+/* ============================================================
+   PURE PLANNER — génération
+   ============================================================ */
+function parseWeatherPresets(presetsFilePath) {
+  if (!fs.existsSync(presetsFilePath)) return {};
+  try {
+    const arr = JSON.parse(fs.readFileSync(presetsFilePath, 'utf8'));
+    const map = {};
+    for (const item of arr) {
+      if (!Array.isArray(item) || item.length < 13) continue;
+      const [name, index, rain_probability, rain_wetness, rain_amount, rain_variance, rain_water,
+             wind_strength, humidity, mist, _unused, temp_air_offset, temp_road_offset] = item;
+      map[name] = {
+        index, rain_probability, rain_wetness, rain_amount, rain_variance, rain_water,
+        wind_strength, humidity, mist,
+        temp_air: 26 + (temp_air_offset || 0),
+        temp_road: 32 + (temp_road_offset || 0)
+      };
+    }
+    return map;
+  } catch (e) { return {}; }
+}
+
+const WEATHER_NAME_ALIASES = { 'overcast': 'overcast_clouds' };
+
+function normalizeWeatherName(weatherId) {
+  if (!weatherId) return '';
+  let s = weatherId.toLowerCase().replace(/^(sol|pure|sfx)[_-]/i, '').replace(/^\d+[_-]/, '');
+  if (WEATHER_NAME_ALIASES[s]) s = WEATHER_NAME_ALIASES[s];
+  return s;
+}
+
+function getWeatherIndexForJson(weatherId) {
+  if (!weatherId) return 15;
+  let s = weatherId.toLowerCase()
+    .replace(/^(sol|pure|sfx)[_-]/i, '')
+    .replace(/^\d+[_-]/, '')
+    .replace(/[-_]\d+$/, '')
+    .replace(/\s+/g, '_');
+  if (s === 'overcast') s = 'overcast_clouds';
+  if (RACEINI_WEATHER[s] !== undefined) return RACEINI_WEATHER[s];
+  for (const k of Object.keys(RACEINI_WEATHER)) {
+    if (s.includes(k) || k.includes(s)) return RACEINI_WEATHER[k];
+  }
+  console.warn('[getWeatherIndexForJson] aucune correspondance pour', weatherId, '(clé:', s + ')');
+  return 15;
+}
+
+function getPureCtrlCmWeather(weatherId) {
+  if (!weatherId) return 2;
+  let s = weatherId.toLowerCase()
+    .replace(/^(sol|pure|sfx)[_-]/i, '')
+    .replace(/^\d+[_-]/, '')
+    .replace(/[-_]\d+$/, '')
+    .replace(/\s+/g, '_');
+  if (s === 'overcast') s = 'overcast_clouds';
+  if (PURECTRL_CM_WEATHER[s] !== undefined) return PURECTRL_CM_WEATHER[s];
+  for (const k of Object.keys(PURECTRL_CM_WEATHER)) {
+    if (s.includes(k) || k.includes(s)) return PURECTRL_CM_WEATHER[k];
+  }
+  console.warn('[getPureCtrlCmWeather] aucune correspondance pour', weatherId, '(clé:', s + ')');
+  return 2;
+}
+
+function buildWeatherObject(preset) {
+  return {
+    wind_strength: preset.wind_strength || 0,
+    rain_probability: preset.rain_probability || 0,
+    temp_road_dyn: true, temp_air_dyn: true, mist_dyn: true, humidity_dyn: true,
+    rain_water_dyn: true, rain_wetness_dyn: true, rain_amount_dyn: true,
+    temp_air_range: 0, wind_direction: 0, humidity_range: 0,
+    rain_wetness: preset.rain_wetness || 0, rain_wetness_range: 0,
+    rain_variance_range: 0, rain_probability_range: 0, rain_amount_range: 0,
+    wind_strength_range: 0, wind_direction_range: 0, temp_road_range: 0,
+    mist: preset.mist || 0,
+    temp_air: preset.temp_air !== undefined ? preset.temp_air : 26,
+    index: preset.index !== undefined ? preset.index : 50,
+    humidity: preset.humidity !== undefined ? preset.humidity : 0.5,
+    rain_water: preset.rain_water || 0,
+    trans_data_A: 0.5, trans_data_B: 1, trans_look_B: 1, trans_look_A: 0.5,
+    trans_auto: true,
+    rain_variance: preset.rain_variance || 0,
+    rain_water_range: 0, mist_range: 0,
+    temp_road: preset.temp_road !== undefined ? preset.temp_road : 32,
+    rain_amount: preset.rain_amount || 0
+  };
+}
+
+function getTimestampForTimeToday(timeStr) {
+  let h = 12, mn = 0;
+  if (timeStr && typeof timeStr === 'string') {
+    const m = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (m) {
+      h = Math.max(0, Math.min(23, parseInt(m[1], 10)));
+      mn = Math.max(0, Math.min(59, parseInt(m[2], 10)));
+    }
+  }
+  const now = new Date();
+  return Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), h, mn, 0) / 1000);
+}
+
+function buildPlanData(steps, presets, sessionStartTime, timeMult, planType, loop) {
+  const baseTimestamp = getTimestampForTimeToday(sessionStartTime || '12:00');
+  const tm = parseInt(timeMult, 10) || 1;
+  const pt = planType || 3;
+  const lp = (pt === 1) ? true : !!loop;
+
+  const container = [];
+  let cumulative = 0;
+  for (const step of steps) {
+    const key = normalizeWeatherName(step.weather);
+    const preset = presets[key] || presets['empty'] || { index: 50, temp_air: 26, temp_road: 32, humidity: 0.5 };
+    const weatherObj = buildWeatherObject(preset);
+    weatherObj.index = getWeatherIndexForJson(step.weather);
+    const durationSec = (parseInt(step.duration, 10) || 10) * 60;
+    container.push({ data: { weather: weatherObj, duration: durationSec, timestamp: baseTimestamp + cumulative } });
+    cumulative += durationSec;
+  }
+  return { container, control: { type: pt, timemulti: tm, loop: lp } };
+}
+
+function writePurePlanArchive(acPath, planName, planData, subFolder) {
+  const purePlannerDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
+  if (!fs.existsSync(purePlannerDir)) throw new Error("Dossier PurePlanner introuvable.");
+
+  const safeName = (planName || 'CustomPlan')
+    .replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_').trim() || 'CustomPlan';
+  const fileName = `${safeName}.json`;
+
+  const folder = subFolder || 'Stamp';
+  const targetDir = path.join(purePlannerDir, 'Plans', folder);
+  if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+  fs.writeFileSync(path.join(targetDir, fileName), JSON.stringify(planData, null, 2), 'utf8');
+  return { fileName, folder };
+}
+
+function writePurePlanActive(acPath, planData) {
+  const purePlannerDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
+  const lastUsedInPlans = path.join(purePlannerDir, 'Plans', 'last_used.json');
+  const lastUsedRoot = path.join(purePlannerDir, 'last_used.json');
+  try {
+    if (fs.existsSync(lastUsedInPlans)) fs.copyFileSync(lastUsedInPlans, lastUsedInPlans + '.bak');
+    if (fs.existsSync(lastUsedRoot)) fs.copyFileSync(lastUsedRoot, lastUsedRoot + '.bak');
+  } catch (e) {}
+  const content = JSON.stringify(planData, null, 2);
+  fs.writeFileSync(lastUsedInPlans, content, 'utf8');
+  fs.writeFileSync(lastUsedRoot, content, 'utf8');
+}
+
+function writePurePlanFiles(acPath, planName, planData, subFolder) {
+  const { fileName, folder } = writePurePlanArchive(acPath, planName, planData, subFolder);
+  writePurePlanActive(acPath, planData);
+  return { fileName, folder };
+}
+
+function writeStaticPurePlan(acPath, weatherId, sessionStartTime, timeMult) {
+  const presetsFile = path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'WeatherPresets', 'Default_WeatherPresets.json');
+  const presets = parseWeatherPresets(presetsFile);
+  if (Object.keys(presets).length === 0) throw new Error("Impossible de lire Default_WeatherPresets.json");
+  const steps = [{ weather: weatherId, duration: 1440 }];
+  const planData = buildPlanData(steps, presets, sessionStartTime, timeMult, 1, true);
+  const safeWeather = (weatherId || 'clear').replace(/[^a-zA-Z0-9_\-]/g, '').substring(0, 40);
+  console.log('[writeStaticPurePlan]', weatherId, '→ index =', planData.container[0].data.weather.index);
+  return writePurePlanFiles(acPath, `Custom_Static_${safeWeather}`, planData, PURE_TYPE_TO_FOLDER[1]);
+}
+
+function writeCustomPurePlan(acPath, planName, steps, sessionStartTime, timeMult, loop) {
+  const presetsFile = path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'WeatherPresets', 'Default_WeatherPresets.json');
+  const presets = parseWeatherPresets(presetsFile);
+  if (Object.keys(presets).length === 0) throw new Error("Impossible de lire Default_WeatherPresets.json");
+  const planData = buildPlanData(steps, presets, sessionStartTime, timeMult, 3, loop);
+  return writePurePlanFiles(acPath, `Custom_${planName}`, planData, PURE_TYPE_TO_FOLDER[3]);
+}
+
+function activateExistingPurePlan(acPath, planFileName, timeMult, loop) {
+  const purePlannerDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
+  let planPath;
+  if (planFileName.includes('/')) {
+    planPath = path.join(purePlannerDir, 'Plans', planFileName);
+  } else {
+    planPath = path.join(purePlannerDir, 'Plans', 'Stamp', planFileName);
+    if (!fs.existsSync(planPath)) {
+      planPath = path.join(purePlannerDir, 'Plans', planFileName);
+    }
+  }
+  if (!fs.existsSync(planPath)) return false;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(planPath, 'utf8'));
+    if (!parsed.control) parsed.control = {};
+    parsed.control.timemulti = parseInt(timeMult, 10) || parsed.control.timemulti || 1;
+    parsed.control.loop = (loop !== undefined) ? !!loop : (parsed.control.loop || false);
+    const contentToWrite = JSON.stringify(parsed, null, 2);
+    fs.writeFileSync(path.join(purePlannerDir, 'Plans', 'last_used.json'), contentToWrite, 'utf8');
+    fs.writeFileSync(path.join(purePlannerDir, 'last_used.json'), contentToWrite, 'utf8');
+    return true;
+  } catch (e) { return false; }
+}
+
+/* ============================================================
+   PURE CTRL — lecture / écriture du fichier d'état
+   ============================================================ */
+function getPureCtrlIniPath(documentsPath) {
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'state', 'lua', 'wfx_controller', 'pureCtrl__settings.ini');
+}
+
+function readPureCtrlIni(documentsPath) {
+  const result = {
+    cmWeather: null,
+    autostart: true,
+    lastUsed: true,
+    live: false,
+    startWetness: 1,
+    startPuddles: 1,
+    plan: null,
+    exists: false
+  };
+  const file = getPureCtrlIniPath(documentsPath);
+  if (!fs.existsSync(file)) return result;
+  result.exists = true;
+
+  try {
+    const content = fs.readFileSync(file, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const present = new Set();
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.startsWith('[') || line.startsWith(';') || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq < 0) continue;
+      const key = line.substring(0, eq).trim().toUpperCase();
+      const value = line.substring(eq + 1).trim();
+      present.add(key);
+
+      switch (key) {
+        case 'CM_WEATHER': {
+          const n = parseInt(value, 10);
+          if (!isNaN(n)) result.cmWeather = n;
+          break;
+        }
+        case 'AUTOSTART': result.autostart = (value === '1'); break;
+        case 'LAST_USED': result.lastUsed = (value === '1'); break;
+        case 'LIVE': result.live = (value === '1'); break;
+        case 'START_WETNESS': {
+          const n = parseInt(value, 10);
+          if (!isNaN(n)) result.startWetness = n;
+          break;
+        }
+        case 'START_PUDDLES': {
+          const n = parseInt(value, 10);
+          if (!isNaN(n)) result.startPuddles = n;
+          break;
+        }
+        case 'PLAN': result.plan = value || null; break;
+      }
+    }
+
+    if (!present.has('AUTOSTART')) result.autostart = true;
+    if (!present.has('LAST_USED')) result.lastUsed = true;
+    if (!present.has('LIVE')) result.live = false;
+
+  } catch (e) {
+    console.error('[readPureCtrlIni]', e);
+  }
+
+  return result;
+}
+
+function writePureCtrlIni(documentsPath, pureCtrl, planValue, cmWeatherIndex) {
+  const file = getPureCtrlIniPath(documentsPath);
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir)) {
+    try { fs.mkdirSync(dir, { recursive: true }); }
+    catch (e) { console.warn('[writePureCtrlIni] impossible de créer le dossier:', dir, e); return false; }
+  }
+
+  const opts = pureCtrl || {};
+  const lines = ['[SETTINGS]'];
+
+  const cmw = (cmWeatherIndex !== undefined && cmWeatherIndex !== null)
+    ? cmWeatherIndex
+    : (opts.cmWeather !== undefined && opts.cmWeather !== null ? opts.cmWeather : 2);
+  lines.push(`CM_WEATHER=${cmw}`);
+
+  if (opts.autostart === false) lines.push('AUTOSTART=0');
+  if (opts.lastUsed === false) lines.push('LAST_USED=0');
+  if (opts.live === true) lines.push('LIVE=1');
+
+  const sw = parseInt(opts.startWetness, 10);
+  if (!isNaN(sw) && sw > 1) lines.push(`START_WETNESS=${sw}`);
+
+  const sp = parseInt(opts.startPuddles, 10);
+  if (!isNaN(sp) && sp > 1) lines.push(`START_PUDDLES=${sp}`);
+
+  if (planValue && String(planValue).trim()) lines.push(`PLAN=${planValue}`);
+
+  const content = lines.join('\n') + '\n';
+  try {
+    fs.writeFileSync(file, content, 'utf8');
+    console.log('[writePureCtrlIni] écrit →', file);
+    return true;
+  } catch (e) {
+    console.error('[writePureCtrlIni]', e);
+    return false;
+  }
+}
+
+ipcMain.handle('read-purectrl-settings', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  return readPureCtrlIni(documentsPath);
+});
+
+/* ============================================================
+   IPC — DÉTECTION DU STEAM ID
+   ============================================================ */
+
+/**
+ * Détecte le SteamID64 en lisant les fichiers locaux de Steam.
+ * Fonctionne uniquement sur Windows.
+ *
+ * Deux stratégies :
+ *   1. Lire loginusers.vdf et trouver le compte avec "MostRecent" = "1"
+ *   2. Fallback : premier SteamID64 trouvé dans le fichier
+ */
+async function detectSteamIdFromSteam() {
+  if (process.platform !== 'win32') {
+    return { success: false, error: 'Détection Steam disponible uniquement sur Windows.' };
+  }
+
+  try {
+    // 1. Récupère le chemin d'installation de Steam via la base de registre
+    let steamPath = null;
+
+    // Essaie la clé 64-bit (WOW6432Node)
+    try {
+      const out = execSync(
+        'reg query "HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam" /v InstallPath',
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+      );
+      const match = out.match(/InstallPath\s+REG_SZ\s+(.+)/);
+      if (match) steamPath = match[1].trim();
+    } catch (e) {}
+
+    // Fallback : clé 32-bit
+    if (!steamPath) {
+      try {
+        const out = execSync(
+          'reg query "HKLM\\SOFTWARE\\Valve\\Steam" /v InstallPath',
+          { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+        );
+        const match = out.match(/InstallPath\s+REG_SZ\s+(.+)/);
+        if (match) steamPath = match[1].trim();
+      } catch (e) {}
+    }
+
+    if (!steamPath) {
+      return { success: false, error: 'Steam introuvable dans la base de registre.' };
+    }
+
+    // 2. Lit loginusers.vdf
+    const loginUsersPath = path.join(steamPath, 'config', 'loginusers.vdf');
+    if (!fs.existsSync(loginUsersPath)) {
+      return { success: false, error: 'loginusers.vdf introuvable à ' + loginUsersPath };
+    }
+
+    const content = fs.readFileSync(loginUsersPath, 'utf8');
+
+    // 3. Cherche le compte avec MostRecent "1"
+    // Structure du fichier :
+    // "users"
+    // {
+    //   "76561198000000000"
+    //   {
+    //     "AccountName"     "xxx"
+    //     "PersonaName"     "xxx"
+    //     ...
+    //     "MostRecent"      "1"
+    //     ...
+    //   }
+    // }
+
+    // Découpe par blocs de SteamID (17 chiffres entre guillemets en début de ligne)
+    const blockRegex = /"(7656119\d{10})"\s*\n\s*\{([^}]+)\}/g;
+    let match;
+    let firstEntry = null;
+
+    while ((match = blockRegex.exec(content)) !== null) {
+      const steamId64 = match[1];
+      const body = match[2];
+
+      const isMostRecent = /"MostRecent"\s+"1"/.test(body);
+      const personaMatch = body.match(/"PersonaName"\s+"([^"]*)"/);
+      const accountMatch = body.match(/"AccountName"\s+"([^"]*)"/);
+
+      const entry = {
+        steamId: steamId64,
+        personaName: personaMatch ? personaMatch[1] : '',
+        accountName: accountMatch ? accountMatch[1] : '',
+        mostRecent: isMostRecent
+      };
+
+      if (isMostRecent) {
+        return {
+          success: true,
+          steamId: steamId64,
+          personaName: entry.personaName,
+          accountName: entry.accountName,
+          steamPath,
+          source: 'loginusers.vdf (MostRecent)'
+        };
+      }
+
+      if (!firstEntry) firstEntry = entry;
+    }
+
+    // Fallback : aucune entrée MostRecent, on prend la première
+    if (firstEntry) {
+      return {
+        success: true,
+        steamId: firstEntry.steamId,
+        personaName: firstEntry.personaName,
+        accountName: firstEntry.accountName,
+        steamPath,
+        source: 'loginusers.vdf (fallback)'
+      };
+    }
+
+    return { success: false, error: 'Aucun SteamID64 trouvé dans loginusers.vdf.' };
+
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Détection de secours : lit le GUID depuis race.ini (section [REMOTE]).
+ */
+function detectSteamIdFromRaceIni() {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const raceIniPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'race.ini');
+  if (!fs.existsSync(raceIniPath)) {
+    return { success: false, error: "race.ini introuvable" };
+  }
+  try {
+    const content = fs.readFileSync(raceIniPath, 'utf8');
+    const remoteSection = content.match(/\[REMOTE\]([\s\S]*?)(?=\n\[|$)/);
+    if (!remoteSection) return { success: false, error: "Section [REMOTE] introuvable" };
+    const guidMatch = remoteSection[1].match(/^GUID=(.*)$/m);
+    if (guidMatch && guidMatch[1].trim()) {
+      return { success: true, steamId: guidMatch[1].trim(), source: 'race.ini' };
+    }
+    return { success: false, error: "Champ GUID vide dans [REMOTE]" };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Handler IPC unifié : essaie d'abord Steam, puis race.ini.
+ */
+ipcMain.handle('detect-steam-id', async () => {
+  // 1. Tentative via Steam
+  const fromSteam = await detectSteamIdFromSteam();
+  if (fromSteam.success) return fromSteam;
+
+  // 2. Fallback : race.ini
+  const fromRaceIni = detectSteamIdFromRaceIni();
+  if (fromRaceIni.success) {
+    return {
+      ...fromRaceIni,
+      warning: fromSteam.error ? `Steam : ${fromSteam.error}` : null
+    };
+  }
+
+  // 3. Échec complet
+  return {
+    success: false,
+    error: `Steam : ${fromSteam.error || 'inconnue'} | race.ini : ${fromRaceIni.error || 'inconnue'}`
+  };
+});
+
+/* ============================================================
+   Assistances & launcher.ini
+   ============================================================ */
+function forceCustomAssistsProfile(documentsPath) {
+  const launcherIniPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'launcher.ini');
+  if (!fs.existsSync(launcherIniPath)) return false;
+  try {
+    let content = fs.readFileSync(launcherIniPath, 'utf8');
+    if (/^ASSISTS=/m.test(content)) content = content.replace(/^ASSISTS=.*$/m, 'ASSISTS=custom');
+    else if (/\[SAVED\]/m.test(content)) content = content.replace(/\[SAVED\](\r?\n)/, '[SAVED]$1ASSISTS=custom\n');
+    else content += '\n[SAVED]\nASSISTS=custom\n';
+    fs.writeFileSync(launcherIniPath, content, 'utf8');
+    return true;
+  } catch (e) { return false; }
+}
+
+function writeAssistsIni(documentsPath, assists) {
+  const cfgDir = path.join(documentsPath, 'Assetto Corsa', 'cfg');
+  if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
+  const path_ = path.join(cfgDir, 'assists.ini');
+  const content =
+`[ASSISTS]
+IDEAL_LINE=${assists.idealLine ? 1 : 0}
+AUTO_BLIP=${assists.autoblip ? 1 : 0}
+STABILITY_CONTROL=${assists.stability !== undefined ? assists.stability : 0}
+AUTO_BRAKE=0
+AUTO_SHIFTER=${assists.autoGearbox ? 1 : 0}
+ABS=${assists.abs !== undefined ? assists.abs : 1}
+TRACTION_CONTROL=${assists.tc !== undefined ? assists.tc : 1}
+AUTO_CLUTCH=${assists.autoclutch ? 1 : 0}
+VISUALDAMAGE=1
+DAMAGE=${assists.mechanicalDamage !== undefined ? assists.mechanicalDamage : 100}
+FUEL_RATE=${assists.fuelRate !== undefined ? assists.fuelRate : 1}
+TYRE_WEAR=${assists.tyreWear !== undefined ? assists.tyreWear : 1}
+TYRE_BLANKETS=${assists.tyreBlankets ? 1 : 0}
+SLIPSTREAM=${assists.slipstream !== undefined ? assists.slipstream : 1}
+`;
+  try { fs.writeFileSync(path_, content, 'utf8'); return true; }
+  catch (e) { return false; }
+}
+
+/* ============================================================
+   CONTENU & LANCEMENT
+   ============================================================ */
+function loadContentInternal() {
+  let settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  let acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) {
+    const defaultPaths = [
+      'C:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa',
+      'D:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+      'E:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+      'F:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+      'C:\\SteamLibrary\\steamapps\\common\\assettocorsa'
+    ];
+    for (const p of defaultPaths) {
+      if (fs.existsSync(p)) {
+        acPath = p; settings.acPath = acPath;
+        try { fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
+        break;
+      }
+    }
+  }
+  let cars = [], tracks = [], weatherList = [], purePlans = [];
+  if (acPath && fs.existsSync(acPath)) {
+    cars = scanCars(acPath);
+    tracks = scanTracks(acPath);
+    weatherList = scanWeather(acPath);
+    purePlans = scanPurePlans(acPath);
+  }
+  return { cars, tracks, weatherList, purePlans, acPath: acPath || '' };
+}
+
+ipcMain.handle('load-content', async () => loadContentInternal());
+
+ipcMain.handle('save-custom-plan', async (event, planName, steps, sessionStartTime, timeMult, loop) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  if (!planName || !planName.trim()) throw new Error("Nom du plan manquant.");
+  if (!Array.isArray(steps) || steps.length === 0) throw new Error("Aucune étape dans le plan.");
+  const presetsFile = path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'WeatherPresets', 'Default_WeatherPresets.json');
+  const presets = parseWeatherPresets(presetsFile);
+  const planData = buildPlanData(steps, presets, sessionStartTime || '12:00', parseInt(timeMult, 10) || 1, 3, !!loop);
+  const { fileName, folder } = writePurePlanArchive(acPath, `Custom_${planName}`, planData, PURE_TYPE_TO_FOLDER[3]);
+  return { success: true, fileName: `${folder}/${fileName}`, planName: fileName.replace(/\.json$/i, '') };
+});
+
+/* ============================================================
+   IPC — GESTION DES PLANS PURE EXISTANTS
+   ============================================================ */
+function resolvePlanFilePath(acPath, planId) {
+  if (!acPath || !planId) return null;
+  const purePlannerDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
+  const plansDir = path.join(purePlannerDir, 'Plans');
+  const normalized = String(planId).replace(/\\/g, '/');
+  if (normalized.includes('..')) return null;
+  const full = path.join(plansDir, normalized);
+  const resolved = path.resolve(full);
+  if (!resolved.startsWith(path.resolve(plansDir))) return null;
+  return resolved;
+}
+
+ipcMain.handle('load-pure-plan', async (event, planId) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  const planPath = resolvePlanFilePath(acPath, planId);
+  if (!planPath || !fs.existsSync(planPath)) throw new Error("Plan introuvable : " + planId);
+  let raw;
+  try { raw = JSON.parse(fs.readFileSync(planPath, 'utf8')); }
+  catch (e) { throw new Error("Fichier de plan illisible : " + e.message); }
+  return {
+    success: true,
+    planId: planId,
+    planName: path.basename(planPath, '.json'),
+    folder: path.basename(path.dirname(planPath)),
+    data: raw
+  };
+});
+
+ipcMain.handle('delete-pure-plan', async (event, planId) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  const planPath = resolvePlanFilePath(acPath, planId);
+  if (!planPath || !fs.existsSync(planPath)) throw new Error("Plan introuvable : " + planId);
+  try { fs.unlinkSync(planPath); }
+  catch (e) { throw new Error("Impossible de supprimer le plan : " + e.message); }
+  return { success: true };
+});
+
+function resolveDocumentsPath(settings) {
+  if (settings && settings.documentsPath && fs.existsSync(settings.documentsPath))
+    return { path: settings.documentsPath, source: 'manuel' };
+  try { const p = app.getPath('documents'); if (p && fs.existsSync(p)) return { path: p, source: 'electron' }; } catch (e) {}
+  const home = os.homedir();
+  const candidates = [
+    path.join(home, 'Documents'), path.join(home, 'OneDrive', 'Documents'),
+    path.join(home, 'OneDrive - Personal', 'Documents'), path.join(home, 'OneDrive - Business', 'Documents')
+  ];
+  for (const c of candidates) if (fs.existsSync(path.join(c, 'Assetto Corsa'))) return { path: c, source: 'auto-AC' };
+  for (const c of candidates) if (fs.existsSync(c)) return { path: c, source: 'auto' };
+  return { path: path.join(home, 'Documents'), source: 'fallback' };
+}
+
+ipcMain.handle('launch-game', async (event, sessionData) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const content = loadContentInternal();
+  if (!settings.acPath || !fs.existsSync(settings.acPath)) throw new Error("Chemin AC invalide.");
+
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  settings.documentsPath = documentsPath;
+
+  const weatherMode = sessionData.weatherMode || 'static';
+  const sessionStartTime = sessionData.sessionStartTime || '12:00';
+  const timeMult = parseInt(sessionData.timeMult, 10) || 1;
+  const planLoop = !!sessionData.planLoop;
+
+  forceCustomAssistsProfile(documentsPath);
+  writeAssistsIni(documentsPath, sessionData.assists || {});
+
+  try {
+    let planValue = null;
+    let cmWeatherIndex = 2;
+
+    if (weatherMode === 'custom_plan') {
+      if (Array.isArray(sessionData.customPlanSteps) && sessionData.customPlanSteps.length > 0) {
+        const { fileName, folder } = writeCustomPurePlan(settings.acPath,
+          sessionData.customPlanName || 'MonPlan',
+          sessionData.customPlanSteps, sessionStartTime, timeMult, planLoop);
+        planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
+        cmWeatherIndex = 2;
+        sessionData.purePlan = planValue;
+      }
+
+    } else if (weatherMode === 'existing_plan') {
+      if (sessionData.purePlan) {
+        const fn = sessionData.purePlan.endsWith('.json') ? sessionData.purePlan : sessionData.purePlan + '.json';
+        const folderGuess = sessionData.purePlan.includes('/')
+          ? sessionData.purePlan.substring(0, sessionData.purePlan.lastIndexOf('/'))
+          : 'Stamp';
+        if (activateExistingPurePlan(settings.acPath, fn, timeMult, planLoop)) {
+          const baseName = path.basename(fn, '.json');
+          planValue = `${folderGuess}/${baseName}`;
+          cmWeatherIndex = 2;
+          sessionData.purePlan = planValue;
+        }
+      }
+
+    } else {
+      const staticWeather = sessionData.weather || 'sol_01_clear';
+      const { fileName, folder } = writeStaticPurePlan(settings.acPath, staticWeather, sessionStartTime, timeMult);
+      planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
+      cmWeatherIndex = getPureCtrlCmWeather(staticWeather);
+      sessionData.purePlan = staticWeather;
+      console.log('[launch-game] Météo fixe :', staticWeather,
+                  '→ PLAN =', planValue, '/ CM_WEATHER =', cmWeatherIndex);
+    }
+
+    writePureCtrlIni(documentsPath, sessionData.pureCtrl || {}, planValue, cmWeatherIndex);
+  } catch (err) {
+    console.error("Erreur plan Pure :", err);
+    throw new Error("Échec écriture plan Pure : " + err.message);
+  }
+
+  settings.nationality = sessionData.nationality || 'France';
+  settings.nationCode = sessionData.nationCode || 'FRA';
+
+  try {
+    writeRaceConfig(settings.acPath, sessionData, settings, content.cars || []);
+  } catch (err) {
+    console.error("Erreur race.ini :", err);
+    throw new Error("Échec race.ini : " + err.message);
+  }
+
+  try {
+    const carObj = (content.cars || []).find(c => c.id === sessionData.car);
+    const trackObj = (content.tracks || []).find(t => t.id === sessionData.track);
+    const skinObj = carObj?.skins?.find(s => s.id === sessionData.skin);
+    const variantObj = trackObj?.variants?.find(v => v.id === sessionData.layout);
+
+    const preview = skinObj?.preview || carObj?.preview || '';
+
+    let weatherDisplay = '';
+    if (weatherMode === 'custom_plan') {
+      weatherDisplay = `Plan perso (${(sessionData.customPlanSteps || []).length} étapes)`;
+    } else if (weatherMode === 'existing_plan') {
+      weatherDisplay = `Plan : ${sessionData.purePlan || '—'}`;
+    } else {
+      weatherDisplay = sessionData.weather || '—';
+    }
+
+    const entry = {
+      id: 'sess_' + Date.now(),
+      date: Date.now(),
+      car: sessionData.car,
+      carName: carObj?.name || sessionData.car,
+      skin: sessionData.skin || '',
+      skinName: skinObj?.name || sessionData.skin || '',
+      preview: preview,
+      track: sessionData.track,
+      trackName: trackObj?.name || sessionData.track,
+      variant: sessionData.layout || '',
+      variantName: variantObj?.name || '',
+      sessionType: sessionData.sessionType || 'RACE',
+      laps: sessionData.laps || 0,
+      opponentsCount: sessionData.opponentsCount || 0,
+      weatherMode: weatherMode,
+      weatherDisplay: weatherDisplay,
+      sessionStartTime: sessionStartTime,
+      timeMult: timeMult,
+      sessionData: { ...sessionData }
+    };
+
+    let list = getSessionHistory();
+    list.unshift(entry);
+    if (list.length > 100) list.length = 100;
+    saveSessionHistory(list);
+
+    event.sender.send('session-history-updated');
+  } catch (e) {
+    console.error('[SessionHistory] Erreur enregistrement:', e);
+  }
+
+  const acExePath = path.join(settings.acPath, 'acs.exe');
+  if (fs.existsSync(acExePath)) {
+    try {
+      const child = spawn(acExePath, [], {
+        cwd: settings.acPath,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      });
+      child.unref();
+      return { success: true };
+    } catch (e) {
+      throw new Error("Impossible de lancer acs.exe : " + e.message);
+    }
+  } else {
+    try {
+      spawn('cmd', ['/c', 'start', 'steam://rungameid/244210'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }).unref();
+      return { success: true };
+    } catch (e) {
+      throw new Error("Impossible de lancer AC via Steam : " + e.message);
+    }
+  }
+});
+
+/* ============================================================
+   IPC — SERVEURS EN LIGNE (GS4u scraping)
+   ============================================================ */
+const GS4U_URL_BASE = 'https://www.gs4u.net/en/assettocorsa/page-';
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) QACRL/1.0' } }, (res) => {
+      if (res.statusCode !== 200) {
+        return reject(new Error(`HTTP ${res.statusCode} sur ${url}`));
+      }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve(data));
+    }).on('error', reject).setTimeout(15000, function() { this.destroy(new Error('Timeout')); });
+  });
+}
+
+function httpGetJson(url, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('JSON invalide : ' + e.message)); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(new Error('Timeout')); });
+  });
+}
+
+function httpGetRaw(url, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, { timeout: timeoutMs }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve(data));
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(new Error('Timeout')); });
+  });
+}
+
+function parseGS4uPage(html) {
+  const servers = [];
+  const rowRegex = /<tr[^>]*data-server-id="(\d+)"[^>]*>([\s\S]*?)<\/tr>/g;
+  let m;
+  while ((m = rowRegex.exec(html)) !== null) {
+    const serverId = m[1];
+    const row = m[2];
+
+    const ratingMatch = row.match(/<td class="rating">[\s\S]*?<span[^>]*title="Rating (\d+)"[\s\S]*?<\/td>/);
+    const rating = ratingMatch ? parseInt(ratingMatch[1], 10) : 0;
+
+    const servernameMatch = row.match(/<td class="servername">[\s\S]*?<a[^>]*title="([^"]+)"[^>]*>([^<]+)<\/a>/);
+    let serverName = '';
+    if (servernameMatch) {
+      serverName = servernameMatch[2].trim().replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"');
+    }
+
+    const playersMatch = row.match(/<td class="players">(\d+)&nbsp;\/&nbsp;(\d+)<\/td>/);
+    const playersCurrent = playersMatch ? parseInt(playersMatch[1], 10) : 0;
+    const playersMax = playersMatch ? parseInt(playersMatch[2], 10) : 0;
+
+    const countryMatch = row.match(/<td class="contryname">[\s\S]*?<span class="flagicon16 ([a-z]{2})[^"]*" title="([^"]+)"/);
+    const countryCode = countryMatch ? countryMatch[1] : '';
+    const countryName = countryMatch ? countryMatch[2] : '';
+
+    const ipPortMatch = row.match(/<td class="ipport">[\s\S]*?<a[^>]*>([^<]+)<\/a>/);
+    let ipPort = ipPortMatch ? ipPortMatch[1].trim() : '';
+    let ip = '', port = 0;
+    if (ipPort) {
+      const parts = ipPort.split(':');
+      ip = parts[0] || '';
+      port = parseInt(parts[1], 10) || 0;
+    }
+
+    const mapMatch = row.match(/<td class="mapname">[\s\S]*?<a[^>]*title="[^"]*?:\s*([^"]+)"/);
+    const mapRaw = mapMatch ? mapMatch[1].trim() : '';
+
+    if (ip && port) {
+      servers.push({
+        id: serverId,
+        name: serverName || `Serveur #${serverId}`,
+        rating,
+        playersCurrent,
+        playersMax,
+        countryCode,
+        countryName,
+        ip,
+        port,
+        httpPort: port + 1,
+        map: mapRaw,
+        source: 'gs4u'
+      });
+    }
+  }
+  return servers;
+}
+
+ipcMain.handle('fetch-online-servers', async (event, page) => {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const url = GS4U_URL_BASE + pageNum;
+  try {
+    const html = await httpsGet(url);
+    const servers = parseGS4uPage(html);
+
+    let hasNext = false;
+    const lastPageMatch = html.match(/page-(\d+)"[^>]*class="page-link"/g);
+    if (lastPageMatch) {
+      const pages = lastPageMatch.map(s => parseInt(s.match(/page-(\d+)/)[1], 10));
+      hasNext = Math.max(...pages) > pageNum;
+    }
+    return { success: true, page: pageNum, servers, hasNext };
+  } catch (err) {
+    console.error('[fetch-online-servers]', err);
+    return { success: false, error: err.message, servers: [] };
+  }
+});
+
+/* ============================================================
+   IPC — DÉTAILS SERVEUR via /INFO
+   ============================================================ */
+ipcMain.handle('fetch-server-info', async (event, ip, port) => {
+  if (!ip || !port) return { success: false, error: "IP ou port manquant." };
+
+  const candidatePorts = [port, port + 1];
+  let lastError = null;
+
+  for (const p of candidatePorts) {
+    try {
+      const url = `http://${ip}:${p}/INFO`;
+      const data = await httpGetJson(url, 5000);
+
+      const cleaned = cleanTrackPath(data.track);
+
+      return {
+        success: true,
+        queriedPort: p,
+        gamePort: parseInt(data.port, 10) || 0,
+        httpPort: parseInt(data.cport, 10) || p,
+        name: data.name || '',
+        track: cleaned.track,
+        trackConfig: cleaned.trackConfig,
+        trackFull: cleaned.trackFull,
+        cars: Array.isArray(data.cars) ? data.cars : [],
+        clients: parseInt(data.clients, 10) || 0,
+        maxClients: parseInt(data.maxclients, 10) || 0,
+        passwordRequired: !!data.pass,
+        session: data.session,
+        sessionTypes: data.sessiontypes || [],
+        timeLeft: data.timeleft || 0
+      };
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  return { success: false, error: lastError ? lastError.message : "Serveur injoignable." };
+});
+
+/* ============================================================
+   IPC — DÉTAILS ÉTENDUS via /api/details (AssettoServer)
+   ============================================================ */
+function computeSlotsFromCarsArray(carsArr) {
+  const slotsByCar = {};
+  if (!Array.isArray(carsArr)) return slotsByCar;
+
+  for (const entry of carsArr) {
+    const model = entry && entry.Model ? String(entry.Model) : '';
+    if (!model) continue;
+    // ⚠️ On ne compte QUE les entrées d'EntryList (les autres ne sont pas jouables)
+    if (entry.IsEntryList === false) continue;
+    if (!slotsByCar[model]) slotsByCar[model] = { max: 0, used: 0, free: 0 };
+    slotsByCar[model].max += 1;
+    if (entry.IsConnected === true) slotsByCar[model].used += 1;
+  }
+
+  for (const car of Object.keys(slotsByCar)) {
+    slotsByCar[car].free = Math.max(0, slotsByCar[car].max - slotsByCar[car].used);
+  }
+  return slotsByCar;
+}
+
+ipcMain.handle('fetch-server-details', async (event, ip, basePort, gamePort) => {
+  if (!ip) return { success: false, error: 'IP manquante.' };
+
+  const candidates = [];
+  const push = (p) => {
+    const n = parseInt(p, 10);
+    if (n && n > 0 && n < 65536 && !candidates.includes(n)) candidates.push(n);
+  };
+  push(basePort);
+  if (gamePort) push(parseInt(gamePort, 10) + 1);
+  push(gamePort);
+  if (basePort) { push(parseInt(basePort, 10) + 1); push(parseInt(basePort, 10) - 1); }
+
+  let lastError = null;
+  for (const p of candidates) {
+    try {
+      const url = `http://${ip}:${p}/api/details`;
+      const data = await httpGetJson(url, 4000);
+
+      if (!data || typeof data !== 'object') {
+        lastError = new Error(`Port ${p} : réponse vide`);
+        continue;
+      }
+
+      const cleanedTrack = cleanTrackPath(data.track || data.trackBase || '');
+      const carsList = Array.isArray(data.cars) ? data.cars : [];
+
+      const slotsByCar = computeSlotsFromCarsArray(
+        data.players && Array.isArray(data.players.Cars) ? data.players.Cars : []
+      );
+
+      const driversConnected = [];
+      if (data.players && Array.isArray(data.players.Cars)) {
+        for (const c of data.players.Cars) {
+          if (c && c.IsConnected === true && c.DriverName) {
+            driversConnected.push(String(c.DriverName));
+          }
+        }
+      }
+
+      return {
+		success: true,
+		usedPort: p,
+		details: {
+		  name: data.name || '',
+		  description: data.description || '',
+		  track: cleanedTrack.track,
+		  trackConfig: cleanedTrack.trackConfig,
+		  trackFull: cleanedTrack.trackFull,
+		  cars: carsList,
+		  slotsByCar: slotsByCar,
+		  drivers: driversConnected,
+		  gamePort: parseInt(data.port, 10) || parseInt(data.tport, 10) || 0,
+		  httpPort: parseInt(data.cport, 10) || p,
+		  clients: parseInt(data.clients, 10) || 0,
+		  maxClients: parseInt(data.maxclients, 10) || 0,
+		  passwordRequired: !!data.pass,
+		  currentWeatherId: data.currentWeatherId || '',
+		  ambientTemperature: data.ambientTemperature,
+		  roadTemperature: data.roadTemperature,
+		  windSpeed: data.windSpeed,
+		  windDirection: data.windDirection,
+		  grip: data.grip,
+		  poweredBy: data.poweredBy || '',
+		  country: Array.isArray(data.country) ? data.country : [],
+		  features: Array.isArray(data.features) ? data.features : [],
+		  city: data.city || '',
+		  frequency: data.frequency,
+		  until: data.until
+		}
+	  };
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  console.warn('[fetch-server-details] échec sur tous les ports :', candidates, '/ dernière erreur :', lastError?.message);
+  return { success: false, error: lastError ? lastError.message : 'Aucun port ne répond.' };
+});
+
+/* ============================================================
+   IPC — PING serveur (test rapide /INFO avec timeout 2s)
+   ============================================================ */
+ipcMain.handle('ping-server', async (event, ip, port) => {
+  if (!ip || !port) return { success: false, error: 'IP ou port manquant' };
+  const candidatePorts = [port, port + 1];
+  const startedAt = Date.now();
+  for (const p of candidatePorts) {
+    try {
+      const url = `http://${ip}:${p}/INFO`;
+      await httpGetJson(url, 2000);
+      const ms = Date.now() - startedAt;
+      return { success: true, ms };
+    } catch (e) {}
+  }
+  return { success: false, error: 'Injoignable', ms: null };
+});
+
+/* ============================================================
+   IPC — OCCUPATION SERVEUR via /ENTRY (fallback pour vieux serveurs)
+   ============================================================ */
+function parseEntryFile(text) {
+  const slotsByCar = {};
+  const firstTableMatch = text.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+  if (!firstTableMatch) return slotsByCar;
+  const tableHtml = firstTableMatch[1];
+
+  const rows = tableHtml.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+  const allDrivers = [];
+
+  for (const rowHtml of rows) {
+    const cells = [];
+    const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+    let m;
+    while ((m = tdRegex.exec(rowHtml)) !== null) {
+      const val = m[1].replace(/<[^>]+>/g, '').trim();
+      cells.push(val);
+    }
+
+    if (cells.length < 4) continue;
+    const id = parseInt(cells[0], 10);
+    if (isNaN(id)) continue;
+
+    const driver = cells[1] || '';
+    const car = cells[2] || '';
+    const team = cells[3] || '';
+    const ping = cells[4] || '';
+    if (!car) continue;
+
+    if (!slotsByCar[car]) slotsByCar[car] = { max: 0, used: 0, free: 0 };
+    slotsByCar[car].max += 1;
+
+    const isDisconnected = /^DC$/i.test(team) || /^DC$/i.test(ping);
+    if (driver && !isDisconnected) slotsByCar[car].used += 1;
+
+    if (driver) allDrivers.push(driver);
+  }
+
+  for (const car of Object.keys(slotsByCar)) {
+    slotsByCar[car].free = Math.max(0, slotsByCar[car].max - slotsByCar[car].used);
+  }
+
+  return { slotsByCar, drivers: allDrivers };
+}
+
+ipcMain.handle('fetch-server-occupancy', async (event, ip, basePort, gamePort) => {
+  if (!ip) return { success: false, error: "IP manquante.", slotsByCar: {}, drivers: [] };
+
+  const candidates = [];
+  const push = (p) => {
+    const n = parseInt(p, 10);
+    if (n && n > 0 && n < 65536 && !candidates.includes(n)) candidates.push(n);
+  };
+  push(basePort);
+  if (gamePort) push(parseInt(gamePort, 10) + 1);
+  push(gamePort);
+  if (gamePort) push(parseInt(gamePort, 10) - 1);
+  if (basePort) { push(parseInt(basePort, 10) + 1); push(parseInt(basePort, 10) - 1); }
+
+  let lastError = null;
+  for (const p of candidates) {
+    try {
+      const url = `http://${ip}:${p}/ENTRY`;
+      const text = await httpGetRaw(url, 4000);
+      if (!text || !/Entry List/i.test(text)) {
+        lastError = new Error(`Port ${p} : pas de Entry List`);
+        continue;
+      }
+      const result = parseEntryFile(text);
+      return { success: true, usedPort: p, slotsByCar: result.slotsByCar, drivers: result.drivers };
+    } catch (e) {
+      lastError = e;
+    }
+  }
+
+  return { success: false, error: lastError?.message || 'Aucun port ne répond.', slotsByCar: {}, drivers: [] };
+});
+
+/* ============================================================
+   IPC — CONNEXION SERVEUR (écriture race.ini [REMOTE])
+   ============================================================ */
+function writeRemoteServerInRaceIni(documentsPath, serverData, sessionData) {
+  const raceIniPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'race.ini');
+  if (!fs.existsSync(raceIniPath)) {
+    throw new Error("race.ini introuvable : " + raceIniPath);
+  }
+
+  let content = fs.readFileSync(raceIniPath, 'utf8');
+
+  const onlineNameRaw = (sessionData.onlineName || '').trim() || sessionData.driverName || 'Player';
+  const onlineName = onlineNameRaw.replace(/[\r\n=]/g, '');   // ⭐ NOUVEAU : protège NAME
+  const guid = (sessionData.steamId || '').trim() || '';
+  const carId = sessionData.car || '';
+  const password = (sessionData.password || '').trim();
+
+  // ⭐ Features CSP par défaut (obligatoires pour AssettoServer)
+	  const DEFAULT_CSP_FEATURES = [
+		'WEATHERFX_V1',
+		'SPECTATING_AWARE',
+		'LOWER_CLIENTS_SENDING_RATE',
+		'EMOJI',
+		'CLIENT_MESSAGES',
+		'CUSTOM_UPDATE'
+	  ];
+
+	  // Utilise les features réelles du serveur si dispo, sinon fallback
+	  const serverFeatures = Array.isArray(serverData.features) && serverData.features.length > 0
+		? serverData.features
+		: DEFAULT_CSP_FEATURES;
+
+	  let remoteSection = `[REMOTE]
+	ACTIVE=1
+	SERVER_IP=${serverData.ip}
+	SERVER_PORT=${serverData.port}
+	SERVER_NAME=${(serverData.name || '').replace(/[\r\n=]/g, ' ')}
+	SERVER_HTTP_PORT=${serverData.httpPort || (serverData.port + 1)}
+	REQUESTED_CAR=${carId}
+	GUID=${guid}
+	NAME=${onlineName}
+	__CM_EXTENDED=1
+	__FEATURES=${serverFeatures.join(',')}
+	`;
+	  if (password) {
+		remoteSection += `PASSWORD=${password}\n`;
+	  }
+
+  if (/\[REMOTE\]/.test(content)) {
+    content = content.replace(/\[REMOTE\][\s\S]*?(?=\n\[|$)/, remoteSection.trimEnd());
+  } else {
+    content = content.trimEnd() + '\n\n' + remoteSection;
+  }
+
+  const track = serverData.track || '';
+  const trackConfig = serverData.trackConfig || '';
+  const serverIpLine = `${serverData.ip}:${serverData.port}`;
+
+  function setRaceKey(ini, key, value) {
+    const raceRe = /\[RACE\]([\s\S]*?)(?=\n\[|$)/;
+    const raceMatch = ini.match(raceRe);
+    if (!raceMatch) return ini;
+    const raceBody = raceMatch[1];
+    const keyRe = new RegExp(`^${key}=.*$`, 'm');
+    let newRaceBody;
+    if (keyRe.test(raceBody)) {
+      newRaceBody = raceBody.replace(keyRe, `${key}=${value}`);
+    } else {
+      newRaceBody = raceBody.trimEnd() + `\n${key}=${value}`;
+    }
+    return ini.replace(raceRe, `[RACE]${newRaceBody}`);
+  }
+
+  if (carId) content = setRaceKey(content, 'MODEL', carId);
+  if (sessionData.skin) content = setRaceKey(content, 'SKIN', sessionData.skin);
+  if (track) content = setRaceKey(content, 'TRACK', track);
+  if (trackConfig !== undefined) content = setRaceKey(content, 'CONFIG_TRACK', trackConfig);
+  content = setRaceKey(content, 'SERVER_IP', serverIpLine);
+
+  // ⭐ Force le spawn au PIT pour les serveurs multijoueur
+  // (sinon AC spawn "sur la grille" et sur les serveurs pickup ça donne l'impression
+  //  qu'on est dans le vide)
+  const sessionBlock = `[SESSION_0]
+NAME=Nothing
+TYPE=1
+DURATION_MINUTES=0
+SPAWN_SET=PIT
+`;
+  if (/\[SESSION_0\]/.test(content)) {
+    content = content.replace(/\[SESSION_0\][\s\S]*?(?=\n\[|$)/, sessionBlock.trimEnd());
+  } else {
+    content = content.trimEnd() + '\n\n' + sessionBlock;
+  }
+
+  fs.writeFileSync(raceIniPath, content, 'utf8');
+  return true;
+}
+
+ipcMain.handle('join-server', async (event, serverData, sessionData) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+
+  if (!serverData || !serverData.ip || !serverData.port) {
+    throw new Error("Données serveur invalides.");
+  }
+
+  writeRemoteServerInRaceIni(documentsPath, serverData, sessionData || {});
+
+  const acExePath = path.join(acPath, 'acs.exe');
+  if (fs.existsSync(acExePath)) {
+    try {
+      const child = spawn(acExePath, [], {
+        cwd: acPath,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      });
+      child.unref();
+      return { success: true };
+    } catch (e) {
+      throw new Error("Impossible de lancer acs.exe : " + e.message);
+    }
+  } else {
+    try {
+      spawn('cmd', ['/c', 'start', 'steam://rungameid/244210'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true
+      }).unref();
+      return { success: true };
+    } catch (e) {
+      throw new Error("Impossible de lancer AC via Steam : " + e.message);
+    }
+  }
+});
+
+/* ============================================================
+   INSTALLATION DE MODS
+   ============================================================ */
+function getArchiveTool() {
+  const candidates = [
+    'C:\\Program Files\\7-Zip\\7z.exe',
+    'C:\\Program Files (x86)\\7-Zip\\7z.exe'
+  ];
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'Programs', '7-Zip', '7z.exe'));
+  if (process.env.ProgramW6432) candidates.push(path.join(process.env.ProgramW6432, '7-Zip', '7z.exe'));
+  for (const exe of candidates) if (fs.existsSync(exe)) return { type: '7z', exe };
+  try {
+    const out = execSync('where 7z', { encoding: 'utf8', stdio: ['ignore','pipe','ignore'] });
+    const first = out.split(/\r?\n/).map(l => l.trim()).filter(Boolean)[0];
+    if (first && fs.existsSync(first)) return { type: '7z', exe: first };
+  } catch (e) {}
+  return { type: 'admzip' };
+}
+
+function extractArchive(filePath, destDir) {
+  const ext = path.extname(filePath).toLowerCase();
+  const tool = getArchiveTool();
+  if (tool.type === '7z') {
+    return new Promise((resolve, reject) => {
+      exec(`"${tool.exe}" x "${filePath}" -o"${destDir}" -y`, { maxBuffer: 200 * 1024 * 1024 }, (error) => {
+        if (error) return reject(new Error("Échec 7-Zip : " + error.message));
+        resolve();
+      });
+    });
+  }
+  if (ext !== '.zip') throw new Error("Format non supporté sans 7-Zip.");
+  try { const zip = new AdmZip(filePath); zip.extractAllTo(destDir, true); }
+  catch (e) { throw new Error("Échec .zip : " + e.message); }
+  return Promise.resolve();
+}
+
+function findUiJson(dir, jsonName) {
+  const uiDir = path.join(dir, 'ui');
+  if (!fs.existsSync(uiDir)) return false;
+  if (fs.existsSync(path.join(uiDir, jsonName))) return true;
+  try {
+    for (const e of fs.readdirSync(uiDir, { withFileTypes: true }))
+      if (e.isDirectory() && fs.existsSync(path.join(uiDir, e.name, jsonName))) return true;
+  } catch (e) {}
+  return false;
+}
+
+function buildInstallPlan(tempDir, acPath) {
+  const plan = [];
+  const seen = new Set();
+  function tryDetect(dir, depth) {
+    if (seen.has(dir) || depth > 8) return !!seen.has(dir);
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return false; }
+    const dirName = path.basename(dir).toLowerCase();
+    if (dirName === 'content') {
+      const subNames = entries.filter(e => e.isDirectory()).map(e => e.name.toLowerCase());
+      if (subNames.includes('cars') || subNames.includes('tracks')) {
+        const carsDir = path.join(dir, 'cars');
+        const tracksDir = path.join(dir, 'tracks');
+        if (fs.existsSync(carsDir)) for (const e of fs.readdirSync(carsDir, { withFileTypes: true }))
+          if (e.isDirectory()) { const src = path.join(carsDir, e.name);
+            plan.push({ kind: 'car', src, dest: path.join(acPath, 'content', 'cars', e.name), label: `Voiture : ${e.name}` });
+            seen.add(src); }
+        if (fs.existsSync(tracksDir)) for (const e of fs.readdirSync(tracksDir, { withFileTypes: true }))
+          if (e.isDirectory()) { const src = path.join(tracksDir, e.name);
+            plan.push({ kind: 'track', src, dest: path.join(acPath, 'content', 'tracks', e.name), label: `Circuit : ${e.name}` });
+            seen.add(src); }
+        seen.add(dir); return true;
+      }
+    }
+    if ((dirName === 'apps' || dirName === 'extension' || dirName === 'system') && !seen.has(dir)) {
+      for (const e of entries) { const src = path.join(dir, e.name);
+        plan.push({ kind: dirName, src, dest: path.join(acPath, dirName, e.name), label: `${dirName}/${e.name}` });
+        seen.add(src); }
+      seen.add(dir); return true;
+    }
+    const hasKn5 = entries.some(e => e.isFile() && e.name.toLowerCase().endsWith('.kn5'));
+    if (hasKn5) {
+      const hasCar = findUiJson(dir, 'ui_car.json');
+      const hasTrack = findUiJson(dir, 'ui_track.json');
+      if (hasCar && !hasTrack) { plan.push({ kind: 'car', src: dir, dest: path.join(acPath, 'content', 'cars', path.basename(dir)), label: `Voiture : ${path.basename(dir)}` }); seen.add(dir); return true; }
+      if (hasTrack && !hasCar) { plan.push({ kind: 'track', src: dir, dest: path.join(acPath, 'content', 'tracks', path.basename(dir)), label: `Circuit : ${path.basename(dir)}` }); seen.add(dir); return true; }
+    }
+    return false;
+  }
+  function walk(dir, depth) {
+    if (tryDetect(dir, depth)) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+    for (const e of entries) if (e.isDirectory()) walk(path.join(dir, e.name), depth + 1);
+  }
+  walk(tempDir, 0);
+  return plan;
+}
+
+function countFilesInTree(src) {
+  let count = 0, stat;
+  try { stat = fs.statSync(src); } catch (e) { return 0; }
+  if (stat.isDirectory()) {
+    let entries;
+    try { entries = fs.readdirSync(src, { withFileTypes: true }); } catch (e) { return 0; }
+    for (const e of entries) count += countFilesInTree(path.join(src, e.name));
+  } else count = 1;
+  return count;
+}
+
+function copyRecursive(src, dest, onFile) {
+  const stat = fs.statSync(src);
+  if (stat.isDirectory()) {
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+    for (const entry of fs.readdirSync(src, { withFileTypes: true }))
+      copyRecursive(path.join(src, entry.name), path.join(dest, entry.name), onFile);
+  } else {
+    const parent = path.dirname(dest);
+    if (!fs.existsSync(parent)) fs.mkdirSync(parent, { recursive: true });
+    fs.copyFileSync(src, dest);
+    if (onFile) onFile(path.basename(dest));
+  }
+}
+
+ipcMain.handle('install-mod', async (event, filePath) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  if (!filePath || !fs.existsSync(filePath)) throw new Error("Fichier introuvable.");
+  const tempDir = path.join(os.tmpdir(), `ac_launcher_extract_${Date.now()}`);
+  fs.mkdirSync(tempDir, { recursive: true });
+  try {
+    event.sender.send('install-mod-progress', { status: 'Décompression...', percent: 5, copiedFiles: 0, totalFiles: 0 });
+    await extractArchive(filePath, tempDir);
+    event.sender.send('install-mod-progress', { status: 'Analyse...', percent: 20, copiedFiles: 0, totalFiles: 0 });
+    const plan = buildInstallPlan(tempDir, acPath);
+    if (plan.length === 0) throw new Error("Aucun contenu valide détecté.");
+    const conflicts = plan.filter(p => fs.existsSync(p.dest));
+    let conflictMode = 'replace';
+    if (conflicts.length > 0) {
+      const detail = conflicts.slice(0, 15).map(c => '• ' + c.label).join('\n') + (conflicts.length > 15 ? `\n… et ${conflicts.length - 15} autre(s)` : '');
+      const { response } = await dialog.showMessageBox({
+        type: 'warning', buttons: ['Remplacer','Passer','Annuler'], defaultId: 0, cancelId: 2, noLink: true,
+        title: 'Conflits', message: `${conflicts.length} élément(s) déjà présent(s).`, detail
+      });
+      if (response === 2) return { success: false, cancelled: true, installed: [], skipped: [] };
+      conflictMode = (response === 0) ? 'replace' : 'skip';
+    }
+    const toInstall = conflictMode === 'skip' ? plan.filter(p => !fs.existsSync(p.dest)) : plan;
+    const skipped = conflictMode === 'skip' ? plan.filter(p => fs.existsSync(p.dest)) : [];
+    if (toInstall.length === 0) return { success: true, cancelled: false, installed: [], skipped: skipped.map(p => ({ kind: p.kind, name: p.label })), carsCount: 0, tracksCount: 0, extrasCount: 0, skippedCount: skipped.length };
+
+    let totalFiles = 0;
+    for (const p of toInstall) totalFiles += countFilesInTree(p.src);
+    let copied = 0, lastEmit = 0;
+    const emitProgress = (fileName) => {
+      const now = Date.now();
+      if (copied < totalFiles && now - lastEmit < 80) return;
+      lastEmit = now;
+      const percent = totalFiles > 0 ? Math.min(99, 30 + Math.floor((copied / totalFiles) * 68)) : 30;
+      event.sender.send('install-mod-progress', { status: `Copie : ${fileName}`, percent, copiedFiles: copied, totalFiles });
+    };
+    for (const p of toInstall) {
+      if (fs.existsSync(p.dest) && conflictMode === 'replace') {
+        try {
+          const stat = fs.statSync(p.dest);
+          if (stat.isDirectory()) fs.rmSync(p.dest, { recursive: true, force: true });
+          else fs.unlinkSync(p.dest);
+        } catch (e) {}
+      }
+      copyRecursive(p.src, p.dest, (name) => { copied++; emitProgress(name); });
+    }
+
+    try {
+      const historyEntry = {
+        id: 'mod_' + Date.now(),
+        date: Date.now(),
+        filename: path.basename(filePath),
+        items: toInstall.map(p => {
+          const itemId = path.basename(p.dest);
+          return {
+            kind: p.kind,
+            id: itemId,
+            name: getItemName(p.dest, p.kind),
+            dest: p.dest,
+            preview: getPreviewForItem(p.dest, p.kind)
+          };
+        })
+      };
+      const history = getModsHistory();
+      history.unshift(historyEntry);
+      if (history.length > 50) history.length = 50;
+      saveModsHistory(history);
+      event.sender.send('mods-history-updated');
+    } catch (e) {
+      console.error('[ModsHistory] sauvegarde échouée:', e);
+    }
+
+    event.sender.send('install-mod-progress', { status: 'Installation réussie !', percent: 100, copiedFiles: totalFiles, totalFiles });
+    return {
+      success: true, cancelled: false,
+      installed: toInstall.map(p => ({ kind: p.kind, name: p.label })),
+      skipped: skipped.map(p => ({ kind: p.kind, name: p.label })),
+      carsCount: toInstall.filter(p => p.kind === 'car').length,
+      tracksCount: toInstall.filter(p => p.kind === 'track').length,
+      extrasCount: toInstall.filter(p => ['apps','extension','system'].includes(p.kind)).length,
+      skippedCount: skipped.length
+    };
+  } finally {
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+  }
+});
+
+ipcMain.handle('analyze-hardware', async () => ({ detectedHardware: { gpu: "NVIDIA RTX" }, preset: "Élevé" }));
