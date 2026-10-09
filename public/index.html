@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>QACRL — Custom Launcher</title>
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <div class="app-header">
+        <img class="app-logo" src="assets/logo.png" alt="QACRL" onerror="this.style.display='none'">
+        <div class="app-titles">
+          <div class="app-title">QACRL</div>
+          <div class="app-subtitle">Custom Launcher</div>
+        </div>
+        <button class="theme-toggle" id="theme-mode-toggle" title="Basculer clair/sombre">
+          <svg class="theme-toggle-icon theme-toggle-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+          </svg>
+          <svg class="theme-toggle-icon theme-toggle-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <label class="theme-picker" title="Changer la couleur du thème">
+          <input type="color" id="theme-color-input" value="#d32f2f">
+          <svg class="theme-picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+          </svg>
+        </label>
+      </div>
+
+      <div class="recap-card clickable" id="recap-car-section" title="Aller à l'onglet Voitures">
+        <div class="recap-label">Voiture</div>
+        <div class="recap-title-row">
+          <img class="recap-flag" id="recap-car-flag" alt="" style="display: none;">
+          <div class="recap-title" id="recap-car">Aucune sélectionnée</div>
+        </div>
+        <div class="recap-sub" id="recap-skin"></div>
+        <img id="recap-car-img" class="recap-img" alt="Voiture">
+      </div>
+
+      <div class="recap-card clickable" id="recap-track-section" title="Aller à l'onglet Circuits">
+        <div class="recap-label">Circuit</div>
+        <div class="recap-title-row">
+          <img class="recap-flag" id="recap-track-flag" alt="" style="display: none;">
+          <div class="recap-title" id="recap-track">Aucun sélectionné</div>
+        </div>
+        <div class="track-preview" id="recap-track-container">
+          <img id="recap-track-bg" alt="">
+          <img id="recap-track-outline" alt="">
+        </div>
+      </div>
+
+      <div class="recap-card clickable" id="recap-session-section" title="Aller à l'onglet Session">
+        <div class="recap-label">Session</div>
+        <div class="recap-title" id="recap-session">RACE - 5 tours</div>
+        <div class="recap-sub" id="recap-weather">Météo : —</div>
+      </div>
+    </div>
+
+    <button class="btn-secondary" id="btn-random-all" title="Tirer au sort voiture + skin + circuit + variante">
+      🎲 Sélection aléatoire
+    </button>
+    <button class="btn-launch" id="btn-launch-game">▶ Démarrer la course</button>
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-cars')">Voitures</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-tracks')">Circuits</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-online')">🌐 En ligne</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-session')">Session</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-graphics')">Météo</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-mods')">Gestion Mods</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-settings')">Paramètres</button>
+    </div>
+
+    <div id="tab-cars" class="tab-content active">
+      <div class="section-header">
+        <h3 class="section-title">Sélection de la voiture</h3>
+        <div class="filters-group">
+          <button class="filter-btn active" id="btn-car-filter-all">Tous</button>
+          <button class="filter-btn" id="btn-car-filter-kunos">Kunos</button>
+          <button class="filter-btn" id="btn-car-filter-mods">Mods</button>
+          <button class="filter-btn" id="btn-car-filter-favorites">⭐ Favoris</button>
+          <button class="filter-btn" id="btn-car-filter-used">✓ Déjà joués</button>
+          <button class="filter-btn" id="btn-car-tags-open">🏷️ Tags <span class="btn-badge" id="btn-car-tags-count" style="display: none;">0</span></button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-input">
+          <input type="text" id="car-search" placeholder="Rechercher une voiture...">
+        </div>
+        <select class="manufacturer-select" id="car-manufacturer-select">
+          <option value="">Tous les constructeurs</option>
+        </select>
+      </div>
+      <div class="active-tags-bar" id="cars-active-tags"></div>
+      <div class="cards-grid" id="cars-grid"></div>
+    </div>
+
+    <div id="tab-tracks" class="tab-content">
+      <div class="section-header">
+        <h3 class="section-title">Sélection du circuit</h3>
+        <div class="filters-group">
+          <button class="filter-btn active" id="btn-track-filter-all">Tous</button>
+          <button class="filter-btn" id="btn-track-filter-kunos">Kunos</button>
+          <button class="filter-btn" id="btn-track-filter-mods">Mods</button>
+          <button class="filter-btn" id="btn-track-filter-favorites">⭐ Favoris</button>
+          <button class="filter-btn" id="btn-track-filter-used">✓ Déjà joués</button>
+          <button class="filter-btn" id="btn-track-tags-open">🏷️ Tags <span class="btn-badge" id="btn-track-tags-count" style="display: none;">0</span></button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="search-input">
+          <input type="text" id="track-search" placeholder="Rechercher un circuit...">
+        </div>
+      </div>
+      <div class="active-tags-bar" id="tracks-active-tags"></div>
+      <div class="cards-grid" id="tracks-grid"></div>
+    </div>
+
+    <div id="tab-online" class="tab-content">
+      <div class="section-header">
+        <h3 class="section-title">Serveurs en ligne</h3>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Ajouter un serveur manuellement</div>
+        <div class="row">
+          <div class="field">
+            <label for="online-manual-ip">Adresse IP:Port</label>
+            <input type="text" id="online-manual-ip" placeholder="94.130.91.49:8081">
+          </div>
+          <div class="field">
+            <label for="online-manual-name">Nom (optionnel)</label>
+            <input type="text" id="online-manual-name" placeholder="Mon serveur préféré">
+          </div>
+          <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
+            <button class="filter-btn" id="btn-online-add-manual" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+              + Ajouter
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Mes serveurs enregistrés</div>
+        <div class="servers-list" id="online-manual-list"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-title" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+          <span>Serveurs publics (GS4u)</span>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <button class="filter-btn" id="btn-online-refresh">🔄 Rafraîchir</button>
+            <button class="filter-btn" id="btn-online-load-more">⬇ Charger plus</button>
+            <span id="online-servers-count" style="font-size: 0.7rem; color: var(--text-tertiary); font-weight: 500; text-transform: none; letter-spacing: 0;"></span>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-bottom: 10px;">
+          <div class="search-input">
+            <input type="text" id="online-search" placeholder="Rechercher un serveur (nom, map, IP)...">
+          </div>
+        </div>
+
+        <div class="filters-group" style="margin-bottom: 10px;">
+          <button class="sort-btn" id="btn-sort-name" title="Trier par nom">🔤 Nom</button>
+          <button class="sort-btn active" id="btn-sort-players" title="Trier par nombre de joueurs">👥 Joueurs <span class="sort-arrow">▼</span></button>
+          <button class="sort-btn" id="btn-sort-country" title="Trier par pays">🌍 Pays</button>
+          <button class="sort-btn" id="btn-sort-rating" title="Trier par rating">⭐ Rating</button>
+        </div>
+
+        <div class="toolbar" style="margin-bottom: 10px;">
+          <div class="field" style="min-width: 200px;">
+            <label for="online-filter-country">Pays</label>
+            <select id="online-filter-country">
+              <option value="">Tous les pays</option>
+            </select>
+          </div>
+          <div class="field" style="min-width: 180px;">
+            <label for="online-filter-track">Circuit</label>
+            <select id="online-filter-track">
+              <option value="">Tous les circuits</option>
+            </select>
+          </div>
+          <div class="field" style="min-width: 140px;">
+            <label for="online-filter-min-players">Joueurs min.</label>
+            <input type="number" id="online-filter-min-players" min="0" max="99" value="0" placeholder="0">
+          </div>
+        </div>
+
+        <div class="servers-list" id="online-servers-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-session" class="tab-content">
+      <div class="subtabs">
+        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-session')">Session</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-race-ia')">Course & IA</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-pilot-realism')">Pilote & Réalisme</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-presets')">Presets</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-history')">Historique</button>
+      </div>
+
+      <div id="subtab-session" class="subtab-content active">
+        <div class="group">
+          <div class="group-title">Type et durée de session</div>
+          <div class="row">
+            <div class="field">
+              <label for="session-type">Type de session</label>
+              <select id="session-type">
+                <option value="PRACTICE">Essais libres (Départ Pit)</option>
+                <option value="RACE" selected>Course (Grille de départ)</option>
+                <option value="HOTLAP">Hotlap (Départ lancé)</option>
+              </select>
+            </div>
+          </div>
+          <div class="row" id="session-duration-row">
+            <div class="field">
+              <label for="session-minutes">Durée de la session (minutes)</label>
+              <input type="number" id="session-minutes" value="30" min="1" max="240">
+            </div>
+          </div>
+          <div class="row" id="race-sessions-row" style="display: none;">
+            <div class="field"><label for="practice-minutes">Essais libres (min, 0 = off)</label><input type="number" id="practice-minutes" value="15" min="0" max="240"></div>
+            <div class="field"><label for="qualify-minutes">Qualifications (min, 0 = off)</label><input type="number" id="qualify-minutes" value="10" min="0" max="120"></div>
+            <div class="field"><label for="race-laps">Tours de course</label><input type="number" id="race-laps" value="5" min="1" max="99"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="subtab-race-ia" class="subtab-content">
+        <div class="group">
+          <div class="group-title">Adversaires et grille de départ</div>
+          <div class="row">
+            <div class="field"><label for="opponents-count">Nombre d'adversaires</label><input type="number" id="opponents-count" value="10" min="0" max="35"></div>
+            <div class="field"><label for="grid-type">Type de grille</label>
+              <select id="grid-type">
+                <option value="SAME_CAR">Véhicule identique</option>
+                <option value="RANDOM" selected>Aléatoire (Tout)</option>
+                <option value="SAME_CLASS">Même classe / catégorie</option>
+                <option value="SAME_BRAND">Même marque</option>
+                <option value="KUNOS_ONLY">Kunos uniquement</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="starting-position-mode">Position de départ du joueur</label>
+              <select id="starting-position-mode">
+                <option value="LAST" selected>Dernier de la grille</option>
+                <option value="RANDOM">Aléatoire</option>
+                <option value="FIRST">1ère position (Pole)</option>
+                <option value="SECOND">2ème position</option>
+                <option value="THIRD">3ème position</option>
+                <option value="CUSTOM">Position spécifique...</option>
+              </select>
+            </div>
+            <div class="field" id="custom-pos-group" style="display: none;">
+              <label for="custom-start-pos">Position exacte</label><input type="number" id="custom-start-pos" value="1" min="1" max="36">
+            </div>
+            <div class="field"><label for="jump-start-penalty">Pénalité départ anticipé</label>
+              <select id="jump-start-penalty"><option value="0">Désactivé</option><option value="1">Drive-through</option><option value="2">Stop & Go (10s)</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Comportement de l'IA</div>
+          <div class="row">
+            <div class="field">
+              <label for="ai-level">Niveau IA (%) : <span id="ai-level-display">90% (±5%)</span></label>
+              <input type="range" id="ai-level" min="50" max="100" value="90">
+              <input type="range" id="ai-level-var" min="0" max="20" value="5">
+            </div>
+            <div class="field">
+              <label for="ai-aggression">Aggressivité IA (%) : <span id="ai-aggression-display">50% (±10%)</span></label>
+              <input type="range" id="ai-aggression" min="0" max="100" value="50">
+              <input type="range" id="ai-aggression-var" min="0" max="50" value="10">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="subtab-pilot-realism" class="subtab-content">
+        <div class="group">
+          <div class="group-title">Nationalité</div>
+          <div class="row">
+            <div class="field"><label for="player-flag">Nationalité du pilote</label><select id="player-flag"></select></div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label class="check"><input type="checkbox" id="random-ai-flags" checked> Drapeaux aléatoires pour les IA</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Assistances de pilotage</div>
+          <div class="row">
+            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-gearbox"> Vitesses auto</label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-clutch" checked> Embrayage auto</label></div>
+          </div>
+          <div class="row">
+            <div class="field"><label class="check"><input type="checkbox" id="assist-autoblip"> Autoblip</label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-ideal-line"> Ligne idéale</label></div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="assist-tc">TC</label><select id="assist-tc"><option value="0">Désactivé</option><option value="1" selected>Usine</option><option value="2">Activé</option></select></div>
+            <div class="field"><label for="assist-abs">ABS</label><select id="assist-abs"><option value="0">Désactivé</option><option value="1" selected>Usine</option><option value="2">Activé</option></select></div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="assist-stability">Stabilité : <span id="assist-stability-display">0%</span></label><input type="range" id="assist-stability" min="0" max="100" value="0"></div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Réalisme & conditions de course</div>
+          <div class="row">
+            <div class="field"><label for="fuel-rate">Carburant : <span id="fuel-rate-display">1x</span></label><input type="range" id="fuel-rate" min="0" max="5" value="1" step="1"></div>
+            <div class="field"><label for="mechanical-damage">Dommage : <span id="mechanical-damage-display">100%</span></label><input type="range" id="mechanical-damage" min="0" max="100" value="100"></div>
+          </div>
+          <div class="row">
+            <div class="field"><label for="tyre-wear">Usure pneus : <span id="tyre-wear-display">1x</span></label><input type="range" id="tyre-wear" min="0" max="5" value="1" step="1"></div>
+            <div class="field"><label for="slipstream">Aspiration : <span id="slipstream-display">1x</span></label><input type="range" id="slipstream" min="0" max="5" value="1" step="1"></div>
+          </div>
+          <div class="row"><div class="field"><label class="check"><input type="checkbox" id="tyre-blankets"> Couvertures chauffantes</label></div></div>
+        </div>
+      </div>
+
+      <div id="subtab-presets" class="subtab-content">
+        <div class="group">
+          <div class="group-title">Sauvegarder la configuration actuelle</div>
+          <div class="row">
+            <div class="field">
+              <label for="preset-name-input">Nom du preset</label>
+              <input type="text" id="preset-name-input" placeholder="Ex : GT3 Spa 20 tours">
+            </div>
+            <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
+              <button class="filter-btn" id="btn-save-preset" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+                💾 Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-title">Presets sauvegardés</div>
+          <div class="presets-list" id="presets-list"></div>
+        </div>
+      </div>
+
+      <div id="subtab-history" class="subtab-content">
+        <div class="group">
+          <div class="group-title">
+            Sessions récentes
+            <button class="filter-btn" id="btn-clear-session-history" style="float: right; padding: 4px 12px; font-size: 0.7rem;">🗑️ Tout effacer</button>
+          </div>
+          <div id="session-history-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-graphics" class="tab-content">
+      <div class="group">
+        <div class="group-title">Heure et progression du temps</div>
+        <div class="row">
+          <div class="field">
+            <label>Heure de début de session</label>
+            <div class="time-picker">
+              <select id="session-start-hour"></select>
+              <span class="sep">:</span>
+              <select id="session-start-minute"></select>
+            </div>
+            <input type="hidden" id="session-start-time" value="12:00">
+          </div>
+          <div class="field"><label for="time-mult">Multiplicateur de temps</label><input type="number" id="time-mult" value="1" min="1" max="24"></div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Conditions météo</div>
+        <div class="row">
+          <div class="field"><label for="weather-mode">Mode météo</label>
+            <select id="weather-mode">
+              <option value="static" selected>Météo fixe</option>
+              <option value="existing_plan">Plan Pure existant</option>
+              <option value="custom_plan">Plan personnalisé</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="weather-static-row">
+          <div class="field"><label for="weather-select">Météo</label><select id="weather-select"></select></div>
+        </div>
+        <div class="row" id="weather-plan-row" style="display: none;">
+          <div class="field"><label for="pure-plan-select">Plan Pure Planner</label><select id="pure-plan-select"></select></div>
+          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="pure-plan-random"> Sélection aléatoire à chaque lancement</label></div>
+        </div>
+      </div>
+
+      <div class="group" id="weather-custom-group" style="display: none;">
+        <div class="group-title">Plan personnalisé</div>
+        <div class="row">
+          <div class="field"><label for="custom-plan-name">Nom du plan</label><input type="text" id="custom-plan-name" value="Mon plan"></div>
+          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="plan-loop"> Boucler le plan</label></div>
+        </div>
+        <div id="weather-steps-list"></div>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button class="filter-btn" id="btn-add-weather-step" style="padding: 10px 20px; background-color: var(--accent); color: white; border-color: var(--accent);">+ Ajouter une météo</button>
+          <button class="filter-btn" id="btn-clear-weather-steps" style="padding: 10px 20px;">Vider la liste</button>
+          <button class="filter-btn" id="btn-save-plan" style="padding: 10px 20px; background-color: var(--success); color: white; border-color: var(--success);">💾 Sauvegarder le plan</button>
+          <span id="weather-total-duration" style="font-size: 0.82rem; color: var(--text-tertiary);"></span>
+        </div>
+      </div>
+
+      <div class="group" id="weather-existing-plans-group">
+        <div class="group-title">
+          Plans existants
+          <button class="filter-btn" id="btn-refresh-plans" style="float: right; padding: 4px 12px; font-size: 0.7rem;">🔄 Rafraîchir</button>
+        </div>
+        <div class="plans-list" id="existing-plans-list"></div>
+      </div>
+
+      <div class="group" id="purectrl-settings-group">
+        <div class="group-title">Paramètres pureCtrl</div>
+        <div class="row">
+          <div class="field">
+            <label class="check"><input type="checkbox" id="purectrl-autostart"> Autostart</label>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="purectrl-last-used"> Last Used</label>
+          </div>
+          <div class="field">
+            <label class="check"><input type="checkbox" id="purectrl-live"> Live</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="purectrl-start-wetness">Start Wetness (1-10)</label>
+            <input type="number" id="purectrl-start-wetness" min="1" max="10" value="1">
+          </div>
+          <div class="field">
+            <label for="purectrl-start-puddles">Start Puddles (1-10)</label>
+            <input type="number" id="purectrl-start-puddles" min="1" max="10" value="1">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-mods" class="tab-content">
+      <div class="group">
+        <div class="group-title">Installation de mods</div>
+        <div class="drop-zone" id="drop-zone">
+          📁 Glissez-déposez une archive ici <span style="color: var(--text-primary); font-weight: 600;">ou cliquez pour parcourir</span><br>
+          <span style="font-size: 0.8rem; opacity: 0.7;">Formats : .zip, .rar, .7z, .tar.gz</span><br>
+          <span style="font-size: 0.8rem; opacity: 0.7;">Voiture, Circuit, App, Extension...</span>
+        </div>
+        <div class="progress-wrap" id="install-progress-wrap">
+          <div class="progress-bar"><div class="progress-fill" id="install-progress-fill"></div><div class="progress-text" id="install-progress-text">0%</div></div>
+          <div class="progress-detail" id="install-progress-detail"></div>
+        </div>
+      </div>
+
+      <div class="group" id="mods-history-group">
+        <div class="group-title">Historique d'installation</div>
+        <div id="mods-history-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+
+      <div class="group" id="player-identity-group">
+        <div class="group-title">Identité du pilote</div>
+        <div class="row">
+          <div class="field">
+            <label for="player-name">Nom du pilote (solo)</label>
+            <input type="text" id="player-name" value="Driver" placeholder="Driver">
+          </div>
+          <div class="field">
+            <label for="online-name">Nom en ligne (multi)</label>
+            <input type="text" id="online-name" value="" placeholder="(utilise le nom du pilote par défaut)">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="steam-id">Steam ID (GUID)</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="text" id="steam-id" value="" placeholder="76561198XXXXXXXXX" style="flex: 1;">
+              <button class="filter-btn" id="btn-detect-steam-id" style="white-space: nowrap;">🔍 Détecter</button>
+            </div>
+          </div>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+          💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>
+          💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur "Détecter".
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title">Chemin d'accès au jeu</div>
+        <div class="field">
+          <label>Dossier racine Assetto Corsa</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span id="ac-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Non défini</span>
+            <button class="filter-btn" id="btn-select-ac">Parcourir...</button>
+          </div>
+        </div>
+      </div>
+      <div class="group">
+        <div class="group-title">Dossier Documents</div>
+        <div class="field">
+          <label>Dossier Documents (contenant "Assetto Corsa/cfg")</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span id="documents-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Détection automatique...</span>
+            <button class="filter-btn" id="btn-select-documents">Parcourir...</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="selection-modal">
+    <div class="modal-content">
+      <div class="modal-header"><h3 class="modal-title" id="modal-title">Sélection</h3><button class="modal-close" id="modal-close">&times;</button></div>
+      <div class="modal-grid" id="modal-grid"></div>
+    </div>
+  </div>
+
+  <div class="modal server-join-modal" id="server-join-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="server-join-title">🌐 Rejoindre un serveur</h3>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="filter-btn" id="server-join-refresh" title="Actualiser les infos du serveur" style="padding: 6px 12px; font-size: 0.75rem;">
+            🔄 Rafraîchir
+          </button>
+          <button class="modal-close" id="server-join-close">&times;</button>
+        </div>
+      </div>
+
+      <div class="server-join-info" id="server-join-info">
+        <div class="item">
+          <span class="label">Serveur</span>
+          <span class="value" id="server-join-name">—</span>
+        </div>
+        <div class="item">
+          <span class="label">Circuit</span>
+          <span class="value" id="server-join-track">—</span>
+        </div>
+        <div class="item">
+          <span class="label">Joueurs</span>
+          <span class="value" id="server-join-players">—</span>
+        </div>
+        <div class="item">
+          <span class="label">Mot de passe</span>
+          <span class="value small" id="server-join-password-required">—</span>
+        </div>
+      </div>
+	  
+	  <!-- Features CSP -->
+	  <div id="server-join-features" style="display: none;"></div>
+
+      <div id="server-join-description-wrap" class="server-description-wrap" style="display:none;">
+        <div class="server-description-label">📢 Description du serveur</div>
+        <div class="server-description" id="server-join-description"></div>
+      </div>
+
+      <div id="server-join-warnings"></div>
+
+      <div class="field">
+        <label>Choisis ta voiture</label>
+        <div class="car-select-list" id="server-join-cars">
+          <div class="servers-loading">⏳ Chargement des voitures du serveur...</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="server-join-password">Mot de passe (si requis)</label>
+        <input type="text" id="server-join-password" placeholder="(laisser vide si aucun)">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="filter-btn" id="server-join-cancel" style="padding: 10px 20px;">Annuler</button>
+        <button class="filter-btn" id="server-join-confirm" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);">
+          ▶ Rejoindre
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tags-popup-backdrop" id="tags-popup-backdrop"></div>
+  <div class="tags-popup" id="tags-popup">
+    <div class="tags-popup-header">
+      <div class="tags-popup-title">
+        🏷️ <span id="tags-popup-kind">Filtrer par tags</span>
+        <span class="tags-popup-count" id="tags-popup-total">0</span>
+      </div>
+      <button class="tags-popup-close" id="tags-popup-close" title="Fermer">×</button>
+    </div>
+    <div class="tags-popup-search">
+      <input type="text" id="tags-popup-search-input" placeholder="Rechercher un tag...">
+    </div>
+    <div class="tags-popup-body" id="tags-popup-body"></div>
+    <div class="tags-popup-footer">
+      <span class="tags-popup-footer-info" id="tags-popup-selected-info">Aucun tag actif</span>
+      <button class="tags-popup-clear" id="tags-popup-clear">✕ Effacer tout</button>
+    </div>
+  </div>
+  
+  <script src="src/constants.js"></script>
+  <script src="src/utils.js"></script>
+  <script src="src/theme.js"></script>
+  <script src="src/onlineServers.js"></script>
+  <script src="src/serverJoin.js"></script>
+  <script src="src/content.js"></script>
+  <script src="src/session.js"></script>
+  <script src="src/mods.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
