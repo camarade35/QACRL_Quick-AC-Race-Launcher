@@ -10,6 +10,8 @@
 [![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/camarade35/QACRL_Quick-AC-Race-Launcher?logo=github&color=red)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/camarade35/QACRL_Quick-AC-Race-Launcher/total?logo=github&color=blue)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 
 [Fonctionnalités](#-fonctionnalités) • [Installation](#-installation) • [Captures d'écran](#-captures-décran) • [Contribuer](#-contribuer)
 
