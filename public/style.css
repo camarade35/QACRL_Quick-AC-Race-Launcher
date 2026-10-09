@@ -2105,3 +2105,85 @@ select:disabled, input:disabled {
 .csp-feature-label {
   white-space: nowrap;
 }
+
+/* ============================================================
+   SKIN SELECT (modale serveur)
+   ============================================================ */
+.skin-select-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+}
+.skin-select-row {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: all var(--t);
+  border: 2px solid transparent;
+  background: var(--bg-panel);
+  overflow: hidden;
+  position: relative;
+}
+.skin-select-row:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.skin-select-row.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted), var(--shadow-sm);
+}
+.skin-select-row.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.skin-select-preview {
+  width: 100%;
+  height: 62px;
+  object-fit: cover;
+  background: #050608;
+  display: block;
+  flex-shrink: 0;
+}
+.skin-select-preview.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: var(--text-tertiary);
+}
+.skin-select-name {
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+}
+.skin-select-row.selected .skin-select-name {
+  color: var(--text-primary);
+}

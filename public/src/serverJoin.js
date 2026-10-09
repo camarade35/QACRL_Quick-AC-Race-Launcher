@@ -338,6 +338,27 @@ function applyServerJoinData(unified) {
     serverJoinState.resolvedOnlineName = null;
   }
 
+  // ⭐ Profil serveur : pré-sélectionne le combo mémorisé
+  const profileKey = `${serverJoinState.server.ip}:${serverJoinState.server.port}`;
+  const profile = (appData.serverProfiles || {})[profileKey];
+  if (profile && profile.car) {
+    const profileCar = serverJoinState.availableCars.find(c => c.id === profile.car);
+    if (profileCar) {
+      serverJoinState.selectedCar = profileCar.id;
+      // Vérifie que la skin existe toujours dans cette voiture
+      const skinExists = (profileCar.skins || []).some(s => s.id === profile.skin);
+      if (skinExists) serverJoinState.selectedSkin = profile.skin;
+    }
+  }
+
+  // ⭐ Sélection auto de la 1ère voiture dispo si rien n'est sélectionné
+  if (!serverJoinState.selectedCar && serverJoinState.availableCars.length > 0) {
+    const firstAvailable = serverJoinState.availableCars.find(
+      c => c.free === null || c.free === undefined || c.free > 0
+    ) || serverJoinState.availableCars[0];
+    serverJoinState.selectedCar = firstAvailable.id;
+  }
+
   renderServerJoinCars();
   updateServerJoinButton();
 }
@@ -346,17 +367,19 @@ function applyServerJoinData(unified) {
    OUVERTURE / FERMETURE / REFRESH
    ============================================================ */
 async function openServerJoinModal(server) {
-  serverJoinState = {
-    server: server,
-    info: null,
-    occupancy: null,
-    details: null,
-    availableCars: [],
-    selectedCar: null,
-    trackMissing: false,
-    resolvedOnlineName: null,
-    source: null,
-    isRefreshing: false
+    serverJoinState = {
+      server: server,
+      info: null,
+      occupancy: null,
+      details: null,
+      availableCars: [],
+      selectedCar: null,
+      availableSkins: [],
+      selectedSkin: null,
+      trackMissing: false,
+      resolvedOnlineName: null,
+      source: null,
+      isRefreshing: false
   };
 
   // Reset UI
@@ -367,6 +390,12 @@ async function openServerJoinModal(server) {
   document.getElementById('server-join-warnings').innerHTML = '';
   document.getElementById('server-join-cars').innerHTML = '<div class="servers-loading">⏳ Chargement des voitures du serveur...</div>';
   document.getElementById('server-join-password').value = '';
+
+  // ⭐ Reset section skins
+  const skinSection = document.getElementById('server-join-skin-section');
+  if (skinSection) skinSection.style.display = 'none';
+  const skinList = document.getElementById('server-join-skins');
+  if (skinList) skinList.innerHTML = '';
 
   const descEl = document.getElementById('server-join-description');
   const descWrap = document.getElementById('server-join-description-wrap');
@@ -410,6 +439,7 @@ async function refreshServerJoinModal() {
   }
 
   const savedSelectedCar = serverJoinState.selectedCar;
+  const savedSelectedSkin = serverJoinState.selectedSkin;
 
   try {
     const unified = await fetchServerDataUnified(server);
@@ -417,6 +447,7 @@ async function refreshServerJoinModal() {
     serverJoinState.source = unified.source;
 
     serverJoinState.selectedCar = savedSelectedCar;
+    serverJoinState.selectedSkin = savedSelectedSkin;
 
     applyServerJoinData(unified);
 
@@ -424,6 +455,7 @@ async function refreshServerJoinModal() {
       const stillExists = serverJoinState.availableCars.some(c => c.id === savedSelectedCar);
       if (!stillExists) {
         serverJoinState.selectedCar = null;
+        serverJoinState.selectedSkin = null;
         renderServerJoinCars();
         updateServerJoinButton();
       }
@@ -449,15 +481,84 @@ function closeServerJoinModal() {
   document.getElementById('server-join-modal').style.display = 'none';
   serverJoinState = {
     server: null, info: null, occupancy: null, details: null,
-    availableCars: [], selectedCar: null, trackMissing: false,
+    availableCars: [], selectedCar: null,
+    availableSkins: [], selectedSkin: null,
+    trackMissing: false,
     resolvedOnlineName: null, source: null, isRefreshing: false
   };
+}
+
+/* ============================================================
+   SKINS DE LA VOITURE SÉLECTIONNÉE
+   ============================================================ */
+function updateSelectedCarSkins() {
+  if (!serverJoinState.selectedCar) {
+    serverJoinState.availableSkins = [];
+    serverJoinState.selectedSkin = null;
+    return;
+  }
+  const car = serverJoinState.availableCars.find(c => c.id === serverJoinState.selectedCar);
+  serverJoinState.availableSkins = (car && Array.isArray(car.skins)) ? car.skins.slice() : [];
+
+  const stillValid = serverJoinState.selectedSkin
+    && serverJoinState.availableSkins.some(s => s.id === serverJoinState.selectedSkin);
+  if (!stillValid) {
+    serverJoinState.selectedSkin = serverJoinState.availableSkins[0]?.id || null;
+  }
+}
+
+function renderServerJoinSkins() {
+  const container = document.getElementById('server-join-skins');
+  const section = document.getElementById('server-join-skin-section');
+  if (!container || !section) return;
+  container.innerHTML = '';
+
+  if (serverJoinState.availableSkins.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'flex';
+
+  serverJoinState.availableSkins.forEach(skin => {
+    const row = document.createElement('div');
+    const isSelected = serverJoinState.selectedSkin === skin.id;
+    row.className = 'skin-select-row' + (isSelected ? ' selected' : '');
+
+    const safeName = (skin.name || skin.id || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    let previewHtml;
+    if (skin.preview) {
+      previewHtml = `<img class="skin-select-preview" src="${skin.preview}" alt="" `
+                  + `onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">`
+                  + `<div class="skin-select-preview placeholder" style="display:none;">🚗</div>`;
+    } else {
+      previewHtml = `<div class="skin-select-preview placeholder">🚗</div>`;
+    }
+
+    row.innerHTML = `
+      ${previewHtml}
+      <div class="skin-select-name" title="${safeName}">${safeName}</div>
+    `;
+
+    row.addEventListener('click', () => {
+      serverJoinState.selectedSkin = skin.id;
+      renderServerJoinSkins();
+      updateServerJoinButton();
+    });
+
+    container.appendChild(row);
+  });
 }
 
 /* ============================================================
    VOITURES DISPONIBLES
    ============================================================ */
 function renderServerJoinCars() {
+  // ⭐ Synchronise les skins avec la voiture sélectionnée
+  updateSelectedCarSkins();
+
   const container = document.getElementById('server-join-cars');
   if (!container) return;
   container.innerHTML = '';
@@ -494,6 +595,7 @@ function renderServerJoinCars() {
     if (!isFull) {
       row.addEventListener('click', () => {
         serverJoinState.selectedCar = car.id;
+        serverJoinState.selectedSkin = null;
         renderServerJoinCars();
         updateServerJoinButton();
       });
@@ -501,9 +603,13 @@ function renderServerJoinCars() {
 
     container.appendChild(row);
   });
+
+  // ⭐ Affiche les skins de la voiture sélectionnée
+  renderServerJoinSkins();
 }
 
 function updateServerJoinButton() {
+
   const btn = document.getElementById('server-join-confirm');
   if (!btn) return;
   const canJoin = !serverJoinState.trackMissing
@@ -527,7 +633,9 @@ async function confirmServerJoin() {
   const localCar = (appData.cars || []).find(c => c.id === serverJoinState.selectedCar);
   if (!localCar) { alert("Voiture introuvable en local."); return; }
 
-  const skin = (localCar.skins && localCar.skins.length > 0) ? localCar.skins[0].id : '';
+  // ⭐ Utilise la skin choisie, sinon fallback sur la 1ère
+  const skin = serverJoinState.selectedSkin
+    || (localCar.skins && localCar.skins.length > 0 ? localCar.skins[0].id : '');
 
   const flagFile = getValue('player-flag');
   const flagInfo = flagFile
@@ -583,6 +691,22 @@ async function confirmServerJoin() {
 
   try {
     await window.api.joinServer(serverData, sessionData);
+
+    // ⭐ Mémorise le combo voiture+skin pour ce serveur
+    try {
+      const profileKey = `${server.ip}:${server.port}`;
+      if (!appData.serverProfiles) appData.serverProfiles = {};
+      appData.serverProfiles[profileKey] = {
+        car: localCar.id,
+        skin: skin,
+        onlineName: onlineNameFinal,
+        date: Date.now()
+      };
+      saveCurrentState();
+    } catch (e) {
+      console.warn('[ServerProfile] sauvegarde KO :', e.message);
+    }
+
     closeServerJoinModal();
   } catch (err) {
     alert(`Erreur : ${err.message}`);

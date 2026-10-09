@@ -9,6 +9,7 @@ let appData = {
   used: { cars: {}, tracks: {} },
   customServers: [],
   favoriteServers: [],
+  serverProfiles: {},
   serverPings: {},
   onlineServers: [],
   onlineServersPage: 0,
@@ -38,6 +39,8 @@ let serverJoinState = {
   details: null,
   availableCars: [],
   selectedCar: null,
+  availableSkins: [],
+  selectedSkin: null,
   trackMissing: false,
   resolvedOnlineName: null,
   source: null,
@@ -226,6 +229,9 @@ async function loadSavedState() {
     if (Array.isArray(state.favoriteServers)) {
       appData.favoriteServers = state.favoriteServers;
     }
+    if (state.serverProfiles && typeof state.serverProfiles === 'object') {
+      appData.serverProfiles = state.serverProfiles;
+    }
     if (state.onlineSort && typeof state.onlineSort === 'object') {
       if (state.onlineSort.by) onlineSort.by = state.onlineSort.by;
       if (state.onlineSort.dir) onlineSort.dir = state.onlineSort.dir;
@@ -248,6 +254,7 @@ function gatherState() {
     used: appData.used,
     customServers: appData.customServers || [],
     favoriteServers: appData.favoriteServers || [],
+    serverProfiles: appData.serverProfiles || {},
     onlineSort: onlineSort,
     playerName: getValue('player-name'),
     onlineName: getValue('online-name'),
