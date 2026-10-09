@@ -137,7 +137,7 @@ Télécharge la dernière release : [Releases](https://github.com/TON_PSEUDO/qac
 
 ```bash
 # Cloner le repo
-git clone https://github.com/TON_PSEUDO/qacrl.git
+git clone https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher
 cd qacrl
 
 # Installer les dépendances
