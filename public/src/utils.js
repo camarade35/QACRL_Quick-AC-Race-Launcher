@@ -276,3 +276,57 @@ function getValue(id) { const el = document.getElementById(id); return el ? el.v
 function setValue(id, val) { const el = document.getElementById(id); if (el && val != null) el.value = val; }
 function getChecked(id) { const el = document.getElementById(id); return el ? el.checked : false; }
 function setChecked(id, val) { const el = document.getElementById(id); if (el && val != null) el.checked = Boolean(val); }
+
+/* ============================================================
+   PARSING DE LIEN DE SERVEUR
+   ============================================================ */
+function parseServerLink(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let s = raw.trim();
+  s = s.replace(/^["'<>\s]+|["'<>\s]+$/g, '');
+  if (!s) return null;
+
+  let ip = '', httpPort = 0, gamePort = 0, password = '';
+
+  // 1) Format URL avec query params (acstuff.club, acmanager://, etc.)
+  const ipMatch = s.match(/[?&]ip=([^&\s]+)/i);
+  if (ipMatch) ip = decodeURIComponent(ipMatch[1]);
+
+  const httpMatch = s.match(/[?&]httpPort=([^&\s]+)/i);
+  if (httpMatch) httpPort = parseInt(httpMatch[1], 10) || 0;
+
+  const portMatch = s.match(/[?&](?:port|gamePort|tcpPort)=([^&\s]+)/i);
+  if (portMatch) gamePort = parseInt(portMatch[1], 10) || 0;
+
+  const pwdMatch = s.match(/[?&](?:password|pass|pwd)=([^&\s]*)/i);
+  if (pwdMatch) password = decodeURIComponent(pwdMatch[1] || '');
+
+  // 2) Format simple IP:PORT (avec ou sans protocole devant)
+  if (!ip) {
+    const ipport = s.match(/([\d\.a-zA-Z\-]+):(\d+)$/);
+    if (ipport) {
+      ip = ipport[1];
+      gamePort = parseInt(ipport[2], 10);
+    }
+  }
+
+  // 3) Fallback : n'importe quelle IPv4 dans la chaîne
+  if (!ip) {
+    const anyIp = s.match(/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/);
+    if (anyIp) ip = anyIp[1];
+  }
+
+  if (!ip) return null;
+
+  // 4) Détermine le gamePort (convention AssettoServer : gamePort = httpPort - 1)
+  if (!gamePort && httpPort) gamePort = httpPort - 1;
+  if (!gamePort && !httpPort) return null;
+  if (gamePort <= 0 || gamePort > 65535) return null;
+
+  return {
+    ip: ip,
+    port: gamePort,
+    httpPort: httpPort || (gamePort + 1),
+    password: password
+  };
+}

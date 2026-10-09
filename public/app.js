@@ -542,6 +542,47 @@ function setupEventListeners() {
     renderRecentServers();
   });
 
+    // 📋 Coller un lien de serveur
+  document.getElementById('btn-online-parse-link')?.addEventListener('click', () => {
+    const input = document.getElementById('online-paste-link');
+    const raw = (input?.value || '').trim();
+    if (!raw) { alert("Colle un lien de serveur."); return; }
+
+    const parsed = parseServerLink(raw);
+    if (!parsed) {
+      alert("Impossible de lire ce lien.\n\nFormats acceptés :\n• https://acstuff.club/s/...?ip=X&httpPort=Y\n• acmanager://race/online/join?ip=X&httpPort=Y\n• IP:PORT");
+      return;
+    }
+
+    // ⭐ Pré-remplit le mot de passe si présent dans le lien
+    if (parsed.password) {
+      if (!appData.serverPasswords) appData.serverPasswords = {};
+      appData.serverPasswords[`${parsed.ip}:${parsed.port}`] = parsed.password;
+    }
+
+    const srvObj = {
+      id: `link_${parsed.ip}_${parsed.port}`,
+      ip: parsed.ip,
+      port: parsed.port,
+      httpPort: parsed.httpPort,
+      name: `${parsed.ip}:${parsed.port}`,
+      playersCurrent: 0,
+      playersMax: 0,
+      source: 'link'
+    };
+
+    openServerJoinModal(srvObj);
+    if (input) input.value = '';
+  });
+
+  // 📋 Entrée clavier = clic sur Rejoindre
+  document.getElementById('online-paste-link')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      document.getElementById('btn-online-parse-link')?.click();
+    }
+  });
+
   document.getElementById('btn-online-add-manual')?.addEventListener('click', () => {
     const ipInput = document.getElementById('online-manual-ip');
     const nameInput = document.getElementById('online-manual-name');
