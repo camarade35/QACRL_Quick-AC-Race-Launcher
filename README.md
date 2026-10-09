@@ -6,9 +6,9 @@
 
 **Un launcher custom léger, moderne et rapide pour Assetto Corsa**
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/TON_PSEUDO/qacrl/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 [![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/TON_PSEUDO/qacrl/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 [Fonctionnalités](#-fonctionnalités) • [Installation](#-installation) • [Captures d'écran](#-captures-décran) • [Contribuer](#-contribuer)
@@ -131,7 +131,7 @@ Il se concentre sur **l'essentiel** : choix voiture + circuit + session, configu
 
 **Option 1 — Binaire pré-compilé** (recommandé)
 
-Télécharge la dernière release : [Releases](https://github.com/TON_PSEUDO/qacrl/releases)
+Télécharge la dernière release : [Releases](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 
 **Option 2 — Depuis les sources**
 
