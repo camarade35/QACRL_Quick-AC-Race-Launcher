@@ -10,6 +10,8 @@ let appData = {
   customServers: [],
   favoriteServers: [],
   serverProfiles: {},
+  serverPasswords: {},
+  recentServers: [],
   serverPings: {},
   onlineServers: [],
   onlineServersPage: 0,
@@ -173,6 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderWeatherSteps();
   renderExistingPlans();
   renderManualServers();
+  renderRecentServers();
   renderOnlineServers();
   updateSortButtonsUI();
 });
@@ -232,6 +235,12 @@ async function loadSavedState() {
     if (state.serverProfiles && typeof state.serverProfiles === 'object') {
       appData.serverProfiles = state.serverProfiles;
     }
+    if (state.serverPasswords && typeof state.serverPasswords === 'object') {
+      appData.serverPasswords = state.serverPasswords;
+    }
+    if (Array.isArray(state.recentServers)) {
+      appData.recentServers = state.recentServers;
+    }
     if (state.onlineSort && typeof state.onlineSort === 'object') {
       if (state.onlineSort.by) onlineSort.by = state.onlineSort.by;
       if (state.onlineSort.dir) onlineSort.dir = state.onlineSort.dir;
@@ -255,6 +264,8 @@ function gatherState() {
     customServers: appData.customServers || [],
     favoriteServers: appData.favoriteServers || [],
     serverProfiles: appData.serverProfiles || {},
+    serverPasswords: appData.serverPasswords || {},
+    recentServers: appData.recentServers || [],
     onlineSort: onlineSort,
     playerName: getValue('player-name'),
     onlineName: getValue('online-name'),
@@ -521,6 +532,14 @@ function setupEventListeners() {
       return;
     }
     await fetchOnlineServers(true);
+  });
+
+  document.getElementById('btn-online-clear-recent')?.addEventListener('click', () => {
+    if (!appData.recentServers || appData.recentServers.length === 0) return;
+    if (!confirm("Vider tout l'historique des serveurs récents ?")) return;
+    appData.recentServers = [];
+    saveCurrentState();
+    renderRecentServers();
   });
 
   document.getElementById('btn-online-add-manual')?.addEventListener('click', () => {

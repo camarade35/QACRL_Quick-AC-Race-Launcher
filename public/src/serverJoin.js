@@ -389,7 +389,11 @@ async function openServerJoinModal(server) {
   document.getElementById('server-join-password-required').textContent = '⏳';
   document.getElementById('server-join-warnings').innerHTML = '';
   document.getElementById('server-join-cars').innerHTML = '<div class="servers-loading">⏳ Chargement des voitures du serveur...</div>';
-  document.getElementById('server-join-password').value = '';
+
+  // ⭐ Pré-remplit le mot de passe mémorisé pour ce serveur
+  const pwdKey = `${server.ip}:${server.port}`;
+  const savedPwd = (appData.serverPasswords || {})[pwdKey] || '';
+  document.getElementById('server-join-password').value = savedPwd;
 
   // ⭐ Reset section skins
   const skinSection = document.getElementById('server-join-skin-section');
@@ -702,11 +706,28 @@ async function confirmServerJoin() {
         onlineName: onlineNameFinal,
         date: Date.now()
       };
-      saveCurrentState();
     } catch (e) {
       console.warn('[ServerProfile] sauvegarde KO :', e.message);
     }
 
+    // ⭐ Mémorise le mot de passe (ou le supprime s'il est vide)
+    try {
+      const pwdKey = `${server.ip}:${server.port}`;
+      if (!appData.serverPasswords) appData.serverPasswords = {};
+      if (password) appData.serverPasswords[pwdKey] = password;
+      else delete appData.serverPasswords[pwdKey];
+    } catch (e) {
+      console.warn('[ServerPassword] sauvegarde KO :', e.message);
+    }
+
+    // ⭐ Ajoute le serveur aux récents
+    try {
+      pushRecentServer(server, info);
+    } catch (e) {
+      console.warn('[RecentServers] push KO :', e.message);
+    }
+
+    saveCurrentState();
     closeServerJoinModal();
   } catch (err) {
     alert(`Erreur : ${err.message}`);

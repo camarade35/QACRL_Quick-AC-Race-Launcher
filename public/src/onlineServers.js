@@ -191,6 +191,110 @@ async function pingAllServersInBackground() {
 }
 
 /* ============================================================
+   SERVEURS RÉCENTS
+   ============================================================ */
+function pushRecentServer(server, info) {
+  if (!server || !server.ip || !server.port) return;
+  if (!Array.isArray(appData.recentServers)) appData.recentServers = [];
+
+  const key = `${server.ip}:${server.port}`;
+  appData.recentServers = appData.recentServers.filter(s => `${s.ip}:${s.port}` !== key);
+
+  appData.recentServers.unshift({
+    ip: server.ip,
+    port: server.port,
+    httpPort: (info && info.httpPort) || server.httpPort || (server.port + 1),
+    name: (info && info.name) || server.name || `${server.ip}:${server.port}`,
+    track: (info && info.track) || '',
+    trackConfig: (info && info.trackConfig) || '',
+    countryCode: server.countryCode || '',
+    countryName: server.countryName || '',
+    playersCurrent: (info && info.clients) || server.playersCurrent || 0,
+    playersMax: (info && info.maxClients) || server.playersMax || 0,
+    date: Date.now()
+  });
+
+  if (appData.recentServers.length > 15) appData.recentServers.length = 15;
+}
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '—';
+  const diff = Date.now() - timestamp;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "à l'instant";
+  if (min < 60) return `il y a ${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `il y a ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `il y a ${d}j`;
+  const mo = Math.floor(d / 30);
+  return `il y a ${mo} mois`;
+}
+
+function renderRecentServers() {
+  const container = document.getElementById('online-recent-list');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const recent = appData.recentServers || [];
+  if (recent.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'servers-empty';
+    empty.textContent = "Aucun serveur récent. Rejoins un serveur pour qu'il apparaisse ici.";
+    container.appendChild(empty);
+    return;
+  }
+
+  recent.forEach((srv, index) => {
+    const row = document.createElement('div');
+    row.className = 'server-row';
+
+    const flagDisplay = (srv.countryCode || '🌐').toUpperCase();
+    const timeAgo = formatTimeAgo(srv.date);
+
+    row.innerHTML = `
+      <div class="server-flag" title="${srv.countryName || ''}">${flagDisplay}</div>
+      <div class="server-info">
+        <div class="server-name">${srv.name || '(sans nom)'}</div>
+        <div class="server-meta">
+          <code>${srv.ip}:${srv.port}</code>
+          <span>🕒 ${timeAgo}</span>
+          ${srv.track ? `<span>${srv.track}</span>` : ''}
+        </div>
+      </div>
+      <div class="server-players empty">—</div>
+      <button class="server-action join">▶ Rejoindre</button>
+      <button class="server-action delete" title="Retirer de l'historique">🗑️</button>
+    `;
+
+    row.querySelector('.join').addEventListener('click', () => {
+      const srvObj = {
+        id: `recent_${srv.ip}_${srv.port}`,
+        ip: srv.ip,
+        port: srv.port,
+        httpPort: srv.httpPort || (srv.port + 1),
+        name: srv.name || '',
+        playersCurrent: srv.playersCurrent || 0,
+        playersMax: srv.playersMax || 0,
+        countryCode: srv.countryCode || '',
+        countryName: srv.countryName || '',
+        source: 'recent'
+      };
+      openServerJoinModal(srvObj);
+    });
+
+    row.querySelector('.delete').addEventListener('click', () => {
+      if (!confirm(`Retirer "${srv.name || srv.ip}" de l'historique ?`)) return;
+      appData.recentServers.splice(index, 1);
+      saveCurrentState();
+      renderRecentServers();
+    });
+
+    container.appendChild(row);
+  });
+}
+
+/* ============================================================
    RENDU DE LA LISTE
    ============================================================ */
 function renderOnlineServers() {
