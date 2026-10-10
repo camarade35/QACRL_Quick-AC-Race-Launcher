@@ -15,6 +15,14 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.2.2] - 2026-10-10
+
+### 🐛 Corrigé
+- **Sessions locales** : ajout des variables d'environnement Steam dans `launch-game`. Sans elles, AC démarrait sur le menu principal au lieu de charger la session configurée (même correctif que pour le join multijoueur en v1.2.1).
+
+---
+
+
 ## [1.2.1] - 2026-10-10
 
 ### 🐛 Corrigé
