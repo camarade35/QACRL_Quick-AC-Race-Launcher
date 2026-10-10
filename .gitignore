@@ -1,4 +1,3 @@
-node_modules/
 # Node
 node_modules/
 npm-debug.log*
@@ -28,6 +27,9 @@ Thumbs.db
 *.broken-*
 *.tmp
 
-
+# Fichiers perso
 liste.txt
 commande pour mise à jour.txt
+
+# Scripts de test perso (outils de dev, pas pour la prod)
+dev/

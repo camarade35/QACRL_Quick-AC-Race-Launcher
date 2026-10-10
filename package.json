@@ -21,6 +21,7 @@
     "productName": "QACRL",
     "win": {
       "target": "nsis"
+      "icon": "public/assets/logo.ico"
     },
     "nsis": {
       "oneClick": false,
