@@ -13,7 +13,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/camarade35/QACRL_Quick-AC-Race-Launcher?logo=github&color=red)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/camarade35/QACRL_Quick-AC-Race-Launcher/total?logo=github&color=blue)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 
-[Fonctionnalités](#-fonctionnalités) • [Installation](#-installation) • [Captures d'écran](#-captures-décran) • [Contribuer](#-contribuer)
+[Fonctionnalités](#-fonctionnalités) • [Installation](#-installation) • [Captures d'écran](#-captures-décran) • [Avertissements](#️-avertissements-connus) • [Contribuer](#-contribuer)
 
 </div>
 
@@ -150,3 +150,91 @@ npm start
 
 # Ou packager pour la distribution
 npm run build
+```
+
+### Configuration au premier lancement
+
+1. Lance QACRL
+2. Onglet **Paramètres** → clique sur **Parcourir...** pour le dossier d'Assetto Corsa
+3. Vérifie que le **Steam ID** est bien détecté (sinon clique sur 🔍 Détecter)
+4. C'est prêt !
+
+---
+
+## ⚠️ Avertissements connus
+
+### Message CSP « Failed to decrypt model »
+
+Sur certaines voitures moddées (notamment celles des créateurs `mnba_*`, `ms_*`, `vrc_*`...), **Custom Shaders Patch** peut afficher au chargement un message du type :
+
+> **Failed to decrypt model**
+> `content/cars/xxx/xxx.kn5`
+> • Inappropriate environment.
+> Would you want to continue?
+
+**Ce message est inoffensif.** Clique simplement sur **« Oui »** pour continuer, et le modèle se charge correctement.
+
+#### Pourquoi ce message apparaît ?
+
+Certains modèles `.kn5` sont **chiffrés** par les créateurs de mods pour protéger leur travail. Pour les déchiffrer, CSP a besoin d'un contexte Steam précis (`SteamAppId`, `SteamGameId`).
+
+Content Manager masque ce message car il utilise un **starter interne** (`AppIdStarter`) qui initialise complètement l'environnement Steam avant de lancer `acs.exe`. QACRL lance `acs.exe` directement, ce qui peut déclencher ce message sur certains mods.
+
+#### Solutions
+
+- **Simple** : cliquer sur « Oui » et continuer — le modèle fonctionne normalement.
+- **Alternative** : lancer une fois le jeu via Content Manager avant d'utiliser QACRL (fonctionne temporairement).
+
+#### Ce qui a été essayé (sans succès)
+
+- Définir les variables d'environnement `SteamAppId=244210` et `SteamGameId=244210` dans le `spawn` de `acs.exe`
+- Créer un fichier `steam_appid.txt` dans le dossier d'installation
+- Lancer via `steam://rungameid/244210` → supprime le message mais **empêche le join multijoueur** (le `race.ini` n'est plus lu correctement)
+
+Le warning est codé en dur dans CSP et n'est **pas désactivable** via `general.ini` (à part désactiver complètement l'intégration Steam, ce qui bloque le multijoueur).
+
+---
+
+## 🤝 Contribuer
+
+Les contributions sont les bienvenues ! Voici comment :
+
+1. **Fork** le projet
+2. **Crée une branche** (`git checkout -b feature/ma-feature`)
+3. **Commit** tes changements (`git commit -m 'feat: ajouter une feature'`)
+4. **Push** sur la branche (`git push origin feature/ma-feature`)
+5. **Ouvre une Pull Request**
+
+### Signaler un bug
+
+Ouvre une [issue](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/issues) en précisant :
+
+- Version de QACRL
+- Version de Windows
+- Version de CSP
+- Étapes de reproduction
+- Logs éventuels (`main.js` ou `race.ini`)
+
+---
+
+## 📄 License
+
+Ce projet est sous licence **MIT** — voir le fichier [LICENSE](LICENSE) pour plus de détails.
+
+---
+
+## 🙏 Remerciements
+
+- **Kunos Simulazioni** pour Assetto Corsa
+- **Peter Boese (x4fab)** pour Custom Shaders Patch
+- **La communauté AC** pour les mods, les serveurs et les outils
+
+---
+
+<div align="center">
+
+**Fait avec ❤️ pour la communauté Assetto Corsa**
+
+[⬆ Retour en haut](#qacrl--quick-assetto-corsa-race-launcher)
+
+</div>
