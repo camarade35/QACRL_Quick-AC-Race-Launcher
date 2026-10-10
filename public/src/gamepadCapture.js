@@ -1,5 +1,6 @@
 // public/src/gamepadCapture.js
-// Capture d'un appui sur un gamepad (Chromium) via polling requestAnimationFrame.
+// Capture d'un appui ou d'un mouvement d'axe sur un gamepad (Chromium).
+// Utilise setTimeout(30ms) au lieu de requestAnimationFrame pour éviter le throttling Electron.
 
 (function (global) {
   'use strict';
@@ -11,10 +12,9 @@
   let currentOpts = null;
   let timeoutHandle = null;
 
-  let axisCaptureState = null;  // { start, candidates: { 'padIdx:axIdx': {...} } }
-  let initialAxes      = null;  // baseline des axes au démarrage
+  let axisCaptureState = null;
+  let initialAxes      = null;
 
-  // ---------------------------------------------------------------------------
   function snapshot() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const buttons = [];
@@ -28,22 +28,17 @@
     return { buttons, axes };
   }
 
-  // ---------------------------------------------------------------------------
   function detectPress(prev, curr, axesThreshold) {
-    // 1) Boutons (priorité)
     for (let padIdx = 0; padIdx < curr.buttons.length; padIdx++) {
       const btns = curr.buttons[padIdx];
       const prevBtns = prev.buttons[padIdx];
       if (!btns) continue;
       for (let btnIdx = 0; btnIdx < btns.length; btnIdx++) {
-        const isPressed = btns[btnIdx];
-        const wasPressed = prevBtns ? prevBtns[btnIdx] : false;
-        if (isPressed && !wasPressed) {
+        if (btns[btnIdx] && !(prevBtns ? prevBtns[btnIdx] : false)) {
           return { chromiumIndex: padIdx, buttonIndex: btnIdx, kind: 'button' };
         }
       }
     }
-    // 2) Axes — liste des axes qui bougent
     if (axesThreshold > 0) {
       const hits = [];
       for (let padIdx = 0; padIdx < curr.axes.length; padIdx++) {
@@ -53,7 +48,7 @@
         for (let axIdx = 0; axIdx < ax.length; axIdx++) {
           const v = ax[axIdx];
           const pv = prevAx ? prevAx[axIdx] : 0;
-          if (Math.abs(v - pv) > 0.05) {
+          if (Math.abs(v - pv) > 0.01) {
             hits.push({ chromiumIndex: padIdx, axisIndex: axIdx, value: v, prev: pv });
           }
         }
@@ -63,9 +58,6 @@
     return null;
   }
 
-  // ---------------------------------------------------------------------------
-  // Helper : vérifie si un axe est blacklisté pour ce device (D-pad, hat…)
-  // ---------------------------------------------------------------------------
   function isAxisBlacklisted(chromiumIndex, axisIndex) {
     if (!global.GamepadMapper || !global.GamepadMapper.isAxisBlocked) return false;
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -76,7 +68,6 @@
     return global.GamepadMapper.isAxisBlocked(vp.vendor, vp.product, axisIndex);
   }
 
-  // ---------------------------------------------------------------------------
   function tick() {
     if (!active) return;
     const curr = snapshot();
@@ -99,53 +90,76 @@
       return;
     }
 
-    // ---- Axes : accumule les candidats puis choisit le meilleur
+    // ---- Axes : accumulation puis choix du gagnant
     if (hit && hit.kind === 'axis-candidates') {
       const now = Date.now();
-      if (!axisCaptureState) axisCaptureState = { start: now, candidates: {} };
 
+      if (!axisCaptureState) {
+        axisCaptureState = {
+          start: now,
+          gate:  now + 300,
+          candidates: {},
+          initialSnapshot: initialAxes ? JSON.parse(JSON.stringify(initialAxes)) : null,
+        };
+      }
+
+      // Accumule les candidats (même avant la fin du gate)
       for (const h of hit.hits) {
-        // ⛔ ignore les axes blacklistés (D-pad, hat switch…)
         if (isAxisBlacklisted(h.chromiumIndex, h.axisIndex)) continue;
 
         const key = h.chromiumIndex + ':' + h.axisIndex;
         if (!axisCaptureState.candidates[key]) {
           const baseline =
-            (initialAxes && initialAxes[h.chromiumIndex] &&
-             initialAxes[h.chromiumIndex][h.axisIndex] !== undefined)
-              ? initialAxes[h.chromiumIndex][h.axisIndex]
+            (axisCaptureState.initialSnapshot &&
+             axisCaptureState.initialSnapshot[h.chromiumIndex] &&
+             axisCaptureState.initialSnapshot[h.chromiumIndex][h.axisIndex] !== undefined)
+              ? axisCaptureState.initialSnapshot[h.chromiumIndex][h.axisIndex]
               : h.prev;
           axisCaptureState.candidates[key] = {
             chromiumIndex: h.chromiumIndex,
             axisIndex:     h.axisIndex,
             baseline:      baseline,
-            amplitude:     0,
+            minVal:        h.value,
+            maxVal:        h.value,
+            extremeReached: false,
           };
         }
         const c = axisCaptureState.candidates[key];
-        c.amplitude = Math.max(c.amplitude, Math.abs(h.value - c.baseline));
+        c.minVal = Math.min(c.minVal, h.value);
+        c.maxVal = Math.max(c.maxVal, h.value);
+        if (Math.abs(h.value) > 0.9) c.extremeReached = true;
       }
 
-      // Cherche l'axe avec la plus grande amplitude (en ignorant les hat)
-      let best = null;
+      // Bloque la décision tant que le gate de 300 ms n'est pas passé
+      if (now < axisCaptureState.gate) {
+        rafId = setTimeout(tick, 30);
+        return;
+      }
+
+      // Gagnant : axe avec la plus grande plage, atteignant un extrême
+      let winner = null;
+      let bestRange = 0;
       for (const k of Object.keys(axisCaptureState.candidates)) {
         const c = axisCaptureState.candidates[k];
         if (Math.abs(c.baseline) > 1.05) continue;
-        if (!best || c.amplitude > best.amplitude) best = c;
+        const range = c.maxVal - c.minVal;
+        if (c.extremeReached && range > bestRange) {
+          bestRange = range;
+          winner = c;
+        }
       }
 
-      // Dès qu'un axe a bougé de > 0.7, on capture
-      if (best && best.amplitude > 0.7) {
-        const acIndex = currentOpts.resolveAcIndex ? currentOpts.resolveAcIndex(best.chromiumIndex) : null;
-        const pad = navigator.getGamepads()[best.chromiumIndex];
+      if (winner && bestRange > 0.5) {
+        const acIndex = currentOpts.resolveAcIndex ? currentOpts.resolveAcIndex(winner.chromiumIndex) : null;
+        const pad = navigator.getGamepads()[winner.chromiumIndex];
         axisCaptureState = null;
         stop();
         if (currentOpts.onCapture) {
           currentOpts.onCapture({
             kind:          'axis',
-            chromiumIndex: best.chromiumIndex,
-            axisIndex:     best.axisIndex,
-            value:         best.amplitude,
+            chromiumIndex: winner.chromiumIndex,
+            axisIndex:     winner.axisIndex,
+            value:         bestRange,
             acIndex,
             padId:         pad ? pad.id : null,
           });
@@ -153,16 +167,15 @@
         return;
       }
 
-      // Timeout dur à 5s : rien de convaincant → reset et on continue
+      // Timeout interne 5s
       if (now - axisCaptureState.start > 5000) {
         axisCaptureState = null;
       }
     }
 
-    rafId = requestAnimationFrame(tick);
+    rafId = setTimeout(tick, 30);
   }
 
-  // ---------------------------------------------------------------------------
   function start(opts) {
     if (active) stop();
     currentOpts = Object.assign({
@@ -178,7 +191,7 @@
     axisCaptureState = null;
 
     active = true;
-    rafId  = requestAnimationFrame(tick);
+    rafId  = setTimeout(tick, 30);
 
     if (currentOpts.timeoutMs > 0) {
       timeoutHandle = setTimeout(() => {
@@ -190,7 +203,7 @@
 
   function stop() {
     active = false;
-    if (rafId)         { cancelAnimationFrame(rafId); rafId = null; }
+    if (rafId)         { clearTimeout(rafId); rafId = null; }
     if (timeoutHandle) { clearTimeout(timeoutHandle);  timeoutHandle = null; }
     axisCaptureState = null;
   }

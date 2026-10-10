@@ -1,6 +1,6 @@
 {
   "name": "qacrl_quick_ac_race_launcher",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "QACRL - Quick AC Race Launcher",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,7 @@
     "appId": "com.qacrl.launcher",
     "productName": "QACRL",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
       "icon": "public/assets/logo.ico"
     },
     "nsis": {
