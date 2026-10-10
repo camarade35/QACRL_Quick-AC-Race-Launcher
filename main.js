@@ -2044,31 +2044,20 @@ ipcMain.handle('join-server', async (event, serverData, sessionData) => {
     throw new Error("Données serveur invalides.");
   }
 
-  const resolvedIp = await resolveServerHost(serverData.ip);
+    const resolvedIp = await resolveServerHost(serverData.ip);
   const serverDataForIni = { ...serverData, ip: resolvedIp };
   writeRemoteServerInRaceIni(documentsPath, serverDataForIni, sessionData || {});
 
-  // ⭐ Créer steam_appid.txt pour que CSP puisse décrypter les modèles .kn5
-  // (sinon on a le message "Failed to decrypt model: Inappropriate environment")
-  try {
-    const steamAppIdPath = path.join(acPath, 'steam_appid.txt');
-    if (!fs.existsSync(steamAppIdPath)) {
-      fs.writeFileSync(steamAppIdPath, '244210', 'utf8');
-      console.log('[join-server] steam_appid.txt créé (244210)');
-    }
-  } catch (e) {
-    console.warn('[join-server] impossible de créer steam_appid.txt :', e.message);
-  }
-
-  // ⭐ Forcer les variables d'environnement Steam pour CSP
-  // (nécessaire pour que CSP accepte de décrypter les modèles .kn5)
+  // ⚠️ INDISPENSABLE : variables Steam pour qu'AC honore [REMOTE] ACTIVE=1
+  // Sans ça, AC se lance en solo même avec un race.ini parfait.
+  // (c'est aussi ce qui permet à CSP de décrypter certains modèles)
   const steamEnv = {
     ...process.env,
     SteamAppId: '244210',
     SteamGameId: '244210'
   };
 
-    const acExePath = path.join(acPath, 'acs.exe');
+  const acExePath = path.join(acPath, 'acs.exe');
   if (fs.existsSync(acExePath)) {
     try {
       const child = spawn(acExePath, [], {
@@ -2076,7 +2065,7 @@ ipcMain.handle('join-server', async (event, serverData, sessionData) => {
         detached: true,
         stdio: 'ignore',
         windowsHide: false,
-        env: steamEnv  // ⭐ Transmet les variables d'environnement Steam
+        env: steamEnv
       });
       child.unref();
       return { success: true };
