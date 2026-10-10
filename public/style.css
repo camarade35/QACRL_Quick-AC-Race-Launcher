@@ -2272,3 +2272,249 @@ select:disabled, input:disabled {
 .skin-select-row.selected .skin-select-name {
   color: var(--text-primary);
 }
+/* ============================================================
+   ÉDITEUR INI (Paramètres > Contrôles / Vidéo / Audio)
+   ============================================================ */
+
+.ini-editor { display: flex; flex-direction: column; gap: 12px; }
+
+.ini-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg-secondary, #12151c);
+  border: 1px solid var(--border-color, #232a38);
+  border-radius: 8px;
+  margin-bottom: 4px;
+}
+
+.ini-mode-toggle {
+  display: flex; gap: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 3px; border-radius: 6px;
+}
+
+.ini-mode-btn {
+  background: transparent; border: none;
+  color: var(--text-secondary, #8a94a8);
+  padding: 6px 14px; border-radius: 4px;
+  font-size: 0.78rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.ini-mode-btn:hover { color: var(--text-primary, #e6e8ee); }
+.ini-mode-btn.active {
+  background: var(--accent, #4c9aff);
+  color: #fff;
+}
+
+.ini-toolbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.ini-status {
+  font-size: 0.75rem;
+  color: var(--text-tertiary, #6b7688);
+  transition: color 0.2s;
+  min-width: 180px;
+}
+
+.ini-btn-save {
+  background: #4caf50 !important;
+  color: #fff !important;
+  border-color: #4caf50 !important;
+}
+
+.ini-form { display: flex; flex-direction: column; gap: 14px; }
+
+.ini-section {
+  background: var(--bg-secondary, #12151c);
+  border: 1px solid var(--border-color, #232a38);
+  border-radius: 8px;
+  padding: 10px 4px;
+}
+
+.ini-section-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.15s;
+}
+.ini-section-header:hover {
+  color: var(--accent-hover, #e53935);
+}
+
+.ini-section-arrow {
+  display: inline-block;
+  width: 12px;
+  font-size: 0.9rem;
+  transition: transform 0.15s;
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+.ini-section.collapsed .ini-section-arrow {
+  transform: rotate(0deg);
+}
+
+.ini-section-label {
+  flex: 0 0 auto;
+}
+
+.ini-section.collapsed > .ini-row {
+  display: none;
+}
+.ini-section-raw {
+  color: var(--text-tertiary, #6b7688);
+  font-weight: 400; text-transform: none;
+  letter-spacing: 0; font-size: 0.7rem;
+}
+
+.ini-row {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  align-items: center;
+  gap: 18px;
+  padding: 6px 16px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.ini-row:hover { background: rgba(122, 184, 255, 0.05); }
+
+.ini-label {
+  font-size: 0.82rem;
+  color: var(--text-primary, #c9cfdb);
+  cursor: pointer; user-select: none;
+}
+.ini-unit { color: var(--text-tertiary, #6b7688); font-size: 0.72rem; }
+
+.ini-checkbox {
+  width: 18px; height: 18px;
+  accent-color: var(--accent, #4c9aff);
+  cursor: pointer;
+}
+
+.ini-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.ini-slider-wrap .ini-range {
+  flex: 1 1 auto;
+  width: auto !important;
+  min-width: 0;
+  height: 6px;
+  accent-color: var(--accent, #4c9aff);
+  cursor: pointer;
+}
+
+.ini-number, .ini-text, .ini-select {
+  background: var(--bg-tertiary, #151922);
+  color: var(--text-primary, #e6e8ee);
+  border: 1px solid var(--border-color, #232a38);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ini-slider-wrap .ini-number {
+  flex: 0 0 70px;
+  width: 70px !important;
+  min-width: 70px;
+  text-align: right;
+}
+.ini-text   { width: 100%; }
+.ini-select { width: 100%; cursor: pointer; }
+.ini-number:focus, .ini-text:focus, .ini-select:focus {
+  border-color: var(--accent, #4c9aff);
+}
+
+.ini-binding {
+  font-family: Consolas, monospace;
+  font-size: 0.78rem;
+  color: #ffd17a;
+}
+
+.ini-expert {
+  width: 100%; min-height: 520px;
+  padding: 14px 16px;
+  background: var(--bg-tertiary, #0f131b);
+  color: var(--text-primary, #e6e8ee);
+  border: 1px solid var(--border-color, #232a38);
+  border-radius: 8px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.82rem; line-height: 1.5;
+  resize: vertical; outline: none;
+  white-space: pre; overflow: auto; tab-size: 4;
+}
+.ini-expert:focus { border-color: var(--accent, #4c9aff); }
+/* ============================================================
+   WIDGET DE CAPTURE BINDING
+   ============================================================ */
+.ini-binding-btn {
+  width: 100%;
+  max-width: 420px;
+  padding: 7px 14px;
+  background: var(--bg-elevated);
+  color: #ffd17a;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+  outline: none;
+}
+.ini-binding-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+.ini-binding-btn.capturing {
+  border-color: var(--accent);
+  background: var(--accent-muted);
+  color: var(--accent);
+  animation: ini-binding-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ini-binding-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-muted); }
+  50%      { box-shadow: 0 0 0 4px var(--accent-muted); }
+}
+.ini-binding-pad {
+  color: #7ad1ff;   /* bleu pour différencier du clavier (jaune) */
+}
+.ini-binding-pad:hover {
+  color: var(--text-primary);
+}
+.ini-binding-axis {
+  color: #c58aff;   /* violet pour les axes */
+}
+.ini-binding-axis:hover {
+  color: var(--text-primary);
+}
+.ini-binding-wrap {
+  display: grid;
+  grid-template-columns: 1fr 80px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+.ini-binding-wrap > .ini-binding-btn {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.ini-binding-wrap > .ini-number {
+  width: 80px !important;
+  min-width: 80px;
+  text-align: right;
+  box-sizing: border-box;
+}

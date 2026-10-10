@@ -526,54 +526,96 @@
       </div>
     </div>
 
-    <div id="tab-settings" class="tab-content">
+        <div id="tab-settings" class="tab-content">
+      <div class="subtabs">
+        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-settings-general')">Général</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-controls')">🎮 Contrôles</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-video')">🖥️ Vidéo</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-audio')">🔊 Audio</button>
+      </div>
 
-      <div class="group" id="player-identity-group">
-        <div class="group-title">Identité du pilote</div>
-        <div class="row">
-          <div class="field">
-            <label for="player-name">Nom du pilote (solo)</label>
-            <input type="text" id="player-name" value="Driver" placeholder="Driver">
+      <div id="subtab-settings-general" class="subtab-content active">
+        <div class="group" id="player-identity-group">
+          <div class="group-title">Identité du pilote</div>
+          <div class="row">
+            <div class="field">
+              <label for="player-name">Nom du pilote (solo)</label>
+              <input type="text" id="player-name" value="Driver" placeholder="Driver">
+            </div>
+            <div class="field">
+              <label for="online-name">Nom en ligne (multi)</label>
+              <input type="text" id="online-name" value="" placeholder="(utilise le nom du pilote par défaut)">
+            </div>
           </div>
-          <div class="field">
-            <label for="online-name">Nom en ligne (multi)</label>
-            <input type="text" id="online-name" value="" placeholder="(utilise le nom du pilote par défaut)">
+          <div class="row">
+            <div class="field">
+              <label for="steam-id">Steam ID (GUID)</label>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="text" id="steam-id" value="" placeholder="76561198XXXXXXXXX" style="flex: 1;">
+                <button class="filter-btn" id="btn-detect-steam-id" style="white-space: nowrap;">🔍 Détecter</button>
+              </div>
+            </div>
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+            💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>
+            💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur "Détecter".
           </div>
         </div>
-        <div class="row">
+
+        <div class="group">
+          <div class="group-title">Chemin d'accès au jeu</div>
           <div class="field">
-            <label for="steam-id">Steam ID (GUID)</label>
+            <label>Dossier racine Assetto Corsa</label>
             <div style="display: flex; gap: 10px; align-items: center;">
-              <input type="text" id="steam-id" value="" placeholder="76561198XXXXXXXXX" style="flex: 1;">
-              <button class="filter-btn" id="btn-detect-steam-id" style="white-space: nowrap;">🔍 Détecter</button>
+              <span id="ac-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Non défini</span>
+              <button class="filter-btn" id="btn-select-ac">Parcourir...</button>
             </div>
           </div>
         </div>
-        <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
-          💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>
-          💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur "Détecter".
+        <div class="group">
+          <div class="group-title">Dossier Documents</div>
+          <div class="field">
+            <label>Dossier Documents (contenant "Assetto Corsa/cfg")</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <span id="documents-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Détection automatique...</span>
+              <button class="filter-btn" id="btn-select-documents">Parcourir...</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="group">
-        <div class="group-title">Chemin d'accès au jeu</div>
-        <div class="field">
-          <label>Dossier racine Assetto Corsa</label>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <span id="ac-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Non défini</span>
-            <button class="filter-btn" id="btn-select-ac">Parcourir...</button>
-          </div>
-        </div>
+      <div id="subtab-settings-controls" class="subtab-content">
+        <div class="ini-editor" data-ini-file="controls.ini"></div>
       </div>
-      <div class="group">
-        <div class="group-title">Dossier Documents</div>
-        <div class="field">
-          <label>Dossier Documents (contenant "Assetto Corsa/cfg")</label>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <span id="documents-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Détection automatique...</span>
-            <button class="filter-btn" id="btn-select-documents">Parcourir...</button>
+
+      <div id="subtab-settings-video" class="subtab-content">
+        <div class="group" id="weatherfx-group">
+          <div class="group-title">🌦️ Weather FX — Style de rendu</div>
+          <div class="row">
+            <div class="field">
+              <label for="weatherfx-style-select">Style actif</label>
+              <select id="weatherfx-style-select">
+                <option value="">⏳ Chargement…</option>
+              </select>
+            </div>
+            <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
+              <span id="weatherfx-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
+            </div>
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;">
+            💡 Le <strong>Weather FX Style</strong> définit le traitement en amont des filtres PP (post-processing).<br>
+            • <strong>Default</strong> : rendu Kunos classique<br>
+            • <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>
+            • <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)<br>
+            ⚠️ Après un changement, <strong>relance AC</strong> pour que ce soit pris en compte.
           </div>
         </div>
+
+        <div class="ini-editor" data-ini-file="video.ini"></div>
+      </div>
+
+      <div id="subtab-settings-audio" class="subtab-content">
+        <div class="ini-editor" data-ini-file="audio.ini"></div>
       </div>
     </div>
   </div>
@@ -714,6 +756,14 @@
   <script src="src/content.js"></script>
   <script src="src/session.js"></script>
   <script src="src/mods.js"></script>
+  <script src="src/iniParser.js"></script>
+  <script src="src/iniSchema.js"></script>
+  <script src="src/keyboardMapper.js"></script>
+  <script src="src/gamepadMapper.js"></script>
+  <script src="src/gamepadCapture.js"></script>
+  <script src="src/iniControls.js"></script>
+  <script src="src/weatherFx.js"></script>
+  <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

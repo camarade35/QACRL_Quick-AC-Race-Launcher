@@ -184,6 +184,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderRecentServers();
   renderOnlineServers();
   updateSortButtonsUI();
+
+  // ⭐ Init des éditeurs INI (Paramètres > Contrôles/Vidéo/Audio)
+  if (window.SettingsIni && typeof window.SettingsIni.init === 'function') {
+    window.SettingsIni.init();
+  }
+
+  // ⭐ Init du sélecteur Weather FX
+  if (window.WeatherFx && typeof window.WeatherFx.init === 'function') {
+    window.WeatherFx.init();
+  }
 });
 
 /* ============================================================

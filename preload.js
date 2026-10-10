@@ -60,7 +60,18 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('install-mod-progress', subscription);
     return () => ipcRenderer.removeListener('install-mod-progress', subscription);
   },
-analyzeHardware: () => ipcRenderer.invoke('analyze-hardware'),
+  analyzeHardware: () => ipcRenderer.invoke('analyze-hardware'),
+
+  // ⭐ Fichiers INI (controls / video / audio)
+  readIniFile: (filename) => ipcRenderer.invoke('read-ini-file', filename),
+  writeIniFile: (filename, content) => ipcRenderer.invoke('write-ini-file', filename, content),
+
+  // ⭐ Filtres post-process (PP filters)
+  listPpfilters: () => ipcRenderer.invoke('list-ppfilters'),
+
+  // ⭐ Weather FX Style
+  getWeatherFxStyle: () => ipcRenderer.invoke('get-weather-fx-style'),
+  setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
 
   // ⭐ Contrôles de fenêtre (custom titlebar)
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),

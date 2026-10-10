@@ -220,13 +220,23 @@ function createWindow() {
     }
   });
   mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+  //ligne temporaire ci-dessous à enlever ensuite//
+  //mainWindow.webContents.openDevTools();
 
   // ⭐ Notifie le renderer quand l'état maximisé change (pour changer l'icône)
   mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // ⭐ Autorise l'accès aux périphériques audio (pour lister les sorties)
+  const { session } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+    if (permission === 'media') return callback(true);
+    callback(false);
+  });
+  createWindow();
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 
 /* ============================================================
@@ -2306,3 +2316,186 @@ ipcMain.handle('install-mod', async (event, filePath) => {
 });
 
 ipcMain.handle('analyze-hardware', async () => ({ detectedHardware: { gpu: "NVIDIA RTX" }, preset: "Élevé" }));
+
+
+/* ============================================================
+   IPC — FICHIERS INI (controls / video / audio)
+   ============================================================ */
+
+// Whitelist stricte des INI éditables (sécurité : pas de chemin arbitraire)
+const EDITABLE_INI_FILES = ['controls.ini', 'video.ini', 'audio.ini'];
+
+function getCfgIniPath(documentsPath, filename) {
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', filename);
+}
+
+ipcMain.handle('read-ini-file', async (event, filename) => {
+  if (!EDITABLE_INI_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const filePath = getCfgIniPath(documentsPath, filename);
+
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Fichier introuvable : ' + filePath, path: filePath };
+  }
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { success: true, path: filePath, content };
+  } catch (e) {
+    return { success: false, error: e.message, path: filePath };
+  }
+});
+
+ipcMain.handle('write-ini-file', async (event, filename, content) => {
+  if (!EDITABLE_INI_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  if (typeof content !== 'string') {
+    return { success: false, error: 'Contenu invalide (string attendu).' };
+  }
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const filePath = getCfgIniPath(documentsPath, filename);
+
+  try {
+    // Backup automatique avant chaque écriture
+    if (fs.existsSync(filePath)) {
+      fs.copyFileSync(filePath, filePath + '.bak');
+    }
+    fs.writeFileSync(filePath, content, 'utf8');
+    return { success: true, path: filePath };
+  } catch (e) {
+    return { success: false, error: e.message, path: filePath };
+  }
+});
+
+/* ============================================================
+   IPC — LISTE DES FILTRES POST-PROCESS (ppfilters)
+   ============================================================ */
+ipcMain.handle('list-ppfilters', async () => {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) {
+    return { success: false, error: 'Dossier AC non configuré.', filters: [] };
+  }
+  const ppDir = path.join(acPath, 'system', 'cfg', 'ppfilters');
+  if (!fs.existsSync(ppDir)) {
+    return { success: false, error: 'Dossier ppfilters introuvable : ' + ppDir, filters: [] };
+  }
+  try {
+    const entries = fs.readdirSync(ppDir, { withFileTypes: true });
+    const filters = [];
+    for (const e of entries) {
+      if (e.isFile() && e.name.toLowerCase().endsWith('.ini')) {
+        filters.push(e.name.replace(/\.ini$/i, ''));
+      }
+    }
+    filters.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    return { success: true, filters, path: ppDir };
+  } catch (e) {
+    return { success: false, error: e.message, filters: [] };
+  }
+});
+
+/* ============================================================
+   IPC — WEATHER FX STYLE (weather_fx.ini)
+   On modifie UNIQUEMENT la ligne IMPLEMENTATION= dans [BASIC].
+   - Default    → supprime la ligne
+   - Pure Gamma → IMPLEMENTATION=pure
+   - Pure LCS   → IMPLEMENTATION=Pure LCS
+   ============================================================ */
+
+const WEATHER_FX_VALUES = {
+  'default': null,             // ligne à supprimer
+  'gamma':   'pure',
+  'lcs':     'Pure LCS',
+};
+
+function getWeatherFxActivePath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'weather_fx.ini');
+}
+
+ipcMain.handle('get-weather-fx-style', async () => {
+  const active = getWeatherFxActivePath();
+  if (!fs.existsSync(active)) {
+    return { success: false, error: 'weather_fx.ini introuvable : ' + active, style: null };
+  }
+  try {
+    const content = fs.readFileSync(active, 'utf8');
+    const m = content.match(/^\s*IMPLEMENTATION\s*=\s*(.*)$/m);
+    const impl = m ? m[1].trim() : '';
+
+    let style = 'default';
+    if (/^pure\s*lcs$/i.test(impl))    style = 'lcs';
+    else if (/^pure$/i.test(impl))     style = 'gamma';
+
+    return { success: true, style, implementation: impl, path: active };
+  } catch (e) {
+    return { success: false, error: e.message, style: null };
+  }
+});
+
+ipcMain.handle('set-weather-fx-style', async (event, style) => {
+  if (!(style in WEATHER_FX_VALUES)) {
+    return { success: false, error: 'Style inconnu : ' + style };
+  }
+  const newValue = WEATHER_FX_VALUES[style];
+
+  const active = getWeatherFxActivePath();
+  if (!fs.existsSync(active)) {
+    return { success: false, error: 'weather_fx.ini introuvable : ' + active };
+  }
+
+  try {
+    // Backup
+    fs.copyFileSync(active, active + '.bak');
+
+    // Lit + modifie
+    const original = fs.readFileSync(active, 'utf8');
+    const eol = original.includes('\r\n') ? '\r\n' : '\n';
+    const lines = original.split(/\r?\n/);
+
+    // 1) Cherche une ligne IMPLEMENTATION= existante
+    const implRe = /^\s*IMPLEMENTATION\s*=/i;
+    let implIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (implRe.test(lines[i])) { implIdx = i; break; }
+    }
+
+    if (newValue === null) {
+      // Style "default" : supprime la ligne si elle existe
+      if (implIdx >= 0) lines.splice(implIdx, 1);
+    } else {
+      const newLine = 'IMPLEMENTATION=' + newValue;
+      if (implIdx >= 0) {
+        lines[implIdx] = newLine;
+      } else {
+        // Pas de ligne existante → on l'insère juste après [BASIC]
+        const basicIdx = lines.findIndex(l => /^\s*\[BASIC\]\s*$/i.test(l));
+        if (basicIdx >= 0) {
+          lines.splice(basicIdx + 1, 0, newLine);
+        } else {
+          // Aucune section [BASIC] → on la crée en tout début
+          lines.unshift('[BASIC]', newLine, '');
+        }
+      }
+    }
+
+    fs.writeFileSync(active, lines.join(eol), 'utf8');
+    return { success: true, appliedStyle: style, target: active, value: newValue };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});

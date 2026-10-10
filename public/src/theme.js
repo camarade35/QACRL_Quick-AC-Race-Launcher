@@ -45,18 +45,26 @@ async function toggleThemeMode() {
 }
 
 /**
- * Initialise le color picker d'accent.
+ * Initialise le color picker d'accent + le bouton toggle clair/sombre.
  */
 function setupThemePicker() {
+  // 1) Color picker d'accent
   const input = document.getElementById('theme-color-input');
-  if (!input) return;
-  input.addEventListener('input', (e) => applyAccentColor(e.target.value));
-  input.addEventListener('change', async (e) => {
-    applyAccentColor(e.target.value);
-    try {
-      const settings = await window.api.getSettings();
-      settings.accentColor = e.target.value;
-      await window.api.saveSettings(settings);
-    } catch (err) {}
-  });
+  if (input) {
+    input.addEventListener('input', (e) => applyAccentColor(e.target.value));
+    input.addEventListener('change', async (e) => {
+      applyAccentColor(e.target.value);
+      try {
+        const settings = await window.api.getSettings();
+        settings.accentColor = e.target.value;
+        await window.api.saveSettings(settings);
+      } catch (err) {}
+    });
+  }
+
+  // 2) Bouton toggle thème clair/sombre ⭐
+  const toggleBtn = document.getElementById('theme-mode-toggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', toggleThemeMode);
+  }
 }
