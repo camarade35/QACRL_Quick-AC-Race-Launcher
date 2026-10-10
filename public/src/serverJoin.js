@@ -652,21 +652,16 @@ async function confirmServerJoin() {
     || getValue('online-name')
     || '';
 
-  // ⭐ Ping rapide pour trouver le bon port jeu
-	let gamePort = server.port; // Par défaut : port entré par l'utilisateur
-
-	// Essaie le gamePort déclaré si différent et valide
-	if (info.gamePort && info.gamePort > 0 && info.gamePort !== server.port) {
-	  try {
-		const ping = await window.api.pingServer(server.ip, info.gamePort);
-		if (ping && ping.success) {
-		  gamePort = info.gamePort;
-		  console.log('[Join] gamePort déclaré OK :', gamePort);
-		}
-	  } catch (e) {
-		console.log('[Join] gamePort KO, utilise port entré :', server.port);
-	  }
-	}
+  // ⭐ On fait CONFIANCE au gamePort renvoyé par /INFO ou /api/details.
+  // Le port du navigateur (server.port) peut être le HTTP port, pas le game port.
+  // NE PAS pinguer : /INFO vit sur le HTTP port, pas sur le game port.
+  let gamePort = server.port;
+  if (info.gamePort && info.gamePort > 0 && info.gamePort !== server.port) {
+    gamePort = info.gamePort;
+    console.log('[Join] gamePort détecté :', gamePort, '(port navigateur :', server.port + ')');
+  } else {
+    console.log('[Join] gamePort = port navigateur :', gamePort);
+  }
 
 	const serverData = {
 	  ip: server.ip,

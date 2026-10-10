@@ -1,10 +1,11 @@
 {
-  "name": "ac-custom-launcher",
+  "name": "qacrl_quick_ac_race_launcher",
   "version": "1.0.0",
-  "description": "Custom Light Launcher for Assetto Corsa",
+  "description": "QACRL - Quick AC Race Launcher",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "dist": "electron-builder"
   },
   "dependencies": {
     "adm-zip": "^0.5.10",
@@ -12,6 +13,20 @@
     "systeminformation": "^5.21.15"
   },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.qacrl.launcher",
+    "productName": "QACRL",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

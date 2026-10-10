@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const http = require('http');
 const https = require('https');
+const dns = require('dns').promises;
 const { exec, execSync, spawn } = require('child_process');
 const { pathToFileURL } = require('url');
 const { writeRaceConfig } = require('./src/iniWriter');
@@ -1620,7 +1621,7 @@ ipcMain.handle('fetch-server-info', async (event, ip, port) => {
       return {
         success: true,
         queriedPort: p,
-        gamePort: parseInt(data.port, 10) || 0,
+        gamePort: parseInt(data.tport, 10) || parseInt(data.port, 10) || 0,
         httpPort: parseInt(data.cport, 10) || p,
         name: data.name || '',
         track: cleaned.track,
@@ -1717,7 +1718,7 @@ ipcMain.handle('fetch-server-details', async (event, ip, basePort, gamePort) => 
 		  cars: carsList,
 		  slotsByCar: slotsByCar,
 		  drivers: driversConnected,
-		  gamePort: parseInt(data.port, 10) || parseInt(data.tport, 10) || 0,
+		  gamePort: parseInt(data.tport, 10) || parseInt(data.port, 10) || 0,
 		  httpPort: parseInt(data.cport, 10) || p,
 		  clients: parseInt(data.clients, 10) || 0,
 		  maxClients: parseInt(data.maxclients, 10) || 0,
@@ -1855,65 +1856,66 @@ function writeRemoteServerInRaceIni(documentsPath, serverData, sessionData) {
   let content = fs.readFileSync(raceIniPath, 'utf8');
 
   const onlineNameRaw = (sessionData.onlineName || '').trim() || sessionData.driverName || 'Player';
-  const onlineName = onlineNameRaw.replace(/[\r\n=]/g, '');   // ⭐ NOUVEAU : protège NAME
+  const onlineName = onlineNameRaw.replace(/[\r\n=]/g, '');
   const guid = (sessionData.steamId || '').trim() || '';
   const carId = sessionData.car || '';
+  const skinId = sessionData.skin || '';
   const password = (sessionData.password || '').trim();
 
-  // ⭐ Features CSP par défaut (obligatoires pour AssettoServer)
-	  const DEFAULT_CSP_FEATURES = [
-		'WEATHERFX_V1',
-		'SPECTATING_AWARE',
-		'LOWER_CLIENTS_SENDING_RATE',
-		'EMOJI',
-		'CLIENT_MESSAGES',
-		'CUSTOM_UPDATE'
-	  ];
+  const DEFAULT_CSP_FEATURES = [
+    'WEATHERFX_V1',
+    'SPECTATING_AWARE',
+    'LOWER_CLIENTS_SENDING_RATE',
+    'EMOJI',
+    'CLIENT_MESSAGES',
+    'CUSTOM_UPDATE'
+  ];
 
-	  // Utilise les features réelles du serveur si dispo, sinon fallback
-	  const serverFeatures = Array.isArray(serverData.features) && serverData.features.length > 0
-		? serverData.features
-		: DEFAULT_CSP_FEATURES;
+  const serverFeatures = Array.isArray(serverData.features) && serverData.features.length > 0
+    ? serverData.features
+    : DEFAULT_CSP_FEATURES;
 
-	  let remoteSection = `[REMOTE]
-	ACTIVE=1
-	SERVER_IP=${serverData.ip}
-	SERVER_PORT=${serverData.port}
-	SERVER_NAME=${(serverData.name || '').replace(/[\r\n=]/g, ' ')}
-	SERVER_HTTP_PORT=${serverData.httpPort || (serverData.port + 1)}
-	REQUESTED_CAR=${carId}
-	GUID=${guid}
-	NAME=${onlineName}
-	__CM_EXTENDED=1
-	__FEATURES=${serverFeatures.join(',')}
-	`;
-	  if (password) {
-		remoteSection += `PASSWORD=${password}\n`;
-	  }
+  // ⚠️ Aucune tabulation : on construit les lignes avec un tableau
+  const remoteLines = [
+    '[REMOTE]',
+    'ACTIVE=1',
+    'SERVER_IP=' + serverData.ip,
+    'SERVER_PORT=' + serverData.port,
+    'SERVER_NAME=' + (serverData.name || '').replace(/[\r\n=]/g, ' '),
+    'SERVER_HTTP_PORT=' + (serverData.httpPort || (serverData.port + 1)),
+    'REQUESTED_CAR=' + carId,
+    'REQUESTED_SKIN=' + skinId,
+    'GUID=' + guid,
+    'NAME=' + onlineName,
+    '__CM_EXTENDED=1',
+    '__FEATURES=' + serverFeatures.join(',')
+  ];
+  if (password) remoteLines.push('PASSWORD=' + password);
+  const remoteSection = remoteLines.join('\n') + '\n';
 
   if (/\[REMOTE\]/.test(content)) {
-    content = content.replace(/\[REMOTE\][\s\S]*?(?=\n\[|$)/, remoteSection.trimEnd());
+    content = content.replace(/\[REMOTE\][\s\S]*?(?=\n\[|$)/, remoteSection);
   } else {
     content = content.trimEnd() + '\n\n' + remoteSection;
   }
 
   const track = serverData.track || '';
   const trackConfig = serverData.trackConfig || '';
-  const serverIpLine = `${serverData.ip}:${serverData.port}`;
+  const serverIpLine = serverData.ip + ':' + serverData.port;
 
   function setRaceKey(ini, key, value) {
     const raceRe = /\[RACE\]([\s\S]*?)(?=\n\[|$)/;
     const raceMatch = ini.match(raceRe);
     if (!raceMatch) return ini;
     const raceBody = raceMatch[1];
-    const keyRe = new RegExp(`^${key}=.*$`, 'm');
+    const keyRe = new RegExp('^' + key + '=.*$', 'm');
     let newRaceBody;
     if (keyRe.test(raceBody)) {
-      newRaceBody = raceBody.replace(keyRe, `${key}=${value}`);
+      newRaceBody = raceBody.replace(keyRe, key + '=' + value);
     } else {
-      newRaceBody = raceBody.trimEnd() + `\n${key}=${value}`;
+      newRaceBody = raceBody.trimEnd() + '\n' + key + '=' + value;
     }
-    return ini.replace(raceRe, `[RACE]${newRaceBody}`);
+    return ini.replace(raceRe, '[RACE]' + newRaceBody);
   }
 
   if (carId) content = setRaceKey(content, 'MODEL', carId);
@@ -1922,23 +1924,37 @@ function writeRemoteServerInRaceIni(documentsPath, serverData, sessionData) {
   if (trackConfig !== undefined) content = setRaceKey(content, 'CONFIG_TRACK', trackConfig);
   content = setRaceKey(content, 'SERVER_IP', serverIpLine);
 
-  // ⭐ Force le spawn au PIT pour les serveurs multijoueur
-  // (sinon AC spawn "sur la grille" et sur les serveurs pickup ça donne l'impression
-  //  qu'on est dans le vide)
-  const sessionBlock = `[SESSION_0]
-NAME=Nothing
-TYPE=1
-DURATION_MINUTES=0
-SPAWN_SET=PIT
-`;
+  const sessionLines = [
+    '[SESSION_0]',
+    'NAME=Nothing',
+    'TYPE=1',
+    'DURATION_MINUTES=0',
+    'SPAWN_SET=PIT'
+  ];
+  const sessionBlock = sessionLines.join('\n') + '\n';
+
   if (/\[SESSION_0\]/.test(content)) {
-    content = content.replace(/\[SESSION_0\][\s\S]*?(?=\n\[|$)/, sessionBlock.trimEnd());
+    content = content.replace(/\[SESSION_0\][\s\S]*?(?=\n\[|$)/, sessionBlock);
   } else {
     content = content.trimEnd() + '\n\n' + sessionBlock;
   }
 
   fs.writeFileSync(raceIniPath, content, 'utf8');
   return true;
+}
+
+async function resolveServerHost(host) {
+  if (!host) return host;
+  // Si c'est déjà une IP, on la renvoie telle quelle
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return host;
+  try {
+    const result = await dns.lookup(host);
+    console.log('[resolveServerHost]', host, '→', result.address);
+    return result.address;
+  } catch (e) {
+    console.warn('[resolveServerHost] échec résolution', host, ':', e.message);
+    return host; // fallback : on garde le hostname
+  }
 }
 
 ipcMain.handle('join-server', async (event, serverData, sessionData) => {
@@ -1952,7 +1968,9 @@ ipcMain.handle('join-server', async (event, serverData, sessionData) => {
     throw new Error("Données serveur invalides.");
   }
 
-  writeRemoteServerInRaceIni(documentsPath, serverData, sessionData || {});
+  const resolvedIp = await resolveServerHost(serverData.ip);
+  const serverDataForIni = { ...serverData, ip: resolvedIp };
+  writeRemoteServerInRaceIni(documentsPath, serverDataForIni, sessionData || {});
 
   const acExePath = path.join(acPath, 'acs.exe');
   if (fs.existsSync(acExePath)) {
