@@ -15,6 +15,13 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.2.1] - 2026-10-10
+
+### 🐛 Corrigé
+- **Join multijoueur** : restauration des variables d'environnement Steam (`SteamAppId`, `SteamGameId`) dans le `spawn` de `acs.exe`. Sans elles, AC ignorait `[REMOTE] ACTIVE=1` et se lançait en solo malgré un `race.ini` valide.
+
+---
+
 ## [1.2.0] - 2026-10-10
 
 ### ✨ Ajouté

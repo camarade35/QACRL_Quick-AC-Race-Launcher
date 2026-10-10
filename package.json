@@ -1,6 +1,6 @@
 {
   "name": "qacrl_quick_ac_race_launcher",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "QACRL - Quick AC Race Launcher",
   "main": "main.js",
   "scripts": {
