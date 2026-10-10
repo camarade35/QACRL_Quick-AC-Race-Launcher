@@ -1517,6 +1517,14 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
     console.error('[SessionHistory] Erreur enregistrement:', e);
   }
 
+  // ⚠️ INDISPENSABLE : variables Steam pour qu'AC honore le race.ini
+  // (même fix que join-server, sinon AC démarre sur le menu principal)
+  const steamEnv = {
+    ...process.env,
+    SteamAppId: '244210',
+    SteamGameId: '244210'
+  };
+
   const acExePath = path.join(settings.acPath, 'acs.exe');
   if (fs.existsSync(acExePath)) {
     try {
@@ -1524,7 +1532,8 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
         cwd: settings.acPath,
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: false,
+        env: steamEnv
       });
       child.unref();
       return { success: true };
