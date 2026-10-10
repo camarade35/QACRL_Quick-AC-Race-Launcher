@@ -10,15 +10,26 @@ function renderManualServers() {
   if (!container) return;
   container.innerHTML = '';
 
-  if (!appData.customServers || appData.customServers.length === 0) {
+  let list = appData.customServers || [];
+
+  // Filtre favoris
+  if (typeof manualFilter !== 'undefined' && manualFilter.favoritesOnly) {
+    list = list.filter(srv => isFavoriteServer(srv));
+  }
+
+  if (list.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'servers-empty';
-    empty.textContent = 'Aucun serveur manuel enregistré. Ajoute-en un ci-dessus.';
+    empty.textContent = (typeof manualFilter !== 'undefined' && manualFilter.favoritesOnly)
+      ? 'Aucun serveur favori enregistré. Ajoute une étoile ⭐ à un de tes serveurs.'
+      : 'Aucun serveur manuel enregistré. Ajoute-en un ci-dessus.';
     container.appendChild(empty);
     return;
   }
 
-  appData.customServers.forEach((srv, index) => {
+  list.forEach((srv) => {
+    // On retrouve l'index RÉEL dans appData.customServers (car list peut être filtrée)
+    const realIndex = appData.customServers.indexOf(srv);
     const row = document.createElement('div');
     row.className = 'server-row';
     const fav = isFavoriteServer(srv);
@@ -33,21 +44,89 @@ function renderManualServers() {
       </div>
       <div class="server-players empty">—</div>
       <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${fav ? '★' : '☆'}</button>
+      <button class="server-action edit" title="Modifier">⚙️</button>
       <button class="server-action join">▶ Rejoindre</button>
       <button class="server-action delete" title="Supprimer">🗑️</button>
     `;
+
     row.querySelector('.server-fav-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       toggleFavoriteServer(srv);
     });
     row.querySelector('.join').addEventListener('click', () => openServerJoinModal(srv));
+    row.querySelector('.edit').addEventListener('click', () => openEditServerModal(realIndex));
     row.querySelector('.delete').addEventListener('click', () => {
       if (!confirm(`Supprimer le serveur "${srv.name || srv.ip}" ?`)) return;
-      appData.customServers.splice(index, 1);
+      appData.customServers.splice(realIndex, 1);
       saveCurrentState();
       renderManualServers();
     });
     container.appendChild(row);
+  });
+}
+
+/* ============================================================
+   MODALE D'ÉDITION DE SERVEUR MANUEL
+   ============================================================ */
+let currentEditIndex = -1;
+
+function openEditServerModal(index) {
+  if (index < 0 || !appData.customServers || !appData.customServers[index]) return;
+  currentEditIndex = index;
+  const srv = appData.customServers[index];
+
+  document.getElementById('server-edit-name').value = srv.name || '';
+  document.getElementById('server-edit-ip').value = `${srv.ip}:${srv.port}`;
+  document.getElementById('server-edit-modal').style.display = 'flex';
+
+  setTimeout(() => document.getElementById('server-edit-name').focus(), 100);
+}
+
+function closeServerEditModal() {
+  document.getElementById('server-edit-modal').style.display = 'none';
+  currentEditIndex = -1;
+}
+
+function saveServerEdit() {
+  if (currentEditIndex < 0) return;
+  const srv = appData.customServers[currentEditIndex];
+  if (!srv) return;
+
+  const newName = (document.getElementById('server-edit-name').value || '').trim();
+  const newIpPort = (document.getElementById('server-edit-ip').value || '').trim();
+
+  const m = newIpPort.match(/^([\w.\-]+):(\d{1,5})$/);
+  if (!m) {
+    alert('Format invalide. Attendu : IP:PORT (ex: 51.38.180.172:28093)');
+    return;
+  }
+
+  const port = parseInt(m[2], 10);
+  if (!port || port < 1 || port > 65535) {
+    alert('Port invalide.');
+    return;
+  }
+
+  appData.customServers[currentEditIndex] = {
+    ...srv,
+    name: newName || `${m[1]}:${port}`,
+    ip: m[1],
+    port,
+    httpPort: port + 1
+  };
+
+  saveCurrentState();
+  renderManualServers();
+  closeServerEditModal();
+}
+
+// Handlers de la modale d'édition (à appeler une seule fois au démarrage)
+function setupServerEditModalHandlers() {
+  document.getElementById('server-edit-close')?.addEventListener('click', closeServerEditModal);
+  document.getElementById('server-edit-cancel')?.addEventListener('click', closeServerEditModal);
+  document.getElementById('server-edit-save')?.addEventListener('click', saveServerEdit);
+  document.getElementById('server-edit-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('server-edit-modal')) closeServerEditModal();
   });
 }
 
@@ -236,7 +315,13 @@ function renderRecentServers() {
   if (!container) return;
   container.innerHTML = '';
 
-  const recent = appData.recentServers || [];
+let recent = appData.recentServers || [];
+
+  // Filtre favoris
+  if (typeof recentFilter !== 'undefined' && recentFilter.favoritesOnly) {
+    recent = recent.filter(srv => isFavoriteServer(srv));
+  }
+
   if (recent.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'servers-empty';
@@ -251,6 +336,7 @@ function renderRecentServers() {
 
     const flagDisplay = (srv.countryCode || '🌐').toUpperCase();
     const timeAgo = formatTimeAgo(srv.date);
+    const fav = isFavoriteServer(srv);
 
     row.innerHTML = `
       <div class="server-flag" title="${srv.countryName || ''}">${flagDisplay}</div>
@@ -263,9 +349,20 @@ function renderRecentServers() {
         </div>
       </div>
       <div class="server-players empty">—</div>
+      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${fav ? '★' : '☆'}</button>
+      <button class="server-action edit" title="Modifier">⚙️</button>
       <button class="server-action join">▶ Rejoindre</button>
       <button class="server-action delete" title="Retirer de l'historique">🗑️</button>
     `;
+
+    row.querySelector('.server-fav-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFavoriteServer(srv);
+    });
+
+    row.querySelector('.edit').addEventListener('click', () => {
+      openEditServerModalFromRecent(srv);
+    });
 
     row.querySelector('.join').addEventListener('click', () => {
       const srvObj = {
@@ -292,6 +389,26 @@ function renderRecentServers() {
 
     container.appendChild(row);
   });
+}
+
+/**
+ * Ouvre la modale d'édition depuis un serveur "récent".
+ * Comme un récent n'est pas dans appData.customServers, on l'AJOUTE
+ * aux serveurs manuels puis on ouvre l'édition sur ce nouvel index.
+ */
+function openEditServerModalFromRecent(srv) {
+  if (!appData.customServers) appData.customServers = [];
+  const newIndex = appData.customServers.push({
+    id: 'srv_' + Date.now(),
+    ip: srv.ip,
+    port: srv.httpPort || srv.port,
+    httpPort: srv.httpPort || (srv.port + 1),
+    name: srv.name || `${srv.ip}:${srv.port}`
+  }) - 1;
+
+  saveCurrentState();
+  renderManualServers();
+  openEditServerModal(newIndex);
 }
 
 /* ============================================================

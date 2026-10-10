@@ -29,6 +29,8 @@ let onlineFilter = {
   favoritesOnly: false
 };
 let onlineSort = { by: 'players', dir: 'desc' };
+let manualFilter = { favoritesOnly: false };
+let recentFilter = { favoritesOnly: false };
 let isInstallingMod = false;
 let isLoadingServers = false;
 let customPlanSteps = [];
@@ -96,7 +98,11 @@ function toggleFavoriteServer(server) {
   if (idx >= 0) appData.favoriteServers.splice(idx, 1);
   else appData.favoriteServers.push(key);
   saveCurrentState();
+
+  // ⭐ Rafraîchit TOUTES les listes qui affichent une étoile
   renderOnlineServers();
+  renderManualServers();
+  renderRecentServers();
 }
 
 /* ============================================================
@@ -687,4 +693,30 @@ function setupEventListeners() {
   document.getElementById('server-join-modal')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('server-join-modal')) closeServerJoinModal();
   });
+
+  // ⭐ Coller un lien serveur (acstuff / acmanager / IP:PORT)
+  document.getElementById('btn-server-link-join')?.addEventListener('click', handleServerLinkJoin);
+  document.getElementById('server-link-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleServerLinkJoin();
+    }
+  });
+
+  // ⭐ Filtre favoris sur les serveurs manuels
+  document.getElementById('btn-manual-filter-favorites')?.addEventListener('click', (e) => {
+    manualFilter.favoritesOnly = !manualFilter.favoritesOnly;
+    e.currentTarget.classList.toggle('active', manualFilter.favoritesOnly);
+    renderManualServers();
+  });
+
+  // ⭐ Filtre favoris sur les serveurs récents
+  document.getElementById('btn-recent-filter-favorites')?.addEventListener('click', (e) => {
+    recentFilter.favoritesOnly = !recentFilter.favoritesOnly;
+    e.currentTarget.classList.toggle('active', recentFilter.favoritesOnly);
+    renderRecentServers();
+  });
+
+  // ⭐ Init de la modale d'édition
+  if (typeof setupServerEditModalHandlers === 'function') setupServerEditModalHandlers();
 }

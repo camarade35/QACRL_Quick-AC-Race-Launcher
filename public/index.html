@@ -128,25 +128,25 @@
       <div class="section-header">
         <h3 class="section-title">Serveurs en ligne</h3>
       </div>
-
-      <div class="group">
-        <div class="group-title">📋 Coller un lien de serveur</div>
+	  <div class="group">
+        <div class="group-title">🔗 Coller un lien de serveur</div>
         <div class="row">
           <div class="field" style="flex: 3;">
-            <label for="online-paste-link">Lien de serveur (acstuff.club, acmanager://, IP:PORT…)</label>
-            <input type="text" id="online-paste-link" placeholder="https://acstuff.club/s/q:race/online/join?ip=51.38.180.172&httpPort=28093">
+            <label for="server-link-input">Lien acstuff, acmanager:// ou IP:PORT</label>
+            <input type="text" id="server-link-input" placeholder="https://acstuff.club/s/qrace/online/join?ip=...&httpPort=...">
           </div>
           <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
-            <button class="filter-btn" id="btn-online-parse-link" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+            <button class="filter-btn" id="btn-server-link-join"
+                    style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
               ▶ Rejoindre
             </button>
           </div>
         </div>
         <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
-          💡 Colle un lien copié depuis un site (ex : <code>acstuff.club</code>), un raccourci <code>acmanager://</code>, ou une simple adresse <code>IP:PORT</code>. Le launcher extrait automatiquement l'IP, le port et le mot de passe éventuel.
+          💡 Colle un lien copié depuis un site (ex : <code>acstuff.club</code>), un raccourci <code>acmanager://</code>,
+          ou une simple adresse <code>IP:PORT</code>. Le launcher trouve automatiquement le port de jeu.
         </div>
       </div>
-
       <div class="group">
         <div class="group-title">Ajouter un serveur manuellement</div>
         <div class="row">
@@ -167,15 +167,23 @@
       </div>
 
       <div class="group">
-        <div class="group-title">
-          🕒 Serveurs récents
-          <button class="filter-btn" id="btn-online-clear-recent" style="float: right; padding: 4px 12px; font-size: 0.7rem;">🗑️ Tout effacer</button>
+        <div class="group-title" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+          <span>🕒 Serveurs récents</span>
+          <div style="display: flex; gap: 6px;">
+            <button class="filter-btn" id="btn-recent-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;">⭐ Favoris uniquement</button>
+            <button class="filter-btn" id="btn-online-clear-recent" style="padding: 4px 12px; font-size: 0.7rem;">🗑️ Tout effacer</button>
+          </div>
         </div>
         <div class="servers-list" id="online-recent-list"></div>
       </div>
 
       <div class="group">
-        <div class="group-title">Mes serveurs enregistrés</div>
+        <div class="group-title" style="display: flex; align-items: center; justify-content: space-between;">
+          <span>Mes serveurs enregistrés</span>
+          <button class="filter-btn" id="btn-manual-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;">
+            ⭐ Favoris uniquement
+          </button>
+        </div>
         <div class="servers-list" id="online-manual-list"></div>
       </div>
 
@@ -630,6 +638,33 @@
     </div>
   </div>
 
+  <div class="modal" id="server-edit-modal">
+    <div class="modal-content" style="width: 480px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="server-edit-title">✏️ Modifier le serveur</h3>
+        <button class="modal-close" id="server-edit-close">&times;</button>
+      </div>
+      <div class="field">
+        <label for="server-edit-name">Nom du serveur</label>
+        <input type="text" id="server-edit-name" placeholder="Mon serveur préféré">
+      </div>
+      <div class="field">
+        <label for="server-edit-ip">Adresse IP:PORT</label>
+        <input type="text" id="server-edit-ip" placeholder="51.38.180.172:28093">
+      </div>
+      <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+        💡 Le port saisi est considéré comme le <strong>port HTTP</strong> (celui de la page web du serveur).
+        Le launcher trouve automatiquement le port de jeu.
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+        <button class="filter-btn" id="server-edit-cancel" style="padding: 10px 20px;">Annuler</button>
+        <button class="filter-btn" id="server-edit-save" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);">
+          💾 Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="tags-popup-backdrop" id="tags-popup-backdrop"></div>
   <div class="tags-popup" id="tags-popup">
     <div class="tags-popup-header">
@@ -654,6 +689,7 @@
   <script src="src/theme.js"></script>
   <script src="src/onlineServers.js"></script>
   <script src="src/serverJoin.js"></script>
+  <script src="src/serverLink.js"></script>
   <script src="src/content.js"></script>
   <script src="src/session.js"></script>
   <script src="src/mods.js"></script>
