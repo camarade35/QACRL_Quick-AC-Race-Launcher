@@ -29,14 +29,55 @@ function sanitizeJsonText(text) {
     .replace(/[\u0000-\u001F\u007F-\u009F]/g, ' ');
 }
 
+// Compteurs pour regrouper les warnings JSON (évite de polluer la console)
+let _jsonRepairedCount = 0;
+let _jsonErrorCount = 0;
+
 function readJsonSafe(filePath) {
   if (!fs.existsSync(filePath)) return null;
+  let raw;
   try {
-    const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(sanitizeJsonText(raw));
+    raw = fs.readFileSync(filePath, 'utf8');
   } catch (e) {
-    console.warn('[readJsonSafe] échec parse', filePath, ':', e.message);
     return null;
+  }
+
+  const cleaned = sanitizeJsonText(raw);
+
+  // Tentative 1 : parse direct
+  try {
+    return JSON.parse(cleaned);
+  } catch (firstErr) {
+    // Tentative 2 : réparation tolérante (virgules traînantes + clés non quotées)
+    const repaired = cleaned
+      // Virgule avant } ou ]
+      .replace(/,\s*([}\]])/g, '$1')
+      // Clé sans guillemets : { key: ...  →  { "key": ...
+      .replace(/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g, '$1"$2":')
+      // Nombre avec zéro en tête : 01  →  1
+      .replace(/:\s*0+(\d)/g, ': $1');
+
+    try {
+      const parsed = JSON.parse(repaired);
+      _jsonRepairedCount++;
+      return parsed;
+    } catch (secondErr) {
+      // Échec définitif — on compte et on renvoie null (fallback plus loin)
+      _jsonErrorCount++;
+      return null;
+    }
+  }
+}
+
+// Fonction utilitaire pour afficher un résumé après un scan
+function flushJsonWarnings() {
+  if (_jsonRepairedCount > 0) {
+    console.log(`[readJsonSafe] ${_jsonRepairedCount} fichier(s) JSON réparé(s) automatiquement (virgules/quotage)`);
+    _jsonRepairedCount = 0;
+  }
+  if (_jsonErrorCount > 0) {
+    console.warn(`[readJsonSafe] ${_jsonErrorCount} fichier(s) JSON invalides ignorés (fallback sur le nom du dossier)`);
+    _jsonErrorCount = 0;
   }
 }
 
@@ -1246,6 +1287,7 @@ function loadContentInternal() {
     weatherList = scanWeather(acPath);
     purePlans = scanPurePlans(acPath);
   }
+  flushJsonWarnings();  // ⭐ résumé compact au lieu d'une ligne par fichier
   return { cars, tracks, weatherList, purePlans, acPath: acPath || '' };
 }
 
