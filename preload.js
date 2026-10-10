@@ -60,5 +60,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('install-mod-progress', subscription);
     return () => ipcRenderer.removeListener('install-mod-progress', subscription);
   },
-  analyzeHardware: () => ipcRenderer.invoke('analyze-hardware')
+analyzeHardware: () => ipcRenderer.invoke('analyze-hardware'),
+
+  // ⭐ Contrôles de fenêtre (custom titlebar)
+  windowMinimize: () => ipcRenderer.invoke('window-minimize'),
+  windowMaximize: () => ipcRenderer.invoke('window-maximize'),
+  windowClose: () => ipcRenderer.invoke('window-close'),
+  windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximizedChange: (callback) => {
+    const subscription = (_event, isMax) => callback(isMax);
+    ipcRenderer.on('window-maximized', subscription);
+    return () => ipcRenderer.removeListener('window-maximized', subscription);
+  }
 });

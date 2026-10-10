@@ -205,9 +205,13 @@ const PURECTRL_CM_WEATHER = {
   'predefined': 36
 };
 
+let mainWindow = null;
+
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280, height: 860,
+    frame: false,              // ⭐ plus de barre système
+    backgroundColor: '#0a0c12', // évite le flash blanc au démarrage
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -215,11 +219,41 @@ function createWindow() {
       webSecurity: false
     }
   });
-  win.loadFile(path.join(__dirname, 'public', 'index.html'));
+  mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+
+  // ⭐ Notifie le renderer quand l'état maximisé change (pour changer l'icône)
+  mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
+  mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
 }
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+/* ============================================================
+   IPC — CONTRÔLES DE FENÊTRE (custom titlebar)
+   ============================================================ */
+ipcMain.handle('window-minimize', () => {
+  if (mainWindow) mainWindow.minimize();
+});
+
+ipcMain.handle('window-maximize', () => {
+  if (!mainWindow) return false;
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+    return false;
+  } else {
+    mainWindow.maximize();
+    return true;
+  }
+});
+
+ipcMain.handle('window-close', () => {
+  if (mainWindow) mainWindow.close();
+});
+
+ipcMain.handle('window-is-maximized', () => {
+  return mainWindow ? mainWindow.isMaximized() : false;
+});
 
 /* ============================================================
    IPC — ÉTAT & SETTINGS
@@ -2014,14 +2048,35 @@ ipcMain.handle('join-server', async (event, serverData, sessionData) => {
   const serverDataForIni = { ...serverData, ip: resolvedIp };
   writeRemoteServerInRaceIni(documentsPath, serverDataForIni, sessionData || {});
 
-  const acExePath = path.join(acPath, 'acs.exe');
+  // ⭐ Créer steam_appid.txt pour que CSP puisse décrypter les modèles .kn5
+  // (sinon on a le message "Failed to decrypt model: Inappropriate environment")
+  try {
+    const steamAppIdPath = path.join(acPath, 'steam_appid.txt');
+    if (!fs.existsSync(steamAppIdPath)) {
+      fs.writeFileSync(steamAppIdPath, '244210', 'utf8');
+      console.log('[join-server] steam_appid.txt créé (244210)');
+    }
+  } catch (e) {
+    console.warn('[join-server] impossible de créer steam_appid.txt :', e.message);
+  }
+
+  // ⭐ Forcer les variables d'environnement Steam pour CSP
+  // (nécessaire pour que CSP accepte de décrypter les modèles .kn5)
+  const steamEnv = {
+    ...process.env,
+    SteamAppId: '244210',
+    SteamGameId: '244210'
+  };
+
+    const acExePath = path.join(acPath, 'acs.exe');
   if (fs.existsSync(acExePath)) {
     try {
       const child = spawn(acExePath, [], {
         cwd: acPath,
         detached: true,
         stdio: 'ignore',
-        windowsHide: false
+        windowsHide: false,
+        env: steamEnv  // ⭐ Transmet les variables d'environnement Steam
       });
       child.unref();
       return { success: true };

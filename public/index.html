@@ -8,6 +8,26 @@
 </head>
 <body>
 
+  <div class="titlebar" id="titlebar">
+    <div class="titlebar-brand">
+      <img class="titlebar-logo" src="assets/logo.png" alt="" onerror="this.style.display='none'">
+      <span class="titlebar-title">QACRL — Quick AC Race Launcher</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="tb-minimize" title="Réduire">
+        <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2" y="5.5" width="8" height="1" fill="currentColor"/></svg>
+      </button>
+      <button class="titlebar-btn" id="tb-maximize" title="Agrandir">
+        <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+      </button>
+      <button class="titlebar-btn titlebar-btn-close" id="tb-close" title="Fermer">
+        <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="app-body">
+
   <div class="sidebar">
     <div class="sidebar-top">
       <div class="app-header">
@@ -557,6 +577,7 @@
       </div>
     </div>
   </div>
+  </div> <!-- ⭐ ferme .app-body -->
 
   <div class="modal" id="selection-modal">
     <div class="modal-content">

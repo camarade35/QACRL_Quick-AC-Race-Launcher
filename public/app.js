@@ -388,8 +388,23 @@ function applyStateToUI(state) {
    EVENT LISTENERS
    ============================================================ */
 function setupEventListeners() {
-  // Toggle thème clair/sombre
-  document.getElementById('theme-mode-toggle')?.addEventListener('click', toggleThemeMode);
+  // ⭐ Contrôles de fenêtre (custom titlebar)
+  document.getElementById('tb-minimize')?.addEventListener('click', () => window.api.windowMinimize());
+  document.getElementById('tb-maximize')?.addEventListener('click', () => window.api.windowMaximize());
+  document.getElementById('tb-close')?.addEventListener('click', () => window.api.windowClose());
+
+  // Change l'icône du bouton maximize quand la fenêtre change d'état
+  if (window.api.onWindowMaximizedChange) {
+    window.api.onWindowMaximizedChange((isMaximized) => {
+      const btn = document.getElementById('tb-maximize');
+      if (!btn) return;
+      btn.innerHTML = isMaximized
+        ? '<svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="5" height="5" fill="none" stroke="currentColor" stroke-width="1"/><path d="M4.5 4.5 L4.5 2.5 L9.5 2.5 L9.5 7.5 L7.5 7.5" fill="none" stroke="currentColor" stroke-width="1"/></svg>'
+        : '<svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>';
+      btn.title = isMaximized ? 'Restaurer' : 'Agrandir';
+    });
+  }
+
 
   document.getElementById('modal-close')?.addEventListener('click', closeModal);
   window.addEventListener('click', (e) => {
