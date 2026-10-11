@@ -2499,3 +2499,29 @@ ipcMain.handle('set-weather-fx-style', async (event, style) => {
     return { success: false, error: e.message };
   }
 });
+  
+  /* ============================================================
+   IPC — PROFILS VOLANT (mapping Chromium → AC)
+   ============================================================ */
+const { createManager: createWheelProfilesManager } = require('./src/wheelProfiles');
+const wheelProfiles = createWheelProfilesManager(app.getPath('userData'));
+
+ipcMain.handle('get-wheel-profile', async (event, vendor, product) => {
+  return wheelProfiles.getProfile(vendor, product);
+});
+
+ipcMain.handle('get-all-wheel-profiles', async () => {
+  return wheelProfiles.getAllProfiles();
+});
+
+ipcMain.handle('save-wheel-profile', async (event, vendor, product, data) => {
+  return wheelProfiles.saveProfile(vendor, product, data);
+});
+
+ipcMain.handle('merge-wheel-profile', async (event, vendor, product, axes, source) => {
+  return wheelProfiles.mergeAxisMapping(vendor, product, axes, source);
+});
+
+ipcMain.handle('delete-wheel-profile', async (event, vendor, product) => {
+  return { success: wheelProfiles.deleteProfile(vendor, product) };
+});

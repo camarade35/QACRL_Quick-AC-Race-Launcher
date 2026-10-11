@@ -73,6 +73,13 @@ contextBridge.exposeInMainWorld('api', {
   getWeatherFxStyle: () => ipcRenderer.invoke('get-weather-fx-style'),
   setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
 
+  // ⭐ Profils volant (mapping Chromium → AC)
+  getWheelProfile: (vendor, product) => ipcRenderer.invoke('get-wheel-profile', vendor, product),
+  getAllWheelProfiles: () => ipcRenderer.invoke('get-all-wheel-profiles'),
+  saveWheelProfile: (vendor, product, data) => ipcRenderer.invoke('save-wheel-profile', vendor, product, data),
+  mergeWheelProfile: (vendor, product, axes, source) => ipcRenderer.invoke('merge-wheel-profile', vendor, product, axes, source),
+  deleteWheelProfile: (vendor, product) => ipcRenderer.invoke('delete-wheel-profile', vendor, product),
+
   // ⭐ Contrôles de fenêtre (custom titlebar)
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),

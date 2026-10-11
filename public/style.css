@@ -2282,8 +2282,8 @@ select:disabled, input:disabled {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap;
   padding: 10px 14px;
-  background: var(--bg-secondary, #12151c);
-  border: 1px solid var(--border-color, #232a38);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 4px;
 }
@@ -2296,14 +2296,14 @@ select:disabled, input:disabled {
 
 .ini-mode-btn {
   background: transparent; border: none;
-  color: var(--text-secondary, #8a94a8);
+  color: var(--text-secondary);
   padding: 6px 14px; border-radius: 4px;
   font-size: 0.78rem; font-weight: 500;
   cursor: pointer; transition: all 0.15s;
 }
-.ini-mode-btn:hover { color: var(--text-primary, #e6e8ee); }
+.ini-mode-btn:hover { color: var(--text-primary); }
 .ini-mode-btn.active {
-  background: var(--accent, #4c9aff);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -2311,7 +2311,7 @@ select:disabled, input:disabled {
 
 .ini-status {
   font-size: 0.75rem;
-  color: var(--text-tertiary, #6b7688);
+  color: var(--text-tertiary);
   transition: color 0.2s;
   min-width: 180px;
 }
@@ -2343,8 +2343,8 @@ select:disabled, input:disabled {
 .ini-form { display: flex; flex-direction: column; gap: 14px; }
 
 .ini-section {
-  background: var(--bg-secondary, #12151c);
-  border: 1px solid var(--border-color, #232a38);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 4px;
 }
@@ -2358,7 +2358,7 @@ select:disabled, input:disabled {
   transition: color 0.15s;
 }
 .ini-section-header:hover {
-  color: var(--accent-hover, #e53935);
+  color: var(--accent-hover);
 }
 
 .ini-section-arrow {
@@ -2381,7 +2381,7 @@ select:disabled, input:disabled {
   display: none;
 }
 .ini-section-raw {
-  color: var(--text-tertiary, #6b7688);
+  color: var(--text-tertiary);
   font-weight: 400; text-transform: none;
   letter-spacing: 0; font-size: 0.7rem;
 }
@@ -2399,14 +2399,14 @@ select:disabled, input:disabled {
 
 .ini-label {
   font-size: 0.82rem;
-  color: var(--text-primary, #c9cfdb);
+  color: var(--text-primary);
   cursor: pointer; user-select: none;
 }
-.ini-unit { color: var(--text-tertiary, #6b7688); font-size: 0.72rem; }
+.ini-unit { color: var(--text-tertiary); font-size: 0.72rem; }
 
 .ini-checkbox {
   width: 18px; height: 18px;
-  accent-color: var(--accent, #4c9aff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -2423,14 +2423,14 @@ select:disabled, input:disabled {
   width: auto !important;
   min-width: 0;
   height: 6px;
-  accent-color: var(--accent, #4c9aff);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
 .ini-number, .ini-text, .ini-select {
-  background: var(--bg-tertiary, #151922);
-  color: var(--text-primary, #e6e8ee);
-  border: 1px solid var(--border-color, #232a38);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 5px 8px;
   font-size: 0.82rem;
@@ -2447,7 +2447,7 @@ select:disabled, input:disabled {
 .ini-text   { width: 100%; }
 .ini-select { width: 100%; cursor: pointer; }
 .ini-number:focus, .ini-text:focus, .ini-select:focus {
-  border-color: var(--accent, #4c9aff);
+  border-color: var(--accent);
 }
 
 .ini-binding {
@@ -2459,16 +2459,16 @@ select:disabled, input:disabled {
 .ini-expert {
   width: 100%; min-height: 520px;
   padding: 14px 16px;
-  background: var(--bg-tertiary, #0f131b);
-  color: var(--text-primary, #e6e8ee);
-  border: 1px solid var(--border-color, #232a38);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-family: Consolas, 'Courier New', monospace;
   font-size: 0.82rem; line-height: 1.5;
   resize: vertical; outline: none;
   white-space: pre; overflow: auto; tab-size: 4;
 }
-.ini-expert:focus { border-color: var(--accent, #4c9aff); }
+.ini-expert:focus { border-color: var(--accent); }
 /* ============================================================
    WIDGET DE CAPTURE BINDING
    ============================================================ */
@@ -2642,4 +2642,411 @@ select:disabled, input:disabled {
   padding: 20px 16px 10px;
   margin-top: 10px;
   border-top: 1px dashed var(--border);
+}
+/* ============================================================
+   BOUTON CALIBRER + MODALE WIZARD
+   ============================================================ */
+
+.ini-btn-calib {
+  background: linear-gradient(135deg, #4c9aff 0%, #6eaaff 100%) !important;
+  color: #fff !important;
+  border-color: #4c9aff !important;
+  font-weight: 700 !important;
+}
+.ini-btn-calib:hover {
+  background: linear-gradient(135deg, #6eaaff 0%, #88bbff 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(76, 154, 255, 0.35);
+}
+
+.wheel-calib-modal-content {
+  width: 620px !important;
+  max-width: 92vw !important;
+}
+
+.wheel-calib-content {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.wheel-calib-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  padding: 20px 10px;
+}
+
+.wheel-calib-step h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.wheel-calib-step p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.55;
+  max-width: 480px;
+}
+
+.wheel-calib-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.wheel-calib-progress {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+}
+
+.wheel-calib-instruction {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.wheel-calib-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 6px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  width: 100%;
+  max-width: 420px;
+}
+.wheel-calib-status.waiting {
+  color: #ffb84d;
+  border-color: rgba(255, 184, 77, 0.3);
+  background: rgba(255, 184, 77, 0.08);
+  animation: wheel-calib-pulse 1.4s ease-in-out infinite;
+}
+.wheel-calib-status.success {
+  color: #4caf50;
+  border-color: rgba(76, 175, 80, 0.3);
+  background: rgba(76, 175, 80, 0.08);
+}
+.wheel-calib-status.warning {
+  color: #ff9800;
+  border-color: rgba(255, 152, 0, 0.3);
+  background: rgba(255, 152, 0, 0.08);
+}
+
+@keyframes wheel-calib-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+
+.wheel-calib-hint {
+  font-size: 0.78rem !important;
+  color: var(--text-tertiary) !important;
+  font-style: italic;
+  max-width: 440px;
+}
+
+.wheel-calib-loading {
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 600;
+  animation: wheel-calib-pulse 1.4s ease-in-out infinite;
+}
+
+.wheel-calib-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.wheel-calib-summary {
+  width: 100%;
+  max-width: 480px;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 0.85rem;
+}
+.wheel-calib-summary td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  text-align: left;
+}
+.wheel-calib-summary tr:last-child td {
+  border-bottom: none;
+}
+.wheel-calib-summary code {
+  background: var(--bg-elevated);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
+/* ⭐ Fix affichage de la modale de calibration */
+.modal.visible {
+  display: flex;
+}
+.wheel-calib-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  min-height: 36px;
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border);
+  color: var(--text-tertiary);
+  transition: all 0.15s;
+}
+.wheel-calib-preview.active {
+  color: #4c9aff;
+  border-color: rgba(76, 154, 255, 0.4);
+  border-style: solid;
+  background: rgba(76, 154, 255, 0.06);
+  box-shadow: 0 0 0 3px rgba(76, 154, 255, 0.08);
+}
+/* ============================================================
+   BARRE DE PRÉVISUALISATION LIVE DES AXES
+   ============================================================ */
+
+.ini-axis-fullwrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+/* (bloc supprimé — le badge n'est plus utilisé) */
+
+.ini-axis-live {
+  position: relative;
+  height: 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.ini-axis-live-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg,
+    rgba(76, 154, 255, 0.25) 0%,
+    rgba(76, 154, 255, 0.55) 100%);
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+.ini-axis-live-value {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  padding: 0 10px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+/* ============================================================
+   WIZARD CALIBRATION — VISUELS
+   ============================================================ */
+
+.calib-live-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.calib-axis-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.calib-axis-idx {
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.calib-axis-val {
+  font-family: Consolas, monospace;
+  color: var(--text-secondary);
+  text-align: right;
+  font-weight: 600;
+}
+
+.calib-axis-bar {
+  position: relative;
+  height: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.calib-axis-bar::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.1);
+}
+
+.calib-axis-fill {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 0;
+  background: linear-gradient(90deg, rgba(76,154,255,0.4), rgba(76,154,255,0.7));
+  transition: width 0.08s linear;
+}
+
+/* Barre horizontale du volant */
+.calib-wheel-wrap {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 14px 0;
+}
+
+.calib-wheel-bar {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 40px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.calib-wheel-center {
+  position: absolute;
+  left: 50%; top: 4px; bottom: 4px;
+  width: 2px;
+  background: rgba(255,255,255,0.15);
+  transform: translateX(-50%);
+}
+
+.calib-wheel-indicator {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  width: 8px;
+  background: #4c9aff;
+  border-radius: 4px;
+  transform: translateX(-50%);
+  transition: left 0.08s linear;
+  box-shadow: 0 0 8px rgba(76,154,255,0.5);
+  left: 50%;
+}
+
+.calib-wheel-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 480px;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  font-family: Consolas, monospace;
+}
+
+.calib-wheel-value {
+  font-family: Consolas, monospace;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #4c9aff;
+  margin-top: 6px;
+}
+
+/* Barre verticale pédale */
+.calib-pedal-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 14px 0;
+  gap: 6px;
+}
+
+.calib-pedal-bar {
+  position: relative;
+  width: 60px;
+  height: 160px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calib-pedal-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(0deg, #4c9aff, #6eaaff);
+  transition: height 0.08s linear;
+  height: 0%;
+}
+
+.calib-pedal-value {
+  font-family: Consolas, monospace;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #4c9aff;
+}
+
+.calib-pedal-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+/* ⭐ État "non assigné" du bouton AXE */
+.ini-binding-axis-empty {
+  border-color: rgba(230, 163, 59, 0.5) !important;
+  color: #e6a33b !important;
+  background: rgba(230, 163, 59, 0.08) !important;
+}
+.ini-binding-axis-empty:hover {
+  background: rgba(230, 163, 59, 0.15) !important;
+  color: #ffd17a !important;
 }

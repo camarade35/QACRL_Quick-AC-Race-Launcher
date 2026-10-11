@@ -1,15 +1,11 @@
 // public/src/settingsIni.js
 // Logique des onglets Paramètres > Contrôles / Vidéo / Audio.
-// Lit un INI, le parse, génère les widgets, gère Formulaire/Expert + sauvegarde.
 
 (function (global) {
   'use strict';
 
-  const editors = {}; // { 'controls.ini': {...} }
+  const editors = {};
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
   function setStatus(ed, text, color) {
     if (!ed || !ed.statusEl) return;
     ed.statusEl.textContent = text || '';
@@ -33,11 +29,6 @@
     const ed = editors[filename];
     if (!ed || ed.loaded || ed.loading) return;
 
-    // ⭐ Prépare un gamepadMapper pour controls.ini (matching Chromium ↔ AC)
-    if (filename === 'controls.ini' && global.GamepadMapper) {
-      // On le créera après le parsing, mais il faut qu'il soit construit à partir des sections parsées
-    }
-
     const apiErr = checkApi();
     if (apiErr) {
       setStatus(ed, '⚠️ ' + apiErr, '#ff6b6b');
@@ -57,8 +48,13 @@
       ed.sections   = global.IniParser.parseIni(res.content);
       ed.loaded     = true;
       ed.dirty      = false;
+      // ⭐ Référence "contenu sauvegardé" pour détecter les vraies modifs
+      try {
+        ed.serializedAtLoad = global.IniParser.serializeIni(ed.sections);
+      } catch (e) {
+        ed.serializedAtLoad = res.content;
+      }
 
-      // ⭐ Crée un gamepadMapper pour controls.ini
       if (filename === 'controls.ini' && global.GamepadMapper) {
         ed.gamepadMapper = global.GamepadMapper.create(ed.sections);
       }
@@ -86,7 +82,12 @@
     }
   }
 
-    function renderForm(ed) {
+  function renderForm(ed) {
+    // ⭐ Stop tous les intervals de barres live avant de tout reconstruire
+    if (global.IniControls && global.IniControls.stopAllLives) {
+      global.IniControls.stopAllLives();
+    }
+
     ed.formEl.innerHTML = '';
     if (!ed.sections) {
       ed.formEl.innerHTML = '<div style="padding:20px;color:var(--text-tertiary);">Aucune donnée chargée.</div>';
@@ -95,30 +96,23 @@
 
     const layout = global.IniLayout ? global.IniLayout.getLayout(ed.file) : null;
 
-    // Pas de layout → affichage linéaire classique
     if (!layout) {
       renderFormLinear(ed, ed.sections);
       if (ed.tabsEl) ed.tabsEl.innerHTML = '';
       return;
     }
 
-    // Rendu des onglets secondaires
     renderTabs(ed, layout);
 
-    // Récupère la config de l'onglet actif
     const activeTab = layout.tabs.find(t => t.id === ed.currentTab) || layout.tabs[0];
     if (!activeTab) return;
 
-    // Construit une map sectionName → section parsée
     const sectionMap = {};
     for (const s of ed.sections) sectionMap[s.name] = s;
 
-    // Set des sections déjà placées (pour identifier les orphelines)
     const usedSections = new Set();
-
     let count = 0;
 
-    // Si l'onglet a des groupes définis → on les rend
     if (activeTab.groups && activeTab.groups.length > 0) {
       for (const group of activeTab.groups) {
         if (group.type === 'single') {
@@ -137,7 +131,6 @@
         }
       }
     } else {
-      // Onglet sans groupes définis (ex : video.ini, audio.ini) → tout afficher
       for (const sec of ed.sections) {
         if (global.IniSchema.isBlacklisted(sec.name)) continue;
         if (sec.entries.filter(e => e.kind === 'kv').length === 0) continue;
@@ -147,7 +140,6 @@
       }
     }
 
-    // Fallback : sections orphelines dans l'onglet "Avancé"
     if (activeTab.isFallback) {
       const orphans = [];
       for (const sec of ed.sections) {
@@ -175,8 +167,6 @@
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Rendu de la barre d'onglets secondaires
   // -------------------------------------------------------------------------
   function renderTabs(ed, layout) {
     if (!ed.tabsEl) return;
@@ -256,16 +246,20 @@
 
     const readOnly = secSchema && secSchema.readOnly;
 
-    // Helpers pour widgets
     const sectionHelpers = buildSectionHelpers(sec);
     const siblingWidgets = {};
     const acControllersForUI = getAcControllersList(ed);
 
-    for (const entry of sec.entries) {
-      if (entry.kind !== 'kv') continue;
-      const schema = global.IniSchema.getKeySchema(ed.file, sec.name, entry.key);
-      let ctrl;
-      try {
+      for (const entry of sec.entries) {
+    if (entry.kind !== 'kv') continue;
+    const schema = global.IniSchema.getKeySchema(ed.file, sec.name, entry.key);
+    let ctrl;
+
+    // ⭐ Détecte si un AXE n'est pas assigné
+    const isAxisKey = (entry.key === 'AXLE');
+    const axisAssigned = isAxisKey ? (parseInt(entry.value, 10) >= 0) : true;
+
+    try {
         ctrl = global.IniControls.createIniControl({
           filename:  ed.file, section: sec.name, key: entry.key,
           value:     entry.value,
@@ -286,6 +280,18 @@
       }
       siblingWidgets[entry.key] = ctrl;
       sectionDiv.appendChild(ctrl.element);
+
+      // (le badge "non assigné" est géré directement par le label du bouton AXE)
+    }
+
+    // ⭐ Démarre les barres de prévisualisation live
+    if (ed.file === 'controls.ini' && ed.gamepadMapper) {
+      for (const key of Object.keys(siblingWidgets)) {
+        const w = siblingWidgets[key];
+        if (w && typeof w.startLive === 'function') {
+          try { w.startLive(); } catch (e) { console.warn('[settingsIni] startLive KO', e); }
+        }
+      }
     }
 
     return sectionDiv;
@@ -313,12 +319,11 @@
     labelEl.textContent = group.label;
     headerEl.appendChild(labelEl);
 
-    // Clé de collapse basée sur les 2 sections
     const collapseKey = 'iniCollapsePair:' + ed.file + ':' + secA?.name + '+' + secB?.name;
     let collapsed;
     try {
       const saved = localStorage.getItem(collapseKey);
-      collapsed = (saved === null) ? true : (saved === '1');  // paires repliées par défaut
+      collapsed = (saved === null) ? true : (saved === '1');
     } catch (e) { collapsed = true; }
 
     if (collapsed) wrapper.classList.add('collapsed');
@@ -377,6 +382,16 @@
         col.appendChild(ctrl.element);
       }
 
+      // ⭐ Démarre les barres live
+      if (ed.file === 'controls.ini' && ed.gamepadMapper) {
+        for (const key of Object.keys(siblingWidgets)) {
+          const w = siblingWidgets[key];
+          if (w && typeof w.startLive === 'function') {
+            try { w.startLive(); } catch (e) {}
+          }
+        }
+      }
+
       return col;
     };
 
@@ -387,8 +402,6 @@
     return wrapper;
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers pour widgets (extraits pour réutilisation)
   // -------------------------------------------------------------------------
   function buildSectionHelpers(sec) {
     return {
@@ -423,8 +436,6 @@
   }
 
   // -------------------------------------------------------------------------
-  // Rendu LINÉAIRE (fallback sans layout)
-  // -------------------------------------------------------------------------
   function renderFormLinear(ed, sections) {
     let count = 0;
     for (const sec of sections) {
@@ -447,9 +458,6 @@
     ed.expertEl.value = text;
   }
 
-  // -------------------------------------------------------------------------
-  // État & modes
-  // -------------------------------------------------------------------------
   function markDirty(ed) {
     ed.dirty = true;
     setStatus(ed, '', '');
@@ -460,10 +468,22 @@
   function setMode(ed, mode) {
     if (ed.mode === mode) return;
     try {
+      // ⭐ Stoppe les intervals live quand on quitte le mode Form
+      if (mode === 'expert' && global.IniControls && global.IniControls.stopAllLives) {
+        global.IniControls.stopAllLives();
+      }
+
       if (ed.mode === 'expert' && ed.expertEl) {
-        // On récupère le texte édité à la main
-        ed.sections = global.IniParser.parseIni(ed.expertEl.value);
-        markDirty(ed);
+        // ⭐ Re-parse mais ne marque dirty QUE si le contenu a changé
+        try {
+          ed.sections = global.IniParser.parseIni(ed.expertEl.value);
+          const normalized = global.IniParser.serializeIni(ed.sections);
+          if (normalized !== ed.serializedAtLoad) {
+            markDirty(ed);
+          }
+        } catch (e) {
+          console.warn('[settingsIni] parse expert KO', e);
+        }
       }
       ed.mode = mode;
       if (ed.formEl)   ed.formEl.style.display   = (mode === 'form')   ? '' : 'none';
@@ -476,12 +496,9 @@
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Actions
-  // -------------------------------------------------------------------------
   async function save(ed) {
     if (!ed.loaded) {
-      setStatus(ed, '⚠️ Rien à enregistrer (chargement en cours ou échoué).', '#ff6b6b');
+      setStatus(ed, '⚠️ Rien à enregistrer.', '#ff6b6b');
       return;
     }
     let content;
@@ -502,11 +519,16 @@
       const res = await window.api.writeIniFile(ed.file, content);
       if (res && res.success) {
         ed.dirty = false;
+        // ⭐ Nouvelle référence après sauvegarde
+        try {
+          ed.serializedAtLoad = global.IniParser.serializeIni(ed.sections);
+        } catch (e) {
+          ed.serializedAtLoad = content;
+        }
         const btn = ed.container.querySelector('[data-role="save"]');
         if (btn) btn.classList.remove('dirty');
         const t = new Date().toLocaleTimeString();
         setStatus(ed, '✅ Enregistré à ' + t, '#4caf50');
-        // Efface le message après 3s
         setTimeout(() => { if (!ed.dirty) setStatus(ed, '', ''); }, 3000);
       } else {
         setStatus(ed, '❌ ' + ((res && res.error) || 'Erreur'), '#ff6b6b');
@@ -523,15 +545,13 @@
     ed.sections = null;
     ed.rawContent = '';
     ed.dirty = false;
+    ed.serializedAtLoad = null;
     setStatus(ed, '');
     const btn = ed.container.querySelector('[data-role="save"]');
     if (btn) btn.classList.remove('dirty');
     await ensureLoaded(ed.file);
   }
 
-  // -------------------------------------------------------------------------
-  // Init d'un éditeur
-  // -------------------------------------------------------------------------
   function initEditor(container) {
     const filename = container.dataset.iniFile;
     if (!filename || editors[filename]) return;
@@ -545,6 +565,7 @@
         '<div class="ini-tabs" data-role="tabs"></div>' +
         '<div class="ini-toolbar-actions">' +
           '<span class="ini-status" data-role="status"></span>' +
+          '<button class="filter-btn ini-btn-calib" data-role="calib" title="Calibrer automatiquement mon volant">🎯 Calibrer</button>' +
           '<button class="filter-btn" data-role="reset">↶ Recharger</button>' +
           '<button class="filter-btn ini-btn-save" data-role="save">💾 Enregistrer</button>' +
         '</div>' +
@@ -571,18 +592,27 @@
     };
     editors[filename] = ed;
 
-    // ⚠️ Attache les listeners AVANT tout await (sinon boutons inertes)
     ed.toggleBtns.forEach(b =>
       b.addEventListener('click', () => setMode(ed, b.dataset.mode)));
 
     const btnSave  = container.querySelector('[data-role="save"]');
     const btnReset = container.querySelector('[data-role="reset"]');
+    const btnCalib = container.querySelector('[data-role="calib"]');
     if (btnSave)  btnSave.addEventListener('click', () => save(ed));
     if (btnReset) btnReset.addEventListener('click', () => reload(ed));
+    if (btnCalib) btnCalib.addEventListener('click', () => {
+      if (global.WheelCalibration && global.WheelCalibration.start) {
+        global.WheelCalibration.start();
+      }
+    });
 
     ed.expertEl.addEventListener('input', () => markDirty(ed));
 
-    // ⭐ Restaure l'onglet actif depuis localStorage
+    if (filename !== 'controls.ini') {
+      const btnCalib = container.querySelector('[data-role="calib"]');
+      if (btnCalib) btnCalib.style.display = 'none';
+    }
+
     const layout = global.IniLayout ? global.IniLayout.getLayout(filename) : null;
     if (layout) {
       const storageKey = 'iniActiveTab:' + filename;
@@ -594,7 +624,6 @@
       } catch (e) { ed.currentTab = layout.defaultTab; }
     }
 
-    // Récupération des ppfilters en tâche de fond (non bloquant)
     if (filename === 'video.ini' && window.api && typeof window.api.listPpfilters === 'function') {
       window.api.listPpfilters()
         .then(r => { if (r && r.success) ed.ppfilters = r.filters || []; })
@@ -602,16 +631,12 @@
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Init global
-  // -------------------------------------------------------------------------
   function init() {
     const apiErr = checkApi();
     if (apiErr) console.error('[settingsIni] init KO :', apiErr);
 
     document.querySelectorAll('.ini-editor[data-ini-file]').forEach(initEditor);
 
-    // Lazy-load : on charge l'INI au premier clic sur le subtab
     document.querySelectorAll('.subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const onclick = btn.getAttribute('onclick') || '';
@@ -625,7 +650,6 @@
       });
     });
 
-    // Si un subtab est déjà actif au démarrage
     document.querySelectorAll('.subtab-content.active .ini-editor[data-ini-file]').forEach(c => {
       ensureLoaded(c.dataset.iniFile);
     });

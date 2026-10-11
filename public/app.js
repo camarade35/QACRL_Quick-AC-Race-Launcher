@@ -194,6 +194,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.WeatherFx && typeof window.WeatherFx.init === 'function') {
     window.WeatherFx.init();
   }
+
+  // ⭐ Charge les profils volant appris (mapping Chromium → AC)
+  if (window.GamepadMapper && typeof window.GamepadMapper.loadLearnedProfiles === 'function') {
+    window.GamepadMapper.loadLearnedProfiles().then(() => {
+      console.log('[app] Profils volant chargés');
+    });
+  }
+
+  // ⭐ Init du wizard de calibration
+  if (window.WheelCalibration && typeof window.WheelCalibration.init === 'function') {
+    window.WheelCalibration.init();
+  }
 });
 
 /* ============================================================

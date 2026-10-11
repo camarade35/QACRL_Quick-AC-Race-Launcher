@@ -189,12 +189,78 @@
    * Convertit un index d'axe Chromium en index AC pour un périphérique donné.
    * Si le périphérique n'est pas connu → renvoie l'index inchangé.
    */
+  // Cache des profils appris (chargés depuis le main process)
+  let _learnedProfiles = null;
+
+  /**
+   * Charge tous les profils appris depuis le disque (via IPC).
+   * À appeler une fois au démarrage, ou après un apprentissage.
+   */
+  async function loadLearnedProfiles() {
+    if (!global.api || !global.api.getAllWheelProfiles) return;
+    try {
+      _learnedProfiles = await global.api.getAllWheelProfiles();
+    } catch (e) {
+      console.warn('[GamepadMapper] loadLearnedProfiles KO:', e.message);
+      _learnedProfiles = {};
+    }
+  }
+
+  /**
+   * Force le rechargement (à appeler après un apprentissage).
+   */
+  async function refreshLearnedProfiles() {
+    _learnedProfiles = null;
+    await loadLearnedProfiles();
+  }
+
+  /**
+   * Convertit un index d'axe Chromium en index AC pour un périphérique donné.
+   *
+   * Ordre de priorité :
+   *   1. Profil appris (utilisateur) — learn
+   *   2. Table hardcodée (AXIS_MAP_BY_DEVICE) — dev
+   *   3. Fallback : index inchangé
+   */
   function chromiumAxisToAcAxis(vendor, product, chromiumAxisIndex) {
     if (vendor == null || product == null) return chromiumAxisIndex;
     const key = (vendor + ':' + product).toLowerCase();
+
+    // 1) Profil appris en priorité
+    if (_learnedProfiles && _learnedProfiles[key] && _learnedProfiles[key].axes) {
+      const learned = _learnedProfiles[key].axes[String(chromiumAxisIndex)];
+      if (learned !== undefined) return learned;
+    }
+
+    // 2) Table hardcodée
     const map = AXIS_MAP_BY_DEVICE[key];
     if (map && map[chromiumAxisIndex] !== undefined) return map[chromiumAxisIndex];
+
+    // 3) Fallback
     return chromiumAxisIndex;
+  }
+
+  /**
+   * Ajoute un mapping appris en mémoire (et le persiste via IPC).
+   * Utilisé par le wizard et l'apprentissage passif.
+   */
+  async function learnAxisMapping(vendor, product, chromiumAxisIndex, acAxisIndex, source) {
+    if (!vendor || !product) return { success: false };
+    const key = (vendor + ':' + product).toLowerCase();
+    if (!_learnedProfiles) _learnedProfiles = {};
+    if (!_learnedProfiles[key]) _learnedProfiles[key] = { axes: {} };
+    if (!_learnedProfiles[key].axes) _learnedProfiles[key].axes = {};
+    _learnedProfiles[key].axes[String(chromiumAxisIndex)] = acAxisIndex;
+
+    // Persiste côté main process
+    if (global.api && global.api.mergeWheelProfile) {
+      try {
+        await global.api.mergeWheelProfile(vendor, product, { [String(chromiumAxisIndex)]: acAxisIndex }, source || 'learn');
+      } catch (e) {
+        console.warn('[GamepadMapper] mergeWheelProfile KO:', e.message);
+      }
+    }
+    return { success: true, key };
   }
 
   /**
@@ -207,6 +273,34 @@
     const list = BLOCKED_AXES_BY_DEVICE[key];
     return Array.isArray(list) && list.indexOf(chromiumAxisIndex) !== -1;
   }
+  
+    /**
+   * Inverse : à partir d'un index AC, retrouve l'index Chromium correspondant.
+   * Priorité : profil appris > table hardcodée > -1 (inconnu)
+   */
+  function acAxisToChromiumAxis(vendor, product, acAxisIndex) {
+    if (vendor == null || product == null) return -1;
+    const key = (vendor + ':' + product).toLowerCase();
+
+    // 1) Profil appris
+    if (_learnedProfiles && _learnedProfiles[key] && _learnedProfiles[key].axes) {
+      for (const cIdx of Object.keys(_learnedProfiles[key].axes)) {
+        if (_learnedProfiles[key].axes[cIdx] === acAxisIndex) {
+          return parseInt(cIdx, 10);
+        }
+      }
+    }
+    // 2) Table hardcodée
+    const map = AXIS_MAP_BY_DEVICE[key];
+    if (map) {
+      for (const cIdx of Object.keys(map)) {
+        if (map[cIdx] === acAxisIndex) {
+          return parseInt(cIdx, 10);
+        }
+      }
+    }
+    return -1;
+  }
 
   function create(controlsIniSections) {
     const acControllers = parseAcControllers(controlsIniSections);
@@ -214,8 +308,10 @@
       getAcControllers: () => acControllers.slice(),
       getChromiumGamepads,
       match: () => matchAll(acControllers, getChromiumGamepads()),
-      _parsePgToVendorProduct: parsePgToVendorProduct,
-      _parseChromiumGamepadId: parseChromiumGamepadId,
+      parseChromiumGamepadId: parseChromiumGamepadId,
+      acAxisToChromiumAxis: acAxisToChromiumAxis,
+      chromiumAxisToAcAxis: chromiumAxisToAcAxis,
+      isAxisBlocked: isAxisBlocked,
     };
   }
 
@@ -227,7 +323,11 @@
     getChromiumGamepads,
     matchAll,
     chromiumAxisToAcAxis,
+    acAxisToChromiumAxis,
     isAxisBlocked,
+    loadLearnedProfiles,
+    refreshLearnedProfiles,
+    learnAxisMapping,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
