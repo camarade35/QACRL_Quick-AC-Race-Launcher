@@ -456,6 +456,62 @@
         getValue = () => inp.value;
         break;
       }
+      
+      // ---------------------------------------------------------------------
+      // RESOLUTION : menu déroulant (écrit WIDTH + HEIGHT automatiquement)
+      // ---------------------------------------------------------------------
+      case 'resolution': {
+        const sel = el('select', { class: 'ini-select' });
+        const placeholder = el('option', { value: '', text: '⏳ Chargement…' });
+        sel.appendChild(placeholder);
+
+        const w = parseInt(rawValue, 10) || 0;
+        const h = opts.sectionHelpers ? parseInt(opts.sectionHelpers.getValue('HEIGHT'), 10) : 0;
+
+        if (window.api && window.api.listResolutions) {
+          window.api.listResolutions().then(res => {
+            if (!res || !res.success) {
+              sel.innerHTML = '<option value="">⚠️ Erreur</option>';
+              return;
+            }
+            sel.innerHTML = '';
+            let matched = false;
+            for (const r of res.resolutions) {
+              const opt = el('option', { value: r.width + 'x' + r.height, text: r.label });
+              if (r.width === w && r.height === h) { opt.selected = true; matched = true; }
+              sel.appendChild(opt);
+            }
+            if (!matched && w > 0 && h > 0) {
+              const opt = el('option', { value: w + 'x' + h, text: `${w} × ${h} (actuel)` });
+              opt.selected = true;
+              sel.insertBefore(opt, sel.firstChild);
+            }
+          }).catch(() => {});
+        }
+
+        sel.addEventListener('change', () => {
+          const v = sel.value;
+          const m = v.match(/^(\d+)x(\d+)$/);
+          if (!m) return;
+          const newW = m[1];
+          const newH = m[2];
+          // Écrit WIDTH (soi-même)
+          if (opts.onChange) opts.onChange(newW);
+          // Écrit HEIGHT (clé sœur)
+          if (opts.sectionHelpers && opts.sectionHelpers.hasKey('HEIGHT')) {
+            opts.sectionHelpers.setValue('HEIGHT', newH);
+            const hw = opts.siblingWidgets && opts.siblingWidgets['HEIGHT'];
+            if (hw && hw.setValue) hw.setValue(newH);
+          }
+        });
+
+        controlEl = sel;
+        getValue = () => {
+          const m = sel.value.match(/^(\d+)x(\d+)$/);
+          return m ? m[1] : rawValue;
+        };
+        break;
+      }
 
       case 'audiosink': {
         const sel = el('select', { class: 'ini-select' });

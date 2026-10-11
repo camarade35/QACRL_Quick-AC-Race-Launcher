@@ -513,6 +513,15 @@ body {
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-subtle);
   flex-wrap: wrap;
+  /* ⭐ Reste visible en haut */
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--bg-root);
+  padding-top: 4px;
+  margin-top: -4px;
+  /* ⭐ Masque le contenu qui passe derrière (couvre le padding du container) */
+  box-shadow: 0 -30px 0 0 var(--bg-root);
 }
 .subtab-btn {
   background: transparent;
@@ -2286,6 +2295,14 @@ select:disabled, input:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 4px;
+  /* ⭐ Reste visible SOUS les subtabs */
+  position: sticky;
+  top: 56px; /* hauteur approximative des subtabs */
+  z-index: 50;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+:root[data-theme="light"] .ini-toolbar {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .ini-mode-toggle {
@@ -3049,4 +3066,75 @@ select:disabled, input:disabled {
 .ini-binding-axis-empty:hover {
   background: rgba(230, 163, 59, 0.15) !important;
   color: #ffd17a !important;
+}
+/* ============================================================
+   CATÉGORIES PLIABLES (ex : Boutons)
+   ============================================================ */
+
+.ini-category {
+  margin-bottom: 4px;
+}
+
+.ini-category-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 4px 8px;
+  padding: 0 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.ini-category-header:hover .ini-category-label {
+  color: var(--accent-hover);
+}
+
+.ini-category-arrow {
+  display: inline-block;
+  width: 12px;
+  font-size: 0.9rem;
+  transition: transform 0.15s;
+  transform: rotate(90deg);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.ini-category.collapsed .ini-category-arrow {
+  transform: rotate(0deg);
+}
+
+.ini-category-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: var(--accent);
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+
+.ini-category-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-muted), transparent);
+}
+
+.ini-category-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ini-category.collapsed .ini-category-content {
+  display: none;
+}
+.ini-category-hint {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 12px;
+  font-style: italic;
 }

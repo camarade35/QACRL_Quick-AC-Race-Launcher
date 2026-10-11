@@ -110,7 +110,13 @@
     const sectionMap = {};
     for (const s of ed.sections) sectionMap[s.name] = s;
 
+        // ⭐ Set LOCAL : sections déjà rendues dans l'onglet en cours
     const usedSections = new Set();
+
+    // ⭐ Set GLOBAL : toutes les sections référencées dans le layout complet
+    const globallyUsedSections = global.IniLayout && global.IniLayout.getAllUsedSections
+      ? global.IniLayout.getAllUsedSections(ed.file)
+      : new Set();
     let count = 0;
 
     if (activeTab.groups && activeTab.groups.length > 0) {
@@ -128,6 +134,69 @@
             ed.formEl.appendChild(el);
             count += group.sections.length;
           }
+        } else if (group.type === 'category') {
+          // ⭐ Catégorie pliable
+          const catWrapper = document.createElement('div');
+          catWrapper.className = 'ini-category';
+
+          const catHeader = document.createElement('div');
+          catHeader.className = 'ini-category-header';
+
+          const arrowEl = document.createElement('span');
+          arrowEl.className = 'ini-category-arrow';
+          arrowEl.textContent = '▸';
+          catHeader.appendChild(arrowEl);
+
+          const catLabel = document.createElement('span');
+          catLabel.className = 'ini-category-label';
+          catLabel.textContent = group.label;
+          catHeader.appendChild(catLabel);
+
+          // ⭐ Hint optionnel (sous-titre explicatif)
+          if (group.hint) {
+            const hintEl = document.createElement('span');
+            hintEl.className = 'ini-category-hint';
+            hintEl.textContent = group.hint;
+            catHeader.appendChild(hintEl);
+          }
+
+          const collapseKey = 'iniCollapseCategory:' + ed.file + ':' + group.label;
+          let collapsed = true; // replié par défaut
+          try {
+            const saved = localStorage.getItem(collapseKey);
+            collapsed = (saved === null) ? true : (saved === '1');
+          } catch (e) { collapsed = true; }
+
+          if (collapsed) catWrapper.classList.add('collapsed');
+          catHeader.addEventListener('click', () => {
+            collapsed = !collapsed;
+            catWrapper.classList.toggle('collapsed', collapsed);
+            try { localStorage.setItem(collapseKey, collapsed ? '1' : '0'); } catch (e) {}
+          });
+          catWrapper.appendChild(catHeader);
+
+          const catContent = document.createElement('div');
+          catContent.className = 'ini-category-content';
+
+          for (const sub of (group.groups || [])) {
+            if (sub.type === 'single') {
+              const sec = sectionMap[sub.section];
+              if (!sec) continue;
+              usedSections.add(sub.section);
+              const el = renderSingleSection(ed, sec, sub.label);
+              if (el) { catContent.appendChild(el); count++; }
+            } else if (sub.type === 'pair') {
+              const el = renderPairGroup(ed, sub, sectionMap);
+              if (el) {
+                sub.sections.forEach(s => usedSections.add(s.section));
+                catContent.appendChild(el);
+                count += sub.sections.length;
+              }
+            }
+          }
+
+          catWrapper.appendChild(catContent);
+          ed.formEl.appendChild(catWrapper);
         }
       }
     } else {
@@ -143,7 +212,7 @@
     if (activeTab.isFallback) {
       const orphans = [];
       for (const sec of ed.sections) {
-        if (usedSections.has(sec.name)) continue;
+        if (globallyUsedSections.has(sec.name)) continue;  // ⭐ global au lieu de local
         if (global.IniSchema.isBlacklisted(sec.name)) continue;
         if (sec.entries.filter(e => e.kind === 'kv').length === 0) continue;
         orphans.push(sec);
@@ -198,6 +267,12 @@
   // Rendu d'une section simple
   // -------------------------------------------------------------------------
   function renderSingleSection(ed, sec, customLabel) {
+    // ⭐ Skip les sections blacklistées globalement
+    if (global.IniLayout && global.IniLayout.isSectionExcluded
+        && global.IniLayout.isSectionExcluded(ed.file, sec.name)) {
+      return null;
+    }
+
     const kvEntries = sec.entries.filter(e => e.kind === 'kv');
     if (kvEntries.length === 0) return null;
 
@@ -252,6 +327,13 @@
 
       for (const entry of sec.entries) {
     if (entry.kind !== 'kv') continue;
+
+    // ⭐ Skip les clés gérées ailleurs (ex : FILTER et ENABLED dans le bloc Rendu)
+    if (global.IniLayout && global.IniLayout.isKeyExcluded
+        && global.IniLayout.isKeyExcluded(ed.file, sec.name, entry.key)) {
+      continue;
+    }
+
     const schema = global.IniSchema.getKeySchema(ed.file, sec.name, entry.key);
     let ctrl;
 
@@ -357,6 +439,13 @@
 
       for (const entry of sec.entries) {
         if (entry.kind !== 'kv') continue;
+
+        // ⭐ Skip les clés exclues
+        if (global.IniLayout && global.IniLayout.isKeyExcluded
+            && global.IniLayout.isKeyExcluded(ed.file, sec.name, entry.key)) {
+          continue;
+        }
+
         const schema = global.IniSchema.getKeySchema(ed.file, sec.name, entry.key);
         let ctrl;
         try {

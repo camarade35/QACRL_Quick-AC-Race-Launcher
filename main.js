@@ -207,25 +207,91 @@ const PURECTRL_CM_WEATHER = {
 
 let mainWindow = null;
 
+// ⭐ Fichier de sauvegarde des dimensions de la fenêtre
+const windowStatePath = path.join(app.getPath('userData'), 'window-state.json');
+
+function loadWindowState() {
+  try {
+    if (fs.existsSync(windowStatePath)) {
+      const raw = fs.readFileSync(windowStatePath, 'utf8');
+      const s = JSON.parse(raw);
+      // Vérifie que les valeurs sont valides
+      if (s && typeof s.width === 'number' && typeof s.height === 'number') {
+        return s;
+      }
+    }
+  } catch (e) {
+    console.warn('[window-state] lecture KO:', e.message);
+  }
+  return null;
+}
+
+function saveWindowState() {
+  if (!mainWindow) return;
+  try {
+    const isMaximized = mainWindow.isMaximized();
+    const bounds = isMaximized ? (mainWindow._lastNormalBounds || mainWindow.getBounds()) : mainWindow.getBounds();
+    const state = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      maximized: isMaximized,
+    };
+    fs.writeFileSync(windowStatePath, JSON.stringify(state, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[window-state] écriture KO:', e.message);
+  }
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280, height: 860,
-    frame: false,              // ⭐ plus de barre système
-    backgroundColor: '#0a0c12', // évite le flash blanc au démarrage
+  const { screen } = require('electron');
+  const { width: screenW, height: screenH } = screen.getPrimaryDisplay().workAreaSize;
+
+  // ⭐ Taille par défaut = 90% de l'écran, plafonnée à 1600×1000
+  const defaultWidth  = Math.min(1600, Math.floor(screenW * 0.9));
+  const defaultHeight = Math.min(1000, Math.floor(screenH * 0.9));
+
+  // ⭐ Récupère la dernière position/taille connue
+  const saved = loadWindowState();
+  const opts = {
+    width:  saved ? saved.width  : defaultWidth,
+    height: saved ? saved.height : defaultHeight,
+    x:      saved ? saved.x      : undefined,
+    y:      saved ? saved.y      : undefined,
+    frame: false,
+    backgroundColor: '#0a0c12',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: false
     }
-  });
-  mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
-  //ligne temporaire ci-dessous à enlever ensuite//
-  //mainWindow.webContents.openDevTools();
+  };
 
-  // ⭐ Notifie le renderer quand l'état maximisé change (pour changer l'icône)
+  mainWindow = new BrowserWindow(opts);
+
+  // ⭐ Si la dernière fois on était maximisé → on remaximise
+  if (saved && saved.maximized) {
+    mainWindow.maximize();
+  }
+
+  mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+
+  // ⭐ Mémorise la taille "normale" (hors maximisé) pour pouvoir la restaurer
+  mainWindow.on('resize', () => {
+    if (!mainWindow.isMaximized()) {
+      mainWindow._lastNormalBounds = mainWindow.getBounds();
+    }
+  });
+
   mainWindow.on('maximize', () => mainWindow.webContents.send('window-maximized', true));
   mainWindow.on('unmaximize', () => mainWindow.webContents.send('window-maximized', false));
+
+  // ⭐ Sauvegarde la position/taille à la fermeture
+  mainWindow.on('close', () => {
+    saveWindowState();
+  });
 }
 
 app.whenReady().then(() => {
@@ -2524,4 +2590,132 @@ ipcMain.handle('merge-wheel-profile', async (event, vendor, product, axes, sourc
 
 ipcMain.handle('delete-wheel-profile', async (event, vendor, product) => {
   return { success: wheelProfiles.deleteProfile(vendor, product) };
+});
+
+
+/* ============================================================
+   IPC — RÉSOLUTIONS DISPONIBLES (pour le widget VIDÉO)
+   ============================================================ */
+ipcMain.handle('list-resolutions', async () => {
+  try {
+    const { screen } = require('electron');
+    const primary = screen.getPrimaryDisplay();
+    const nativeW = primary.size.width;
+    const nativeH = primary.size.height;
+
+    const standard = [
+      [1280, 720], [1366, 768], [1600, 900], [1920, 1080], [1920, 1200],
+      [2560, 1080], [2560, 1440], [2560, 1600],
+      [3440, 1440], [3840, 1600], [3840, 2160],
+      [5120, 1440], [5120, 2880],
+    ];
+
+    const list = standard.map(([w, h]) => ({ width: w, height: h, label: `${w} × ${h}` }));
+
+    if (!list.some(r => r.width === nativeW && r.height === nativeH)) {
+      list.push({ width: nativeW, height: nativeH, label: `${nativeW} × ${nativeH} (native)` });
+    }
+    list.sort((a, b) => (a.width - b.width) || (a.height - b.height));
+    for (const r of list) {
+      if (r.width === nativeW && r.height === nativeH) r.label = `${r.width} × ${r.height} (native)`;
+    }
+    return { success: true, resolutions: list, native: { width: nativeW, height: nativeH } };
+  } catch (e) {
+    return { success: false, error: e.message, resolutions: [] };
+  }
+});
+
+
+/* ============================================================
+   IPC — OPTIONS CAMÉRA (free camera + orbite F5)
+   ============================================================ */
+
+function getAcCfgPath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error('Dossier AC non configuré.');
+  return path.join(acPath, 'system', 'cfg');
+}
+
+function readIniValue(filePath, sectionName, keyName) {
+  if (!fs.existsSync(filePath)) return null;
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const secRe = new RegExp('\\[' + sectionName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\]([\\s\\S]*?)(?=\\n\\[|$)');
+    const secMatch = content.match(secRe);
+    if (!secMatch) return null;
+    const keyRe = new RegExp('^\\s*' + keyName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\s*=\\s*(.*)$', 'm');
+    const keyMatch = secMatch[1].match(keyRe);
+    if (!keyMatch) return null;
+    return keyMatch[1].trim();
+  } catch (e) { return null; }
+}
+
+function writeIniValue(filePath, sectionName, keyName, value) {
+  if (!fs.existsSync(filePath)) throw new Error('Fichier introuvable : ' + filePath);
+  let content = fs.readFileSync(filePath, 'utf8');
+  const eol = content.includes('\\r\\n') ? '\\r\\n' : '\\n';
+  const lines = content.split(/\\r?\\n/);
+
+  let secIdx = -1;
+  const secRe = new RegExp('^\\s*\\[' + sectionName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\]\\s*$', 'i');
+  for (let i = 0; i < lines.length; i++) {
+    if (secRe.test(lines[i])) { secIdx = i; break; }
+  }
+  if (secIdx < 0) throw new Error('Section [' + sectionName + '] introuvable dans ' + filePath);
+
+  let keyIdx = -1;
+  const keyRe = new RegExp('^\\s*' + keyName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\s*=', 'i');
+  for (let i = secIdx + 1; i < lines.length; i++) {
+    if (/^\s*\[/.test(lines[i])) break;
+    if (keyRe.test(lines[i])) { keyIdx = i; break; }
+  }
+  const newLine = keyName + '=' + value;
+  if (keyIdx >= 0) lines[keyIdx] = newLine;
+  else lines.splice(secIdx + 1, 0, newLine);
+
+  fs.copyFileSync(filePath, filePath + '.bak');
+  fs.writeFileSync(filePath, lines.join(eol), 'utf8');
+  return true;
+}
+
+ipcMain.handle('get-free-camera-options', async () => {
+  try {
+    const cfgDir = getAcCfgPath();
+    const fileFree   = path.join(cfgDir, 'assetto_corsa.ini');
+    const fileOrbit  = path.join(cfgDir, 'camera_onboard_free.ini');
+
+    const freeCam  = readIniValue(fileFree,  'CAMERA',          'ALLOW_FREE_CAMERA');
+    const orbitMode = readIniValue(fileOrbit, 'CAMERA_SETTINGS', 'SPHERICAL_COORDS');
+
+    return {
+      success: true,
+      allowFreeCamera: freeCam === '1',
+      orbitMode: orbitMode === '1',
+      fileFree,
+      fileOrbit,
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('set-free-camera-options', async (event, opts) => {
+  try {
+    const cfgDir = getAcCfgPath();
+    const fileFree  = path.join(cfgDir, 'assetto_corsa.ini');
+    const fileOrbit = path.join(cfgDir, 'camera_onboard_free.ini');
+
+    if (typeof opts.allowFreeCamera === 'boolean') {
+      writeIniValue(fileFree, 'CAMERA', 'ALLOW_FREE_CAMERA', opts.allowFreeCamera ? '1' : '0');
+    }
+    if (typeof opts.orbitMode === 'boolean') {
+      writeIniValue(fileOrbit, 'CAMERA_SETTINGS', 'SPHERICAL_COORDS', opts.orbitMode ? '1' : '0');
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });

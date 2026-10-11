@@ -10,14 +10,14 @@
 (function (global) {
   'use strict';
 
-  const BLACKLIST_PREFIXES = ['__EXT_', '__CM_'];
+  const BLACKLIST_PREFIXES = ['__EXT_', '__CM_', 'GEAR_'];
   const BLACKLIST_EXACT = ['__LAUNCHER_CM', '__EXTRA_CM'];
 
   // ---------------------------------------------------------------------------
   // Hints par nom de clé : utilisés quand on est dans une section "binding"
   // ---------------------------------------------------------------------------
   const KEY_HINTS = {
-    'BUTTON':              { label: 'Bouton manette',        type: 'binding' },
+    'BUTTON':              { label: 'Bouton',                type: 'binding' },
     'BUTTON_MODIFICATOR':  { label: 'Bouton modificateur',   type: 'binding' },
     'JOY':                 { label: 'Périphérique',          type: 'binding' },
     'JOY_MODIFICATOR':     { label: 'Périph. modificateur',  type: 'binding' },
@@ -248,8 +248,8 @@
           label: 'Affichage',
           keys: {
             'FULLSCREEN':         { label: 'Plein écran',            type: 'bool' },
-            'WIDTH':              { label: 'Largeur',                type: 'int', min: 640, max: 7680 },
-            'HEIGHT':             { label: 'Hauteur',                type: 'int', min: 480, max: 4320 },
+            'WIDTH':              { label: 'Résolution',             type: 'resolution' },
+            'HEIGHT':             { label: 'Hauteur',                type: 'int', min: 480, max: 4320, readOnly: true },
             'VSYNC':              { label: 'V-Sync',                 type: 'bool' },
             'ANISOTROPIC':        { label: 'Filtrage anisotrope',    type: 'int', min: 0, max: 16 },
             'AASAMPLES':          { label: 'Échantillons AA',        type: 'int', min: 0, max: 8 },
@@ -264,10 +264,12 @@
         'ASSETTOCORSA': {
           label: 'Réglages AC',
           keys: {
-            'HIDE_ARMS':    { label: 'Cacher les bras',      type: 'bool' },
-            'HIDE_STEER':   { label: 'Cacher le volant',     type: 'bool' },
-            'LOCK_STEER':   { label: 'Verrouiller le volant',type: 'bool' },
-            'WORLD_DETAIL': { label: 'Détail du monde',      type: 'int', min: 0, max: 5 },
+            'HIDE_ARMS':          { label: 'Cacher les bras',      type: 'bool' },
+            'HIDE_STEER':         { label: 'Cacher le volant',     type: 'bool' },
+            'LOCK_STEER':         { label: 'Verrouiller le volant',type: 'bool' },
+            'WORLD_DETAIL':       { label: 'Détail du monde',      type: 'int', min: 0, max: 5 },
+            'ALLOW_FREE_CAMERA':  { label: 'Autoriser la caméra libre (F5)', type: 'bool' },
+            'F5_ORBIT_MODE':      { label: 'Mode orbite pour la caméra F5',  type: 'bool' },
           }
         },
 

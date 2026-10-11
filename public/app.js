@@ -195,6 +195,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.WeatherFx.init();
   }
 
+  // ⭐ Init des options caméra libre / orbite F5
+  if (window.FreeCamera && typeof window.FreeCamera.init === 'function') {
+    window.FreeCamera.init();
+  }
+
   // ⭐ Charge les profils volant appris (mapping Chromium → AC)
   if (window.GamepadMapper && typeof window.GamepadMapper.loadLearnedProfiles === 'function') {
     window.GamepadMapper.loadLearnedProfiles().then(() => {

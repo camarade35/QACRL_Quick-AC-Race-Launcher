@@ -590,26 +590,69 @@
 
       <div id="subtab-settings-video" class="subtab-content">
         <div class="group" id="weatherfx-group">
-          <div class="group-title">🌦️ Weather FX — Style de rendu</div>
+          <div class="group-title">🎨 Rendu — Style & Filtre</div>
+
           <div class="row">
             <div class="field">
-              <label for="weatherfx-style-select">Style actif</label>
+              <label for="weatherfx-style-select">Style Weather FX</label>
               <select id="weatherfx-style-select">
                 <option value="">⏳ Chargement…</option>
               </select>
+            </div>
+            <div class="field">
+              <label for="render-ppfilter-select">Filtre post-process (PP)</label>
+              <select id="render-ppfilter-select">
+                <option value="">⏳ Chargement…</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="field">
+              <label class="check">
+                <input type="checkbox" id="render-pp-enabled">
+                Post-processing activé
+              </label>
             </div>
             <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
               <span id="weatherfx-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
             </div>
           </div>
+
           <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;">
-            💡 Le <strong>Weather FX Style</strong> définit le traitement en amont des filtres PP (post-processing).<br>
+            💡 Le <strong>Style Weather FX</strong> définit le traitement en amont des filtres PP.<br>
             • <strong>Default</strong> : rendu Kunos classique<br>
             • <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>
-            • <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)<br>
-            ⚠️ Après un changement, <strong>relance AC</strong> pour que ce soit pris en compte.
+            • <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)
           </div>
         </div>
+
+        <div class="group" id="free-camera-group">
+          <div class="group-title">🎥 Caméra libre & Vue orbite</div>
+          <div class="row">
+            <div class="field">
+              <label class="check">
+                <input type="checkbox" id="free-camera-enabled">
+                Autoriser la caméra libre (F5)
+              </label>
+            </div>
+            <div class="field">
+              <label class="check">
+                <input type="checkbox" id="orbit-mode-enabled">
+                Mode orbite pour la caméra F5
+              </label>
+            </div>
+            <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
+              <span id="free-camera-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
+            </div>
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;">
+            💡 La <strong>caméra libre</strong> permet de sortir de la voiture avec F5 pour te déplacer librement dans la scène.<br>
+            💡 Le <strong>mode orbite</strong> change la rotation F5 en orbite autour de la voiture (plus intuitif à la souris).
+          </div>
+        </div>
+
+        <div class="ini-editor" data-ini-file="video.ini"></div>
 
         <div class="ini-editor" data-ini-file="video.ini"></div>
       </div>
@@ -776,6 +819,7 @@
   <script src="src/wheelCalibration.js"></script>
   <script src="src/iniControls.js"></script>
   <script src="src/weatherFx.js"></script>
+  <script src="src/freeCamera.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>
 </body>

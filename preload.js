@@ -72,6 +72,13 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Weather FX Style
   getWeatherFxStyle: () => ipcRenderer.invoke('get-weather-fx-style'),
   setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
+  
+    // ⭐ Résolutions d'écran disponibles
+  listResolutions: () => ipcRenderer.invoke('list-resolutions'),
+  
+  // ⭐ Options caméra libre / orbite F5
+  getFreeCameraOptions: () => ipcRenderer.invoke('get-free-camera-options'),
+  setFreeCameraOptions: (opts) => ipcRenderer.invoke('set-free-camera-options', opts),
 
   // ⭐ Profils volant (mapping Chromium → AC)
   getWheelProfile: (vendor, product) => ipcRenderer.invoke('get-wheel-profile', vendor, product),
