@@ -143,6 +143,12 @@
     wrap.appendChild(val);
     return { wrap, fill, value: val };
   }
+  // ---------------------------------------------------------------------------
+  // Trouve une étape par nom de section (STEER, THROTTLE, ...)
+  // ---------------------------------------------------------------------------
+  function getStepBySection(section) {
+    return STEPS.find(s => s.section === section) || null;
+  }
 
   // ---------------------------------------------------------------------------
   // Définition des étapes
@@ -168,14 +174,23 @@
   // ---------------------------------------------------------------------------
   // Écran d'accueil
   // ---------------------------------------------------------------------------
-  function renderWelcome(statusText) {
+  function renderWelcome(singleStep) {
+    const isSingle = singleStep && typeof singleStep === 'object';
+    const title = isSingle
+      ? 'Reconfiguration : ' + singleStep.title
+      : 'Calibration du volant';
+    const icon  = isSingle ? singleStep.icon : '🎯';
+    const intro = isSingle
+      ? 'Ce guide va redétecter uniquement l\'axe <strong>' + singleStep.title.toLowerCase() + '</strong>.'
+      : 'Ce guide va détecter la correspondance entre ton volant et Assetto Corsa.';
+
     elements.content.innerHTML =
       '<div class="wheel-calib-step">' +
-        '<div class="wheel-calib-icon">🎯</div>' +
-        '<h3>Calibration du volant</h3>' +
-        '<p>Ce guide va détecter la correspondance entre ton volant et Assetto Corsa.</p>' +
+        '<div class="wheel-calib-icon">' + icon + '</div>' +
+        '<h3>' + title + '</h3>' +
+        '<p>' + intro + '</p>' +
         '<p class="wheel-calib-hint">Pour commencer, <strong>bouge un peu le volant</strong> ou <strong>appuie sur une pédale</strong>.</p>' +
-        '<div class="wheel-calib-loading">' + (statusText || '⏳ En attente d\'un mouvement…') + '</div>' +
+        '<div class="wheel-calib-loading">⏳ En attente d\'un mouvement…</div>' +
       '</div>';
     elements.footer.innerHTML =
       '<button class="filter-btn" id="wheel-calib-cancel">Annuler</button>';
@@ -251,14 +266,16 @@
   // ---------------------------------------------------------------------------
   function renderStepScreen() {
     stopLive();
-    const step = STEPS[state.currentStep];
+    const step = state.steps[state.currentStep];
     const isMove = state.subStep === 'move';
     const isSteer = step.section === 'STEER';
 
     elements.content.innerHTML = '';
     const box = el('div', { class: 'wheel-calib-step' });
-    box.appendChild(el('div', { class: 'wheel-calib-progress',
-      text: 'Étape ' + (state.currentStep + 1) + ' / ' + STEPS.length }));
+    const progressText = state.isSingleStep
+      ? 'Reconfiguration'
+      : 'Étape ' + (state.currentStep + 1) + ' / ' + state.steps.length;
+    box.appendChild(el('div', { class: 'wheel-calib-progress', text: progressText }));
     box.appendChild(el('div', { class: 'wheel-calib-icon', text: step.icon }));
     box.appendChild(el('h3', { text: step.title }));
 
@@ -418,7 +435,7 @@
     }
 
     // Enregistre le résultat
-    const step = STEPS[state.currentStep];
+    const step = state.steps[state.currentStep];
     const acAxis = readAxle(state.controls.sections, step.section);
     state.results.push({
       id: step.id,
@@ -432,7 +449,7 @@
     state.detectedAxis = null;
     state.detectedValue = null;
 
-    if (state.currentStep >= STEPS.length) {
+    if (state.currentStep >= state.steps.length) {
       finalizeAndSummary();
     } else {
       runCurrentStep();
@@ -443,12 +460,12 @@
     if (!state) return;
 
     // ⭐ Vérif en PREMIER : si on a fini toutes les étapes, on saute au résumé
-    if (state.currentStep >= STEPS.length) {
+    if (state.currentStep >= state.steps.length) {
       finalizeAndSummary();
       return;
     }
 
-    const step = STEPS[state.currentStep];
+    const step = state.steps[state.currentStep];
     const acAxis = readAxle(state.controls.sections, step.section);
 
     // Si pas d'AXLE configuré → skip
@@ -457,7 +474,7 @@
       state.currentStep++;
       state.subStep = 'move';
       state.detectedAxis = null;
-      if (state.currentStep >= STEPS.length) {
+      if (state.currentStep >= state.steps.length) {
         finalizeAndSummary();
       } else {
         runCurrentStep();
@@ -491,7 +508,7 @@
     const rows = state.results
       .filter(r => r.chromiumAxis != null && r.acAxis != null)
       .map(r => {
-        const step = STEPS.find(s => s.id === r.id);
+        const step = state.steps.find(s => s.id === r.id);
         return '<tr>' +
           '<td>' + step.icon + ' ' + step.title + '</td>' +
           '<td><code>Chromium ' + r.chromiumAxis + '</code></td>' +
@@ -500,11 +517,18 @@
         '</tr>';
       }).join('');
 
+    const finalTitle = state.isSingleStep
+      ? 'Reconfiguration réussie !'
+      : 'Calibration réussie !';
+    const finalSub = state.isSingleStep
+      ? 'Axe mis à jour pour <code>' + state.device.vendor + ':' + state.device.product + '</code>'
+      : 'Profil enregistré pour <code>' + state.device.vendor + ':' + state.device.product + '</code>';
+
     elements.content.innerHTML =
       '<div class="wheel-calib-step">' +
         '<div class="wheel-calib-icon">✅</div>' +
-        '<h3>Calibration réussie !</h3>' +
-        '<p>Profil enregistré pour <code>' + state.device.vendor + ':' + state.device.product + '</code></p>' +
+        '<h3>' + finalTitle + '</h3>' +
+        '<p>' + finalSub + '</p>' +
         '<table class="wheel-calib-summary">' + rows + '</table>' +
       '</div>';
     elements.footer.innerHTML =
@@ -539,6 +563,8 @@
       currentStep: 0, subStep: 'move',
       results: [], baselineAxes: [],
       detectedAxis: null, detectedValue: null,
+      steps: STEPS.slice(),
+      isSingleStep: false,
     };
     elements.modal.classList.add('visible');
     renderWelcome();
@@ -580,5 +606,45 @@
     });
   }
 
-  global.WheelCalibration = { init, start, close };
+  // ---------------------------------------------------------------------------
+  // Lance une mini-calibration pour UNE SEULE étape (ex: 'STEER')
+  // ---------------------------------------------------------------------------
+  async function startSingleStep(sectionName) {
+    const step = getStepBySection(sectionName);
+    if (!step) {
+      alert('Impossible de trouver l\'étape pour la section "' + sectionName + '".');
+      return;
+    }
+
+    if (!elements) cacheElements();
+    if (!elements.modal) return;
+
+    state = {
+      device: null, controls: null,
+      currentStep: 0, subStep: 'move',
+      results: [], baselineAxes: [],
+      detectedAxis: null, detectedValue: null,
+      steps: [step],                 // ⭐ uniquement cette étape
+      isSingleStep: true,
+    };
+    elements.modal.classList.add('visible');
+    renderWelcome(step);
+
+    try {
+      state.controls = await loadControlsData();
+    } catch (e) {
+      renderError(e.message); return;
+    }
+
+    try {
+      state.device = await detectDevice();
+    } catch (e) {
+      renderError(e.message); return;
+    }
+    if (!state) return;
+
+    renderRestScreen();
+  }
+
+  global.WheelCalibration = { init, start, startSingleStep, close };
 })(window);

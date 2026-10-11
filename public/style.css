@@ -2541,6 +2541,43 @@ select:disabled, input:disabled {
   width: 100%;
   min-width: 0;
 }
+.ini-binding-wrap.ini-binding-wrap-3col {
+  grid-template-columns: 1fr 80px 36px;
+}
+
+.ini-binding-wrap.ini-binding-wrap-3col > .ini-number {
+  width: 80px !important;
+  min-width: 80px;
+}
+
+.ini-axis-reconfig {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ini-axis-reconfig:hover {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.ini-axis-reconfig:active {
+  transform: scale(0.95);
+}
 .ini-binding-wrap > .ini-binding-btn {
   width: 100% !important;
   max-width: none !important;

@@ -335,6 +335,23 @@
           btn.addEventListener('click', () => { capturing ? stopCapture() : startCapture(); });
 
           const numInp = el('input', { type: 'number', class: 'ini-number', min: -1, max: 31, value: currentValue });
+          // ⭐ Bouton "Reconfigurer cet axe" (mini-wizard)
+          const reconfigBtn = el('button', {
+            type: 'button',
+            class: 'ini-axis-reconfig',
+            title: 'Reconfigurer cet axe avec le wizard guidé'
+          });
+          reconfigBtn.textContent = '🎯';
+          reconfigBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (global.WheelCalibration && typeof global.WheelCalibration.startSingleStep === 'function') {
+              global.WheelCalibration.startSingleStep(opts.section);
+            } else {
+              alert('Le wizard de calibration n\'est pas disponible.');
+            }
+          });
+
           numInp.addEventListener('input', () => {
             currentValue = numInp.value;
             updateLabel();
@@ -348,7 +365,7 @@
           const liveFill = el('div', { class: 'ini-axis-live-fill' });
           const liveValue = el('div', { class: 'ini-axis-live-value', text: '—' });
           const liveBar = el('div', { class: 'ini-axis-live' }, [liveFill, liveValue]);
-          const wrapTop = el('div', { class: 'ini-binding-wrap' }, [btn, numInp]);
+          const wrapTop = el('div', { class: 'ini-binding-wrap ini-binding-wrap-3col' }, [btn, numInp, reconfigBtn]);
           const fullWrap = el('div', { class: 'ini-axis-fullwrap' }, [wrapTop, liveBar]);
 
           let liveInterval = null;
