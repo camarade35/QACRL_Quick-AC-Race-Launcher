@@ -74,19 +74,23 @@ contextBridge.exposeInMainWorld('api', {
   setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
   getWeatherFxEnabled: () => ipcRenderer.invoke('get-weather-fx-enabled'),
   setWeatherFxEnabled: (enabled) => ipcRenderer.invoke('set-weather-fx-enabled', enabled),
-  
-    // ⭐ Résolutions d'écran disponibles
+
+  // ⭐ Résolutions d'écran disponibles
   listResolutions: () => ipcRenderer.invoke('list-resolutions'),
-  
+
   // ⭐ Options caméra libre / orbite F5
   getFreeCameraOptions: () => ipcRenderer.invoke('get-free-camera-options'),
   setFreeCameraOptions: (opts) => ipcRenderer.invoke('set-free-camera-options', opts),
-  
+
   // ⭐ Modules CSP
   listCspModules: () => ipcRenderer.invoke('list-csp-modules'),
   readCspModule: (filename) => ipcRenderer.invoke('read-csp-module', filename),
   setCspModuleEnabled: (filename, enabled) => ipcRenderer.invoke('set-csp-module-enabled', filename, enabled),
   writeCspModule: (filename, content) => ipcRenderer.invoke('write-csp-module', filename, content),
+  readCspTemplate: (filename) => ipcRenderer.invoke('read-csp-template', filename),
+
+  // ⭐ Fichiers i18n (fr.json / en.json)
+  readI18nFile: (filename) => ipcRenderer.invoke('read-i18n-file', filename),
 
   // ⭐ Profils volant (mapping Chromium → AC)
   getWheelProfile: (vendor, product) => ipcRenderer.invoke('get-wheel-profile', vendor, product),

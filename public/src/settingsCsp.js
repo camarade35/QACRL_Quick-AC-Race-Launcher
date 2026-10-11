@@ -58,7 +58,7 @@
               const r = await window.api.readCspModule(m.id + '.ini');
               modulesData[m.id] = {
                 enabled: !!(r && r.success && r.enabled),
-                disableable: !!(r && r.success && r.disableable),   // ⭐ nouveau
+                disableable: !!(r && r.success && r.disableable),
                 exists: true,
               };
             } catch (e) {
@@ -102,9 +102,6 @@
 
         const labelWrap = el('label', { class: 'csp-module-label' });
 
-// ⭐ Un module est désactivable si :
-        //    - il n'est pas marqué explicitement non-désactivable dans cspModules.js
-        //    - ET qu'il a bien une section [BASIC]
         const isDisableable = (m.disableable !== false) && data.disableable;
 
         if (isDisableable) {
@@ -136,7 +133,6 @@
 
           labelWrap.appendChild(cb);
         } else {
-          // ⭐ Module non-désactivable : juste un point de statut
           const dot = el('span', { class: 'csp-module-nodisable', title: 'Module non désactivable (options uniquement)' });
           dot.textContent = '•';
           labelWrap.appendChild(dot);
@@ -217,20 +213,145 @@
     body.innerHTML = '<div class="servers-loading">⏳ Chargement…</div>';
 
     try {
-      const res = await window.api.readCspModule(modalState.filename);
-      if (!res || !res.success) {
-        body.innerHTML = '<div class="servers-empty">⚠️ ' + ((res && res.error) || 'Erreur') + '</div>';
+      // ⭐ Charge en parallèle le user INI (valeurs) et le template (structure)
+      const [userRes, tplRes] = await Promise.all([
+        window.api.readCspModule(modalState.filename),
+        window.api.readCspTemplate(modalState.filename).catch(() => ({ success: false }))
+      ]);
+
+      if (!userRes || !userRes.success) {
+        body.innerHTML = '<div class="servers-empty">⚠️ ' + ((userRes && userRes.error) || 'Erreur') + '</div>';
         return;
       }
 
-      const sections = global.CspParser.parseCspContent(res.content, global.IniParser);
-      modalState.sections = sections;
-      modalState.savedContent = res.content;
+      // Map { SECTION: { KEY: value } } depuis le user INI
+      const userSectionsRaw = global.IniParser.parseIni(userRes.content);
+      const userMap = {};
+      for (const s of userSectionsRaw) {
+        if (!s.name) continue;
+        const obj = {};
+        for (const e of s.entries) {
+          if (e.kind === 'kv') obj[e.key] = e.value;
+        }
+        userMap[s.name] = obj;
+      }
+
+      // Parse le template si dispo
+      let templateSections = null;
+      if (tplRes && tplRes.success && global.CspTemplate) {
+        try {
+          templateSections = global.CspTemplate.parseTemplate(tplRes.content).sections;
+        } catch (e) {
+          console.warn('[settingsCsp] parse template KO :', e.message);
+        }
+      }
+
+      let finalSections;
+      if (templateSections && templateSections.length > 0) {
+        // ⭐ Template-first : structure + ordre + labels du template
+        finalSections = buildSectionsFromTemplate(templateSections, userMap);
+      } else {
+        console.warn('[settingsCsp] template introuvable pour ' + modalState.filename + ' → fallback');
+        finalSections = global.CspParser.parseCspContent(userRes.content, global.IniParser);
+      }
+
+      modalState.sections = finalSections;
+      modalState.savedContent = userRes.content;
       modalState.dirty = false;
       renderModuleModal();
     } catch (e) {
       body.innerHTML = '<div class="servers-empty">⚠️ ' + e.message + '</div>';
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ⭐ Construit les sections finales en partant du template.
+  // Chaque clé du template prend sa valeur depuis le user INI si elle existe,
+  // sinon sa valeur par défaut. Les clés/sections orphelines (présentes
+  // uniquement côté user) sont conservées à la fin pour ne rien perdre.
+  // ---------------------------------------------------------------------------
+  function buildSectionsFromTemplate(templateSections, userMap) {
+    const out = [];
+
+    for (const tplSec of templateSections) {
+      const userVals = userMap[tplSec.name] || {};
+      const entries = [];
+      const usedKeys = new Set();
+
+      // 1) Toutes les clés du template, dans l'ordre du template
+      for (const tplEntry of tplSec.entries) {
+        const hasUserVal = Object.prototype.hasOwnProperty.call(userVals, tplEntry.key);
+        const value = hasUserVal ? userVals[tplEntry.key] : tplEntry.defaultValue;
+
+        entries.push({
+          key: tplEntry.key,
+          value,
+          label: tplEntry.label || tplEntry.key,
+          hidden: !!tplEntry.hidden,
+          type: tplEntry.type,
+          options: tplEntry.options,
+          min: tplEntry.min,
+          max: tplEntry.max,
+          step: tplEntry.step,
+          rawConstraints: tplEntry.rawConstraints || '',
+          fromTemplate: !hasUserVal
+        });
+        usedKeys.add(tplEntry.key);
+      }
+
+      // 2) Clés user orphelines
+      for (const k of Object.keys(userVals)) {
+        if (usedKeys.has(k)) continue;
+        entries.push({
+          key: k,
+          value: userVals[k],
+          label: k,
+          hidden: false,
+          type: 'string',
+          options: null,
+          min: null,
+          max: null,
+          step: null,
+          rawConstraints: '',
+          fromTemplate: false,
+          orphan: true
+        });
+      }
+
+      out.push({
+        name: tplSec.name,
+        label: tplSec.label,
+        hint: tplSec.hint,
+        hidden: !!tplSec.hidden,
+        entries
+      });
+    }
+
+    // 3) Sections user orphelines
+    const tplSectionNames = new Set(templateSections.map(s => s.name));
+    for (const secName of Object.keys(userMap)) {
+      if (tplSectionNames.has(secName)) continue;
+      const vals = userMap[secName];
+      if (!vals || Object.keys(vals).length === 0) continue;
+
+      const entries = Object.keys(vals).map(k => ({
+        key: k,
+        value: vals[k],
+        label: k,
+        hidden: false,
+        type: 'string',
+        options: null,
+        min: null,
+        max: null,
+        step: null,
+        rawConstraints: '',
+        fromTemplate: false,
+        orphan: true
+      }));
+      out.push({ name: secName, label: null, hint: null, hidden: false, entries });
+    }
+
+    return out;
   }
 
   function renderModuleModal() {
@@ -243,20 +364,44 @@
       return;
     }
 
-    for (const sec of modalState.sections) {
-      const secEl = el('div', { class: 'csp-opt-section' });
-      secEl.appendChild(el('div', { class: 'csp-opt-section-title', text: sec.name }));
+    let shown = 0;
 
-      if (sec.hint) {
-        secEl.appendChild(el('div', { class: 'csp-opt-section-hint', text: sec.hint }));
+    for (const sec of modalState.sections) {
+      // ⭐ Skip sections hidden (ex: [SSAO], [SSGI])
+      if (sec.hidden) continue;
+
+      // Filtre les entrées visibles
+      const visibleEntries = sec.entries.filter(e => !e.hidden);
+
+      // Skip sections vides après filtrage
+      if (visibleEntries.length === 0) continue;
+
+      const i18n = window.I18n;
+      const secLabelText = i18n ? i18n.tSection(sec.label || sec.name) : (sec.label || sec.name);
+      const secHintText  = sec.hint
+        ? (i18n ? i18n.tHint(sec.hint) : sec.hint)
+        : null;
+
+      const secEl = el('div', { class: 'csp-opt-section' });
+      secEl.appendChild(el('div', {
+        class: 'csp-opt-section-title',
+        text: secLabelText
+      }));
+
+      if (secHintText) {
+        secEl.appendChild(el('div', { class: 'csp-opt-section-hint', text: secHintText }));
       }
 
-      for (const entry of sec.entries) {
+      for (const entry of visibleEntries) {
         const row = el('div', { class: 'csp-opt-row' });
+        const labelText = i18n ? i18n.tKey(entry.label) : entry.label;
+        const tooltipText = i18n
+          ? i18n.tConstraints(entry.rawConstraints || '')
+          : (entry.rawConstraints || '');
         row.appendChild(el('label', {
           class: 'csp-opt-label',
-          text: entry.label,
-          title: entry.rawConstraints || '',
+          text: labelText,
+          title: tooltipText,
         }));
 
         const ctrl = createCspWidget(entry, () => { modalState.dirty = true; });
@@ -265,6 +410,11 @@
       }
 
       body.appendChild(secEl);
+      shown++;
+    }
+
+    if (shown === 0) {
+      body.innerHTML = '<div class="servers-empty">Aucune option affichable pour ce module.</div>';
     }
   }
 
@@ -307,8 +457,10 @@
     } else if (entry.type === 'enum' && Array.isArray(entry.options) && entry.options.length > 0) {
       const sel = el('select', { class: 'ini-select' });
       let matched = false;
+      const i18n = window.I18n;
       for (const o of entry.options) {
-        const opt = el('option', { value: o.value, text: o.label });
+        const optLabel = i18n ? i18n.tEnum(o.label) : o.label;
+        const opt = el('option', { value: o.value, text: optLabel });
         if (String(o.value) === String(entry.value)) { opt.selected = true; matched = true; }
         sel.appendChild(opt);
       }
@@ -340,7 +492,6 @@
     if (statusEl) { statusEl.textContent = '⏳ Enregistrement…'; statusEl.style.color = 'var(--text-tertiary)'; }
 
     try {
-      // Reconstruit le contenu du fichier
       const newContent = rebuildContent(modalState.sections);
       const res = await window.api.writeCspModule(modalState.filename, newContent);
       if (res && res.success) {
@@ -368,9 +519,8 @@
       for (const entry of sec.entries) {
         lines.push(entry.key + '=' + entry.value);
       }
-      if (sec.hint) {
-        lines.push('__HINT_BOTTOM=' + sec.hint);
-      }
+      // ⚠️ On n'écrit PAS __HINT_BOTTOM : c'est une métadonnée du template,
+      //    pas du user INI. Le hint est préservé uniquement pour l'affichage.
       lines.push('');
     }
     return lines.join('\n');

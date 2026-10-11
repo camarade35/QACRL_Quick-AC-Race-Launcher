@@ -536,6 +536,23 @@
       </div>
 
       <div id="subtab-settings-general" class="subtab-content active">
+        <div class="group">
+          <div class="group-title">Langue / Language</div>
+          <div class="row">
+            <div class="field">
+              <label for="language-select">Langue de l'interface</label>
+              <select id="language-select">
+                <option value="fr">🇫🇷 Français</option>
+                <option value="en">🇬🇧 English</option>
+              </select>
+            </div>
+          </div>
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+            💡 La langue s'applique aux libellés des modules CSP et, à terme, à toute l'interface.<br>
+            ⚠️ Certains éléments (nom des modules, description) restent en anglais pour le moment.
+          </div>
+        </div>
+
         <div class="group" id="player-identity-group">
           <div class="group-title">Identité du pilote</div>
           <div class="row">
@@ -860,6 +877,8 @@
   <script src="src/freeCamera.js"></script>
   <script src="src/cspModules.js"></script>
   <script src="src/cspParser.js"></script>
+  <script src="src/cspTemplate.js"></script>
+  <script src="src/i18n.js"></script>
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>

@@ -2955,3 +2955,63 @@ ipcMain.handle('write-csp-module', async (event, filename, content) => {
     return { success: false, error: e.message };
   }
 });
+
+/* ============================================================
+   IPC — TEMPLATES CSP (lecture seule)
+   Lit les fichiers modèles livrés par CSP dans <AC>\extension\config\
+   → sert à extraire les labels et métadonnées structurés.
+   ============================================================ */
+
+function getCspTemplatePath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) {
+    throw new Error('Dossier AC non configuré.');
+  }
+  return path.join(acPath, 'extension', 'config');
+}
+
+ipcMain.handle('read-csp-template', async (event, filename) => {
+  if (!CSP_ALLOWED_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  let dir;
+  try {
+    dir = getCspTemplatePath();
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Template introuvable : ' + filePath };
+  }
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { success: true, path: filePath, content };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/* ============================================================
+   IPC — FICHIERS i18n (lecture seule)
+   Lit public/assets/i18n/<lang>.json — whitelist stricte.
+   ============================================================ */
+ipcMain.handle('read-i18n-file', async (event, filename) => {
+  const allowed = ['fr.json', 'en.json'];
+  if (!allowed.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  const filePath = path.join(__dirname, 'public', 'assets', 'i18n', filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  }
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return { success: true, path: filePath, content };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
