@@ -126,6 +126,11 @@ function switchSubTab(event, subtabId) {
   const t = document.getElementById(subtabId); if (t) t.classList.add('active');
 }
 
+  // Charge les traductions (fr par défaut) — non bloquant
+  if (window.I18n && typeof window.I18n.load === 'function') {
+    window.I18n.load('fr').catch((e) => console.warn('[i18n] KO', e));
+  }
+
 /* ============================================================
    INIT
    ============================================================ */
@@ -135,6 +140,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupThemePicker();
   setupEventListeners();
   setupDragAndDrop();
+
+  // ⭐ Charge la langue depuis les settings (fr par défaut) — non bloquant
+  if (window.I18n && typeof window.I18n.load === 'function') {
+    (async () => {
+      try {
+        const settings = await window.api.getSettings();
+        const lang = (settings && settings.language) || 'fr';
+        await window.I18n.load(lang);
+        const sel = document.getElementById('language-select');
+        if (sel) sel.value = lang;
+      } catch (e) {
+        console.warn('[i18n] KO au démarrage :', e.message);
+      }
+    })();
+  }
 
   window.api.onInstallProgress(updateInstallProgress);
   if (window.api.onModsHistoryUpdated) {
@@ -442,6 +462,32 @@ function setupEventListeners() {
   window.addEventListener('click', (e) => {
     if (e.target === document.getElementById('selection-modal')) closeModal();
   });
+    // ⭐ Sélecteur de langue FR/EN
+  document.getElementById('language-select')?.addEventListener('change', async (e) => {
+    const newLang = e.target.value;
+    if (!window.I18n || typeof window.I18n.setLanguage !== 'function') return;
+
+    const ok = await window.I18n.setLanguage(newLang);
+    if (!ok) {
+      alert('Erreur : impossible de charger la langue.');
+      return;
+    }
+
+    // Ferme la modale CSP si elle est ouverte (pour éviter un état incohérent)
+    const modal = document.getElementById('csp-module-modal');
+    if (modal && modal.classList.contains('visible')) {
+      modal.classList.remove('visible');
+    }
+
+    // Re-render l'onglet CSP si dispo
+    if (window.SettingsCsp && typeof window.SettingsCsp.load === 'function') {
+      window.SettingsCsp.load();
+    }
+
+    // Petit feedback visuel
+    console.log('[i18n] Langue changée →', newLang);
+  });
+
   document.getElementById('btn-select-ac')?.addEventListener('click', async () => {
     const sel = await window.api.selectAcFolder();
     if (sel) { await refreshAllContent(); populateManufacturerSelect(); }
