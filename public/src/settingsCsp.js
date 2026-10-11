@@ -294,6 +294,7 @@
           max: tplEntry.max,
           step: tplEntry.step,
           rawConstraints: tplEntry.rawConstraints || '',
+          conditions: tplEntry.conditions || { visible: [], hidden: [], conflicts: [] },
           fromTemplate: !hasUserVal
         });
         usedKeys.add(tplEntry.key);
@@ -353,8 +354,63 @@
 
     return out;
   }
+  
+  // ---------------------------------------------------------------------------
+  // Évalue les conditions d'une clé contre les valeurs actuelles.
+  // Retourne : { show: bool, disabled: bool }
+  // ---------------------------------------------------------------------------
+  function evaluateConditions(conditions, currentSectionName, valuesMap) {
+    if (!conditions) return { show: true, disabled: false };
 
-  function renderModuleModal() {
+    // 1) Visible : TOUTES les conditions doivent être remplies
+    for (const cond of conditions.visible || []) {
+      const section = cond.section || currentSectionName;
+      const val = (valuesMap[section] || {})[cond.key];
+      let ok = false;
+      if (cond.op === '==') {
+        ok = (String(val) === String(cond.value));
+      } else { // truthy
+        ok = (val === '1' || val === 'true' || (val !== undefined && val !== '0' && val !== 'false' && val !== ''));
+      }
+      if (!ok) return { show: false, disabled: false };
+    }
+
+    // 2) Hidden : si UNE condition est remplie, masquer
+    for (const cond of conditions.hidden || []) {
+      const section = cond.section || currentSectionName;
+      const val = (valuesMap[section] || {})[cond.key];
+      const isTruthy = (val === '1' || val === 'true');
+      if (isTruthy) return { show: false, disabled: false };
+    }
+
+    // 3) Conflits : si UNE condition est remplie, désactiver (mais rester visible)
+    let disabled = false;
+    for (const conf of conditions.conflicts || []) {
+      const section = conf.section || currentSectionName;
+      const val = (valuesMap[section] || {})[conf.key];
+      const isTruthy = (val === '1' || val === 'true');
+      if (isTruthy) { disabled = true; break; }
+    }
+
+    return { show: true, disabled };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Construit la map { SECTION: { KEY: value } } depuis les sections actuelles.
+  // ---------------------------------------------------------------------------
+  function buildValuesMap(sections) {
+    const map = {};
+    for (const sec of sections || []) {
+      map[sec.name] = {};
+      for (const e of sec.entries || []) {
+        map[sec.name][e.key] = e.value;
+      }
+    }
+    return map;
+  }
+
+
+    function renderModuleModal() {
     const body = document.getElementById('csp-module-modal-body');
     if (!body || !modalState) return;
     body.innerHTML = '';
@@ -366,14 +422,14 @@
 
     let shown = 0;
 
+    // ⭐ Refs pour mise à jour live
+    const domRefs = { sections: [], rows: [] };
+
+    const valuesMap = buildValuesMap(modalState.sections);
+
     for (const sec of modalState.sections) {
-      // ⭐ Skip sections hidden (ex: [SSAO], [SSGI])
       if (sec.hidden) continue;
-
-      // Filtre les entrées visibles
       const visibleEntries = sec.entries.filter(e => !e.hidden);
-
-      // Skip sections vides après filtrage
       if (visibleEntries.length === 0) continue;
 
       const i18n = window.I18n;
@@ -392,29 +448,93 @@
         secEl.appendChild(el('div', { class: 'csp-opt-section-hint', text: secHintText }));
       }
 
+      const rowEls = [];
+
       for (const entry of visibleEntries) {
         const row = el('div', { class: 'csp-opt-row' });
         const labelText = i18n ? i18n.tKey(entry.label) : entry.label;
         const tooltipText = i18n
           ? i18n.tConstraints(entry.rawConstraints || '')
           : (entry.rawConstraints || '');
+
         row.appendChild(el('label', {
           class: 'csp-opt-label',
           text: labelText,
           title: tooltipText,
         }));
 
-        const ctrl = createCspWidget(entry, () => { modalState.dirty = true; });
+        // ⭐ Change callback : marque dirty ET rafraîchit la visibilité conditionnelle
+        const ctrl = createCspWidget(entry, () => {
+          modalState.dirty = true;
+          refreshConditionalVisibility();
+        });
         row.appendChild(ctrl);
+
         secEl.appendChild(row);
+        rowEls.push(row);
+
+        domRefs.rows.push({
+          sectionName: sec.name,
+          entry,
+          el: row
+        });
       }
 
       body.appendChild(secEl);
+      domRefs.sections.push({
+        name: sec.name,
+        sectionEl: secEl,
+        rowEls
+      });
       shown++;
     }
 
     if (shown === 0) {
       body.innerHTML = '<div class="servers-empty">Aucune option affichable pour ce module.</div>';
+      return;
+    }
+
+    modalState.domRefs = domRefs;
+    refreshConditionalVisibility();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rafraîchit la visibilité des lignes selon les conditions actuelles.
+  // Appelée après chaque changement de valeur.
+  // ---------------------------------------------------------------------------
+  function refreshConditionalVisibility() {
+    if (!modalState || !modalState.sections || !modalState.domRefs) return;
+
+    const valuesMap = buildValuesMap(modalState.sections);
+
+    for (const ref of modalState.domRefs.rows) {
+      const cond = ref.entry.conditions;
+      if (!cond) continue;
+      const hasConds = (cond.visible && cond.visible.length > 0)
+                    || (cond.hidden && cond.hidden.length > 0)
+                    || (cond.conflicts && cond.conflicts.length > 0);
+      if (!hasConds) continue;
+
+      const result = evaluateConditions(cond, ref.sectionName, valuesMap);
+      ref.el.style.display = result.show ? '' : 'none';
+
+      // Désactive les inputs si conflit détecté
+      const controls = ref.el.querySelectorAll('input, select, textarea, button');
+      controls.forEach(c => {
+        if (result.disabled) {
+          c.disabled = true;
+          c.style.opacity = '0.5';
+        } else {
+          c.disabled = false;
+          c.style.opacity = '';
+        }
+      });
+    }
+
+    // Cache les sections dont TOUTES les lignes sont invisibles
+    for (const sref of modalState.domRefs.sections) {
+      const allHidden = sref.rowEls.every(el => el.style.display === 'none');
+      sref.sectionEl.style.display = allHidden ? 'none' : '';
     }
   }
 

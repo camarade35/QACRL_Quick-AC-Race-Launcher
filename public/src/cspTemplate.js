@@ -84,7 +84,8 @@
         min: meta.min,
         max: meta.max,
         step: meta.step,
-        rawConstraints: meta.constraints || ''
+        rawConstraints: meta.constraints || '',
+        conditions: meta.conditions || { visible: [], hidden: [], conflicts: [] }
       });
     }
 
@@ -117,7 +118,8 @@
   function parseTemplateComment(comment) {
     const out = {
       label: null, hidden: false, constraints: '',
-      options: null, min: null, max: null, step: null
+      options: null, min: null, max: null, step: null,
+      conditions: { visible: [], hidden: [], conflicts: [] }
     };
     if (!comment) return out;
 
@@ -157,6 +159,9 @@
     // Enum ?
     const opts = extractEnumOptions(out.constraints);
     if (opts && opts.length > 1) out.options = opts;
+
+    // ⭐ Conditions (visible with, only with, hidden with, not available with)
+    out.conditions = extractConditions(out.constraints);
 
     return out;
   }
@@ -222,6 +227,71 @@
 
     return opts.length > 1 ? opts : null;
   }
+  // =========================================================================
+  // Extrait les conditions "visible with X", "only with X", "hidden with X",
+  // "not available with X or Y" depuis les contraintes brutes.
+  // Retourne : { visible: [...], hidden: [...], conflicts: [...] }
+  //   - visible : conditions à remplir pour AFFICHER la clé
+  //   - hidden  : conditions qui MASQUENT la clé
+  //   - conflicts : conditions qui DÉSACTIVENT la clé (mais reste visible)
+  //   - section = null → même section ; sinon section explicite
+  // =========================================================================
+  function extractConditions(constraints) {
+    const out = { visible: [], hidden: [], conflicts: [] };
+    if (!constraints) return out;
+    const c = String(constraints);
+    let m;
+
+    // --- Cross-section (avec slash) : doit être fait AVANT les patterns same-section ---
+    const reVisCross = /visible\s+with\s+([A-Z_][A-Z0-9_]*)\/([A-Z_][A-Z0-9_]*)/gi;
+    while ((m = reVisCross.exec(c)) !== null) {
+      out.visible.push({ section: m[1], key: m[2], op: 'truthy' });
+    }
+    const reOnlyCross = /\bonly\s+with\s+([A-Z_][A-Z0-9_]*)\/([A-Z_][A-Z0-9_]*)/gi;
+    while ((m = reOnlyCross.exec(c)) !== null) {
+      out.visible.push({ section: m[1], key: m[2], op: 'truthy' });
+    }
+    const reHidCross = /hidden\s+with\s+([A-Z_][A-Z0-9_]*)\/([A-Z_][A-Z0-9_]*)/gi;
+    while ((m = reHidCross.exec(c)) !== null) {
+      out.hidden.push({ section: m[1], key: m[2], op: 'truthy' });
+    }
+
+    // --- Same-section avec valeur (KEY:VALUE) ---
+    const reVisVal = /visible\s+with\s+([A-Z_][A-Z0-9_]*)\s*:\s*([^\s,;)]+)/gi;
+    while ((m = reVisVal.exec(c)) !== null) {
+      out.visible.push({ section: null, key: m[1], op: '==', value: m[2] });
+    }
+
+    // --- Same-section truthy (only with KEY sans / ni :) ---
+    const reOnly = /\bonly\s+with\s+([A-Z_][A-Z0-9_]*)(?![\/:\w])/gi;
+    while ((m = reOnly.exec(c)) !== null) {
+      out.visible.push({ section: null, key: m[1], op: 'truthy' });
+    }
+    const reHid = /hidden\s+with\s+([A-Z_][A-Z0-9_]*)(?![\/:\w])/gi;
+    while ((m = reHid.exec(c)) !== null) {
+      out.hidden.push({ section: null, key: m[1], op: 'truthy' });
+    }
+
+    // --- not available with A or B (or SECTION/A etc.) ---
+    const reConf = /not\s+available\s+with\s+([^.;]+?)(?:[;.]|$)/gi;
+    while ((m = reConf.exec(c)) !== null) {
+      const parts = m[1].split(/\s+or\s+/i);
+      for (const p of parts) {
+        const t = p.trim();
+        if (!t) continue;
+        const slash = t.match(/^([A-Z_][A-Z0-9_]*)\/([A-Z_][A-Z0-9_]*)/);
+        if (slash) {
+          out.conflicts.push({ section: slash[1], key: slash[2] });
+        } else {
+          const same = t.match(/^([A-Z_][A-Z0-9_]*)/);
+          if (same) out.conflicts.push({ section: null, key: same[1] });
+        }
+      }
+    }
+
+    return out;
+  }
+
 
   // =========================================================================
   // Devine le type d'une clé
@@ -254,6 +324,7 @@
     parseTemplateComment,
     extractRange,
     extractEnumOptions,
+    extractConditions,
     inferType
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
