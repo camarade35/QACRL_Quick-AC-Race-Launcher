@@ -532,6 +532,7 @@
         <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-controls')">🎮 Contrôles</button>
         <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-video')">🖥️ Vidéo</button>
         <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-audio')">🔊 Audio</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-csp')">🌩️ CSP</button>
       </div>
 
       <div id="subtab-settings-general" class="subtab-content active">
@@ -589,41 +590,45 @@
       </div>
 
       <div id="subtab-settings-video" class="subtab-content">
-        <div class="group" id="weatherfx-group">
+                <div class="group" id="weatherfx-group">
           <div class="group-title">🎨 Rendu — Style & Filtre</div>
 
           <div class="row">
             <div class="field">
-              <label for="weatherfx-style-select">Style Weather FX</label>
+              <div class="field-header">
+                <label for="weatherfx-style-select">Style Weather FX</label>
+                <label class="check-inline">
+                  <input type="checkbox" id="weatherfx-enabled">
+                  <span>Activer</span>
+                </label>
+              </div>
               <select id="weatherfx-style-select">
                 <option value="">⏳ Chargement…</option>
               </select>
             </div>
+
             <div class="field">
-              <label for="render-ppfilter-select">Filtre post-process (PP)</label>
+              <div class="field-header">
+                <label for="render-ppfilter-select">Filtre post-process (PP)</label>
+                <label class="check-inline">
+                  <input type="checkbox" id="render-pp-enabled">
+                  <span>Activer</span>
+                </label>
+              </div>
               <select id="render-ppfilter-select">
                 <option value="">⏳ Chargement…</option>
               </select>
             </div>
           </div>
 
-          <div class="row">
-            <div class="field">
-              <label class="check">
-                <input type="checkbox" id="render-pp-enabled">
-                Post-processing activé
-              </label>
-            </div>
-            <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
-              <span id="weatherfx-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
-            </div>
-          </div>
-
-          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;">
-            💡 Le <strong>Style Weather FX</strong> définit le traitement en amont des filtres PP.<br>
-            • <strong>Default</strong> : rendu Kunos classique<br>
-            • <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>
-            • <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <span>
+              💡 Le <strong>Weather FX</strong> définit le traitement en amont des filtres PP.<br>
+              • <strong>Default</strong> : rendu Kunos classique<br>
+              • <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>
+              • <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)
+            </span>
+            <span id="weatherfx-status" style="align-self: flex-end; white-space: nowrap;"></span>
           </div>
         </div>
 
@@ -659,6 +664,23 @@
 
       <div id="subtab-settings-audio" class="subtab-content">
         <div class="ini-editor" data-ini-file="audio.ini"></div>
+      </div>
+
+      <div id="subtab-settings-csp" class="subtab-content">
+        <div class="csp-toolbar">
+          <div class="csp-title">🌩️ Custom Shaders Patch — Modules</div>
+          <div class="csp-actions">
+            <span class="csp-status" id="csp-status"></span>
+            <button class="filter-btn" id="csp-refresh">↶ Rafraîchir</button>
+          </div>
+        </div>
+        <div class="csp-help">
+          💡 Active ou désactive les modules CSP. La désactivation d'un module peut améliorer les performances mais retirer des fonctionnalités visuelles.<br>
+          ⚠️ Redémarre Assetto Corsa après modification pour appliquer les changements.
+        </div>
+        <div id="csp-container" class="csp-container">
+          <div class="servers-loading">⏳ Chargement des modules…</div>
+        </div>
       </div>
     </div>
   </div>
@@ -820,6 +842,8 @@
   <script src="src/iniControls.js"></script>
   <script src="src/weatherFx.js"></script>
   <script src="src/freeCamera.js"></script>
+  <script src="src/cspModules.js"></script>
+  <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>
 </body>

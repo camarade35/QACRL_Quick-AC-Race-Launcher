@@ -1,7 +1,7 @@
 // public/src/weatherFx.js
 // Gestion du bloc "Rendu" dans Paramètres > Vidéo :
-//   - Style Weather FX (weather_fx.ini)
-//   - Filtre PP + ENABLED (video.ini / [POST_PROCESS])
+//   - Style Weather FX + Activé (weather_fx.ini)
+//   - Filtre PP + Activé (video.ini / [POST_PROCESS])
 
 (function (global) {
   'use strict';
@@ -14,8 +14,6 @@
 
   let initialized = false;
 
-  // ---------------------------------------------------------------------------
-  // Helpers video.ini
   // ---------------------------------------------------------------------------
   async function loadVideoIni() {
     const res = await window.api.readIniFile('video.ini');
@@ -47,36 +45,44 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Chargement initial
-  // ---------------------------------------------------------------------------
   async function load() {
     const selectStyle = document.getElementById('weatherfx-style-select');
     const selectPp    = document.getElementById('render-ppfilter-select');
-    const cbEnabled   = document.getElementById('render-pp-enabled');
+    const cbWeather   = document.getElementById('weatherfx-enabled');
+    const cbPp        = document.getElementById('render-pp-enabled');
     const statusEl    = document.getElementById('weatherfx-status');
 
     if (statusEl) statusEl.textContent = '';
 
-    // 1) Style Weather FX
+    // 1) Style + Activé Weather FX
     try {
-      const r = await window.api.getWeatherFxStyle();
-      if (!r.success) {
-        if (selectStyle) selectStyle.innerHTML = '<option value="">⚠️ ' + (r.error || 'Erreur') + '</option>';
-      } else if (selectStyle) {
-        selectStyle.innerHTML = '';
-        for (const key of ['default', 'gamma', 'lcs']) {
-          const opt = document.createElement('option');
-          opt.value = key;
-          opt.textContent = LABELS[key];
-          if (key === r.style) opt.selected = true;
-          selectStyle.appendChild(opt);
+      const [styleRes, enabledRes] = await Promise.all([
+        window.api.getWeatherFxStyle().catch(() => ({ success: false })),
+        window.api.getWeatherFxEnabled().catch(() => ({ success: false })),
+      ]);
+
+      if (selectStyle) {
+        if (!styleRes.success) {
+          selectStyle.innerHTML = '<option value="">⚠️ ' + (styleRes.error || 'Erreur') + '</option>';
+        } else {
+          selectStyle.innerHTML = '';
+          for (const key of ['default', 'gamma', 'lcs']) {
+            const opt = document.createElement('option');
+            opt.value = key;
+            opt.textContent = LABELS[key];
+            if (key === styleRes.style) opt.selected = true;
+            selectStyle.appendChild(opt);
+          }
         }
       }
+      if (cbWeather && enabledRes.success) {
+        cbWeather.checked = !!enabledRes.enabled;
+      }
     } catch (e) {
-      console.error('[weatherFx] load style KO', e);
+      console.error('[weatherFx] load style/enabled KO', e);
     }
 
-    // 2) Filtre PP + ENABLED (video.ini)
+    // 2) Filtre PP + Activé (video.ini)
     try {
       const [filtersRes, videoData] = await Promise.all([
         window.api.listPpfilters().catch(() => ({ success: false, filters: [] })),
@@ -89,11 +95,7 @@
       if (selectPp) {
         selectPp.innerHTML = '';
         const filters = (filtersRes && filtersRes.success && filtersRes.filters) || [];
-
-        // Si le filtre actuel n'est pas dans la liste, on l'ajoute
-        if (currentFilter && !filters.includes(currentFilter)) {
-          filters.push(currentFilter);
-        }
+        if (currentFilter && !filters.includes(currentFilter)) filters.push(currentFilter);
         for (const f of filters) {
           const opt = document.createElement('option');
           opt.value = f;
@@ -103,8 +105,8 @@
         }
       }
 
-      if (cbEnabled) {
-        cbEnabled.checked = (currentEnabled === '1');
+      if (cbPp) {
+        cbPp.checked = (currentEnabled === '1');
       }
     } catch (e) {
       console.error('[weatherFx] load PP KO', e);
@@ -114,27 +116,26 @@
     if (!initialized) {
       initialized = true;
 
-      const selectStyle = document.getElementById('weatherfx-style-select');
-      const selectPp    = document.getElementById('render-ppfilter-select');
-      const cbEnabled   = document.getElementById('render-pp-enabled');
+      const ss = document.getElementById('weatherfx-style-select');
+      const sp = document.getElementById('render-ppfilter-select');
+      const cw = document.getElementById('weatherfx-enabled');
+      const cp = document.getElementById('render-pp-enabled');
 
-      if (selectStyle) selectStyle.addEventListener('change', onStyleChange);
-      if (selectPp)    selectPp.addEventListener('change', onPpFilterChange);
-      if (cbEnabled)   cbEnabled.addEventListener('change', onPpEnabledChange);
+      if (ss) ss.addEventListener('change', onStyleChange);
+      if (sp) sp.addEventListener('change', onPpFilterChange);
+      if (cw) cw.addEventListener('change', onWeatherEnabledChange);
+      if (cp) cp.addEventListener('change', onPpEnabledChange);
     }
   }
 
   // ---------------------------------------------------------------------------
-  // Handlers
-  // ---------------------------------------------------------------------------
   async function onStyleChange(e) {
-    const selectEl = e.target;
+    const el = e.target;
     const statusEl = document.getElementById('weatherfx-status');
-    const newStyle = selectEl.value;
-    selectEl.disabled = true;
+    el.disabled = true;
     setStatus(statusEl, '⏳ Application…');
     try {
-      const res = await window.api.setWeatherFxStyle(newStyle);
+      const res = await window.api.setWeatherFxStyle(el.value);
       if (res && res.success) {
         setStatus(statusEl, '✅ Appliqué à ' + new Date().toLocaleTimeString(), '#4caf50');
         setTimeout(() => setStatus(statusEl, ''), 3000);
@@ -146,19 +147,42 @@
       alert('Erreur : ' + err.message);
       setStatus(statusEl, '❌ Échec', '#ff6b6b');
     } finally {
-      selectEl.disabled = false;
+      el.disabled = false;
+    }
+  }
+
+  async function onWeatherEnabledChange(e) {
+    const cb = e.target;
+    const statusEl = document.getElementById('weatherfx-status');
+    cb.disabled = true;
+    setStatus(statusEl, '⏳ Application…');
+    try {
+      const res = await window.api.setWeatherFxEnabled(cb.checked);
+      if (res && res.success) {
+        setStatus(statusEl, '✅ Weather FX ' + (cb.checked ? 'activé' : 'désactivé'), '#4caf50');
+        setTimeout(() => setStatus(statusEl, ''), 3000);
+      } else {
+        alert('Erreur : ' + ((res && res.error) || 'inconnue'));
+        cb.checked = !cb.checked;  // revert
+        setStatus(statusEl, '❌ Échec', '#ff6b6b');
+      }
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      cb.checked = !cb.checked;
+      setStatus(statusEl, '❌ Échec', '#ff6b6b');
+    } finally {
+      cb.disabled = false;
     }
   }
 
   async function onPpFilterChange(e) {
-    const selectEl = e.target;
+    const el = e.target;
     const statusEl = document.getElementById('weatherfx-status');
-    const newFilter = selectEl.value;
-    selectEl.disabled = true;
+    el.disabled = true;
     setStatus(statusEl, '⏳ Application…');
     try {
       const videoData = await loadVideoIni();
-      setPostProcessValue(videoData.sections, 'FILTER', newFilter);
+      setPostProcessValue(videoData.sections, 'FILTER', el.value);
       await writeVideoIni(videoData.sections);
       setStatus(statusEl, '✅ Filtre appliqué à ' + new Date().toLocaleTimeString(), '#4caf50');
       setTimeout(() => setStatus(statusEl, ''), 3000);
@@ -166,24 +190,24 @@
       alert('Erreur : ' + err.message);
       setStatus(statusEl, '❌ Échec', '#ff6b6b');
     } finally {
-      selectEl.disabled = false;
+      el.disabled = false;
     }
   }
 
   async function onPpEnabledChange(e) {
     const cb = e.target;
     const statusEl = document.getElementById('weatherfx-status');
-    const newVal = cb.checked ? '1' : '0';
     cb.disabled = true;
     setStatus(statusEl, '⏳ Application…');
     try {
       const videoData = await loadVideoIni();
-      setPostProcessValue(videoData.sections, 'ENABLED', newVal);
+      setPostProcessValue(videoData.sections, 'ENABLED', cb.checked ? '1' : '0');
       await writeVideoIni(videoData.sections);
-      setStatus(statusEl, '✅ ' + (cb.checked ? 'Post-process activé' : 'Post-process désactivé'), '#4caf50');
+      setStatus(statusEl, '✅ Post-process ' + (cb.checked ? 'activé' : 'désactivé'), '#4caf50');
       setTimeout(() => setStatus(statusEl, ''), 3000);
     } catch (err) {
       alert('Erreur : ' + err.message);
+      cb.checked = !cb.checked;
       setStatus(statusEl, '❌ Échec', '#ff6b6b');
     } finally {
       cb.disabled = false;
@@ -194,11 +218,9 @@
     if (!el) return;
     el.textContent = text || '';
     el.style.color = color || 'var(--text-tertiary)';
+    el.style.fontSize = '0.72rem';
   }
 
-  // ---------------------------------------------------------------------------
-  // Init
-  // ---------------------------------------------------------------------------
   function init() {
     load();
     document.querySelectorAll('.subtab-btn').forEach(btn => {

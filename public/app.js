@@ -199,6 +199,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.FreeCamera && typeof window.FreeCamera.init === 'function') {
     window.FreeCamera.init();
   }
+  
+  // ⭐ Init de l'onglet CSP
+  if (window.SettingsCsp && typeof window.SettingsCsp.init === 'function') {
+    window.SettingsCsp.init();
+  }
 
   // ⭐ Charge les profils volant appris (mapping Chromium → AC)
   if (window.GamepadMapper && typeof window.GamepadMapper.loadLearnedProfiles === 'function') {

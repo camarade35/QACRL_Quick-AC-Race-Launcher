@@ -72,6 +72,8 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Weather FX Style
   getWeatherFxStyle: () => ipcRenderer.invoke('get-weather-fx-style'),
   setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
+  getWeatherFxEnabled: () => ipcRenderer.invoke('get-weather-fx-enabled'),
+  setWeatherFxEnabled: (enabled) => ipcRenderer.invoke('set-weather-fx-enabled', enabled),
   
     // ⭐ Résolutions d'écran disponibles
   listResolutions: () => ipcRenderer.invoke('list-resolutions'),
@@ -79,6 +81,11 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Options caméra libre / orbite F5
   getFreeCameraOptions: () => ipcRenderer.invoke('get-free-camera-options'),
   setFreeCameraOptions: (opts) => ipcRenderer.invoke('set-free-camera-options', opts),
+  
+  // ⭐ Modules CSP
+  listCspModules: () => ipcRenderer.invoke('list-csp-modules'),
+  readCspModule: (filename) => ipcRenderer.invoke('read-csp-module', filename),
+  setCspModuleEnabled: (filename, enabled) => ipcRenderer.invoke('set-csp-module-enabled', filename, enabled),
 
   // ⭐ Profils volant (mapping Chromium → AC)
   getWheelProfile: (vendor, product) => ipcRenderer.invoke('get-wheel-profile', vendor, product),

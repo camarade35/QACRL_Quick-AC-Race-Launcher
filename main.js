@@ -2643,35 +2643,55 @@ function readIniValue(filePath, sectionName, keyName) {
   if (!fs.existsSync(filePath)) return null;
   try {
     const content = fs.readFileSync(filePath, 'utf8');
-    const secRe = new RegExp('\\[' + sectionName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\]([\\s\\S]*?)(?=\\n\\[|$)');
-    const secMatch = content.match(secRe);
-    if (!secMatch) return null;
-    const keyRe = new RegExp('^\\s*' + keyName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\s*=\\s*(.*)$', 'm');
-    const keyMatch = secMatch[1].match(keyRe);
-    if (!keyMatch) return null;
-    return keyMatch[1].trim();
+    const lines = content.split(/\r?\n/);
+    let inSection = false;
+    for (const line of lines) {
+      const secMatch = line.match(/^\s*\[([^\]]+)\]\s*$/);
+      if (secMatch) {
+        inSection = (secMatch[1].trim() === sectionName);
+        continue;
+      }
+      if (!inSection) continue;
+      const kvMatch = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+      if (!kvMatch) continue;
+      if (kvMatch[1].trim() === keyName) return kvMatch[2].trim();
+    }
+    return null;
   } catch (e) { return null; }
 }
 
 function writeIniValue(filePath, sectionName, keyName, value) {
   if (!fs.existsSync(filePath)) throw new Error('Fichier introuvable : ' + filePath);
-  let content = fs.readFileSync(filePath, 'utf8');
-  const eol = content.includes('\\r\\n') ? '\\r\\n' : '\\n';
-  const lines = content.split(/\\r?\\n/);
+  const content = fs.readFileSync(filePath, 'utf8');
+  const eol = content.includes('\r\n') ? '\r\n' : '\n';
+  const lines = content.split(/\r?\n/);
 
+  // 1) Cherche la section
   let secIdx = -1;
-  const secRe = new RegExp('^\\s*\\[' + sectionName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\]\\s*$', 'i');
   for (let i = 0; i < lines.length; i++) {
-    if (secRe.test(lines[i])) { secIdx = i; break; }
+    const m = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
+    if (m && m[1].trim() === sectionName) { secIdx = i; break; }
   }
-  if (secIdx < 0) throw new Error('Section [' + sectionName + '] introuvable dans ' + filePath);
 
-  let keyIdx = -1;
-  const keyRe = new RegExp('^\\s*' + keyName.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\s*=', 'i');
-  for (let i = secIdx + 1; i < lines.length; i++) {
-    if (/^\s*\[/.test(lines[i])) break;
-    if (keyRe.test(lines[i])) { keyIdx = i; break; }
+  // 2) Section introuvable → on la crée à la fin
+  if (secIdx < 0) {
+    lines.push('');
+    lines.push('[' + sectionName + ']');
+    lines.push(keyName + '=' + value);
+    fs.copyFileSync(filePath, filePath + '.bak');
+    fs.writeFileSync(filePath, lines.join(eol), 'utf8');
+    return true;
   }
+
+  // 3) Cherche la clé dans la section
+  let keyIdx = -1;
+  for (let i = secIdx + 1; i < lines.length; i++) {
+    if (/^\s*\[/.test(lines[i])) break;   // nouvelle section → stop
+    const m = lines[i].match(/^\s*([A-Za-z0-9_]+)\s*=/);
+    if (m && m[1].trim() === keyName) { keyIdx = i; break; }
+  }
+
+  // 4) Écrit la nouvelle ligne
   const newLine = keyName + '=' + value;
   if (keyIdx >= 0) lines[keyIdx] = newLine;
   else lines.splice(secIdx + 1, 0, newLine);
@@ -2715,6 +2735,157 @@ ipcMain.handle('set-free-camera-options', async (event, opts) => {
       writeIniValue(fileOrbit, 'CAMERA_SETTINGS', 'SPHERICAL_COORDS', opts.orbitMode ? '1' : '0');
     }
     return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/* ============================================================
+   IPC — ÉTAT ENABLED de weather_fx.ini
+   ============================================================ */
+function getWeatherFxIniPath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'weather_fx.ini');
+}
+
+ipcMain.handle('get-weather-fx-enabled', async () => {
+  const file = getWeatherFxIniPath();
+  if (!fs.existsSync(file)) return { success: false, error: 'weather_fx.ini introuvable' };
+  try {
+    const content = fs.readFileSync(file, 'utf8');
+    const m = content.match(/^\s*ENABLE\s*=\s*(\d+)\s*$/mi);
+    // Pas de ligne ENABLE → activé par défaut
+    const enabled = !m || m[1] === '1';
+    return { success: true, enabled };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('set-weather-fx-enabled', async (event, enabled) => {
+  const file = getWeatherFxIniPath();
+  if (!fs.existsSync(file)) return { success: false, error: 'weather_fx.ini introuvable' };
+  try {
+    fs.copyFileSync(file, file + '.bak');
+    const original = fs.readFileSync(file, 'utf8');
+    const eol = original.includes('\r\n') ? '\r\n' : '\n';
+    const lines = original.split(/\r?\n/);
+
+    const enableRe = /^\s*ENABLE\s*=/i;
+    let idx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (enableRe.test(lines[i])) { idx = i; break; }
+    }
+
+    if (enabled) {
+      // Activé : on supprime la ligne (AC considère absent = actif)
+      if (idx >= 0) lines.splice(idx, 1);
+    } else {
+      // Désactivé : on écrit ENABLE=0
+      if (idx >= 0) lines[idx] = 'ENABLE=0';
+      else {
+        // Insère dans [BASIC]
+        const basicIdx = lines.findIndex(l => /^\s*\[BASIC\]\s*$/i.test(l));
+        if (basicIdx >= 0) lines.splice(basicIdx + 1, 0, 'ENABLE=0');
+        else lines.unshift('[BASIC]', 'ENABLE=0', '');
+      }
+    }
+
+    fs.writeFileSync(file, lines.join(eol), 'utf8');
+    return { success: true, enabled };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/* ============================================================
+   IPC — MODULES CSP (extension/*.ini)
+   ============================================================ */
+
+function getCspExtensionPath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension');
+}
+
+// Whitelist : uniquement des fichiers .ini directement dans extension/
+const CSP_ALLOWED_FILES = [
+  'car_instruments.ini', 'chaser_camera.ini', 'chat_shortcuts.ini',
+  'custom_rendering_modes.ini', 'dxgi_tweaks.ini', 'extra_fx.ini',
+  'ffb_tweaks.ini', 'freer_camera.ini', 'g27_lights.ini', 'gamepad_fx.ini',
+  'general.ini', 'graphics_adjustments.ini', 'grass_fx.ini', 'gui.ini',
+  'lighting_fx.ini', 'music.ini', 'neck.ini', 'new_behaviour.ini',
+  'nice_screenshots.ini', 'particles_fx.ini', 'rain_fx.ini',
+  'reflections_fx.ini', 'skidmarks_fx.ini', 'small_tweaks.ini',
+  'smart_mirror.ini', 'smart_shadows.ini', 'splashscreen.ini',
+  'surfaces_fx.ini', 'taskbar.ini', 'track_adjustments.ini',
+  'triple_custom.ini', 'tyres_fx.ini', 'vr_tweaks.ini', 'windscreen_fx.ini',
+];
+
+ipcMain.handle('list-csp-modules', async () => {
+  const dir = getCspExtensionPath();
+  if (!fs.existsSync(dir)) {
+    return { success: false, error: 'Dossier extension introuvable : ' + dir, modules: [] };
+  }
+  const modules = [];
+  for (const filename of CSP_ALLOWED_FILES) {
+    const filePath = path.join(dir, filename);
+    if (!fs.existsSync(filePath)) continue;
+    const stat = fs.statSync(filePath);
+    modules.push({
+      filename,
+      exists: true,
+      empty: stat.size === 0,
+      size: stat.size,
+    });
+  }
+  return { success: true, modules, path: dir };
+});
+
+ipcMain.handle('read-csp-module', async (event, filename) => {
+  if (!CSP_ALLOWED_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  const dir = getCspExtensionPath();
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  }
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const enabled = readIniValue(filePath, 'BASIC', 'ENABLED');
+    return { success: true, path: filePath, content, enabled };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('set-csp-module-enabled', async (event, filename, enabled) => {
+  if (!CSP_ALLOWED_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  const dir = getCspExtensionPath();
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  }
+  try {
+    // Lecture pour vérifier si [BASIC] existe
+    const content = fs.readFileSync(filePath, 'utf8');
+    const hasBasic = /^\s*\[BASIC\]\s*$/mi.test(content);
+
+    if (!hasBasic) {
+      // Pas de section [BASIC] → on ne touche pas, certains modules n'ont pas d'ENABLED
+      return { success: false, error: 'Pas de section [BASIC] dans ce module' };
+    }
+
+    writeIniValue(filePath, 'BASIC', 'ENABLED', enabled ? '1' : '0');
+    return { success: true, enabled: !!enabled };
   } catch (e) {
     return { success: false, error: e.message };
   }
