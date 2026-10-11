@@ -1,11 +1,11 @@
 // public/src/settingsCsp.js
-// Orchestration de l'onglet CSP : affichage des modules par catégorie + cases ENABLED.
+// Onglet CSP : modules activables + modale d'édition des options.
 
 (function (global) {
   'use strict';
 
   let initialized = false;
-  let modulesData = {};   // { grass_fx: { enabled: true, exists: true, empty: false } }
+  let modulesData = {};
 
   // ---------------------------------------------------------------------------
   // Helpers UI
@@ -25,20 +25,19 @@
   }
 
   function setStatus(text, color) {
-    const el = document.getElementById('csp-status');
-    if (!el) return;
-    el.textContent = text || '';
-    el.style.color = color || 'var(--text-tertiary)';
-    if (text && !color) setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3000);
+    const e = document.getElementById('csp-status');
+    if (!e) return;
+    e.textContent = text || '';
+    e.style.color = color || 'var(--text-tertiary)';
+    if (text && !color) setTimeout(() => { if (e.textContent === text) e.textContent = ''; }, 3000);
   }
 
   // ---------------------------------------------------------------------------
-  // Chargement des données
+  // Chargement initial
   // ---------------------------------------------------------------------------
   async function load() {
     const container = document.getElementById('csp-container');
     if (!container) return;
-
     container.innerHTML = '<div class="servers-loading">⏳ Chargement des modules…</div>';
 
     try {
@@ -47,28 +46,26 @@
         container.innerHTML = '<div class="servers-empty">⚠️ ' + ((listRes && listRes.error) || 'Erreur') + '</div>';
         return;
       }
-
-      // Charge le statut ENABLED de chaque module
       modulesData = {};
       const existing = new Set(listRes.modules.map(m => m.filename));
       const allModules = global.CspModules.getModules();
 
-      const promises = allModules
-        .filter(m => existing.has(m.id + '.ini'))
-        .map(async (m) => {
-          try {
-            const r = await window.api.readCspModule(m.id + '.ini');
-            modulesData[m.id] = {
-              enabled: (r && r.success && r.enabled === '1'),
-              exists: true,
-              empty: false,
-            };
-          } catch (e) {
-            modulesData[m.id] = { enabled: false, exists: true, empty: true };
-          }
-        });
-      await Promise.all(promises);
-
+      await Promise.all(
+        allModules
+          .filter(m => existing.has(m.id + '.ini'))
+          .map(async (m) => {
+            try {
+              const r = await window.api.readCspModule(m.id + '.ini');
+              modulesData[m.id] = {
+                enabled: !!(r && r.success && r.enabled),
+                disableable: !!(r && r.success && r.disableable),   // ⭐ nouveau
+                exists: true,
+              };
+            } catch (e) {
+              modulesData[m.id] = { enabled: false, disableable: false, exists: true };
+            }
+          })
+      );
       render();
     } catch (e) {
       container.innerHTML = '<div class="servers-empty">⚠️ ' + e.message + '</div>';
@@ -76,7 +73,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Rendu
+  // Rendu de la grille
   // ---------------------------------------------------------------------------
   function render() {
     const container = document.getElementById('csp-container');
@@ -89,16 +86,12 @@
     for (const cat of categories) {
       const modules = global.CspModules.getModulesByCategory(cat.id)
         .filter(m => modulesData[m.id] && modulesData[m.id].exists);
-
       if (modules.length === 0) continue;
 
       const catEl = el('div', { class: 'csp-category' });
-
       const header = el('div', { class: 'csp-category-header' });
-      const arrow = el('span', { class: 'csp-category-arrow', text: '▸' });
-      header.appendChild(arrow);
-      const label = el('span', { class: 'csp-category-label', text: cat.label });
-      header.appendChild(label);
+      header.appendChild(el('span', { class: 'csp-category-arrow', text: '▸' }));
+      header.appendChild(el('span', { class: 'csp-category-label', text: cat.label }));
       catEl.appendChild(header);
 
       const content = el('div', { class: 'csp-category-content' });
@@ -107,64 +100,71 @@
         const data = modulesData[m.id];
         const row = el('div', { class: 'csp-module-row' });
 
-        const cb = el('input', { type: 'checkbox', class: 'csp-module-checkbox' });
-        cb.checked = !!data.enabled;
-
         const labelWrap = el('label', { class: 'csp-module-label' });
-        labelWrap.appendChild(cb);
-        const labelText = el('span', { class: 'csp-module-name', text: m.label });
-        labelWrap.appendChild(labelText);
-        if (m.description) {
-          const desc = el('span', { class: 'csp-module-desc', text: m.description });
-          labelWrap.appendChild(desc);
+
+// ⭐ Un module est désactivable si :
+        //    - il n'est pas marqué explicitement non-désactivable dans cspModules.js
+        //    - ET qu'il a bien une section [BASIC]
+        const isDisableable = (m.disableable !== false) && data.disableable;
+
+        if (isDisableable) {
+          const cb = el('input', { type: 'checkbox', class: 'csp-module-checkbox' });
+          cb.checked = !!data.enabled;
+
+          cb.addEventListener('change', async () => {
+            const newVal = cb.checked;
+            cb.disabled = true;
+            setStatus('⏳ Application…');
+            try {
+              const r = await window.api.setCspModuleEnabled(m.id + '.ini', newVal);
+              if (r && r.success) {
+                modulesData[m.id].enabled = newVal;
+                setStatus('✅ ' + m.label + ' ' + (newVal ? 'activé' : 'désactivé'), '#4caf50');
+              } else {
+                alert('Erreur : ' + ((r && r.error) || 'inconnue'));
+                cb.checked = !newVal;
+                setStatus('❌ Échec', '#ff6b6b');
+              }
+            } catch (e) {
+              alert('Erreur : ' + e.message);
+              cb.checked = !newVal;
+              setStatus('❌ ' + e.message, '#ff6b6b');
+            } finally {
+              cb.disabled = false;
+            }
+          });
+
+          labelWrap.appendChild(cb);
+        } else {
+          // ⭐ Module non-désactivable : juste un point de statut
+          const dot = el('span', { class: 'csp-module-nodisable', title: 'Module non désactivable (options uniquement)' });
+          dot.textContent = '•';
+          labelWrap.appendChild(dot);
         }
 
-        cb.addEventListener('change', async () => {
-          const newVal = cb.checked;
-          cb.disabled = true;
-          setStatus('⏳ Application…');
-          try {
-            const r = await window.api.setCspModuleEnabled(m.id + '.ini', newVal);
-            if (r && r.success) {
-              modulesData[m.id].enabled = newVal;
-              setStatus('✅ ' + m.label + ' ' + (newVal ? 'activé' : 'désactivé'), '#4caf50');
-            } else {
-              alert('Erreur : ' + ((r && r.error) || 'inconnue'));
-              cb.checked = !newVal;
-              setStatus('❌ Échec', '#ff6b6b');
-            }
-          } catch (e) {
-            alert('Erreur : ' + e.message);
-            cb.checked = !newVal;
-            setStatus('❌ ' + e.message, '#ff6b6b');
-          } finally {
-            cb.disabled = false;
-          }
-        });
+        labelWrap.appendChild(el('span', { class: 'csp-module-name', text: m.label }));
+        if (m.description) {
+          labelWrap.appendChild(el('span', { class: 'csp-module-desc', text: m.description }));
+        }
 
         row.appendChild(labelWrap);
 
-        // Clic sur le nom → ouvre le fichier .ini dans l'éditeur Expert (à venir)
         const openBtn = el('button', {
           type: 'button',
           class: 'csp-module-open',
-          title: 'Ouvrir les options avancées (à venir)',
+          title: 'Ouvrir les options du module',
           text: '⚙️',
         });
-        openBtn.disabled = true;   // Session 2
-        row.appendChild(openBtn);
+        openBtn.addEventListener('click', () => openModuleModal(m));
 
+        row.appendChild(openBtn);
         content.appendChild(row);
         totalShown++;
       }
 
-      // Pliable
       const storageKey = 'cspCollapseCategory:' + cat.id;
       let collapsed = false;
-      try {
-        const saved = localStorage.getItem(storageKey);
-        collapsed = (saved === '1');
-      } catch (e) {}
+      try { collapsed = (localStorage.getItem(storageKey) === '1'); } catch (e) {}
       if (collapsed) catEl.classList.add('collapsed');
 
       header.addEventListener('click', () => {
@@ -183,15 +183,232 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Modale module
+  // ---------------------------------------------------------------------------
+  let modalState = null;
+
+  function openModuleModal(module) {
+    const modal = document.getElementById('csp-module-modal');
+    const title = document.getElementById('csp-module-modal-title');
+    const body  = document.getElementById('csp-module-modal-body');
+    const statusEl = document.getElementById('csp-module-modal-status');
+    if (!modal || !title || !body) return;
+
+    title.textContent = module.label + ' — ' + module.id + '.ini';
+    body.innerHTML = '<div class="servers-loading">⏳ Chargement du module…</div>';
+    if (statusEl) statusEl.textContent = '';
+
+    modalState = {
+      moduleId: module.id,
+      moduleLabel: module.label,
+      filename: module.id + '.ini',
+      sections: null,
+      savedContent: '',
+      dirty: false,
+    };
+
+    modal.classList.add('visible');
+    loadModuleIntoModal();
+  }
+
+  async function loadModuleIntoModal() {
+    if (!modalState) return;
+    const body = document.getElementById('csp-module-modal-body');
+    body.innerHTML = '<div class="servers-loading">⏳ Chargement…</div>';
+
+    try {
+      const res = await window.api.readCspModule(modalState.filename);
+      if (!res || !res.success) {
+        body.innerHTML = '<div class="servers-empty">⚠️ ' + ((res && res.error) || 'Erreur') + '</div>';
+        return;
+      }
+
+      const sections = global.CspParser.parseCspContent(res.content, global.IniParser);
+      modalState.sections = sections;
+      modalState.savedContent = res.content;
+      modalState.dirty = false;
+      renderModuleModal();
+    } catch (e) {
+      body.innerHTML = '<div class="servers-empty">⚠️ ' + e.message + '</div>';
+    }
+  }
+
+  function renderModuleModal() {
+    const body = document.getElementById('csp-module-modal-body');
+    if (!body || !modalState) return;
+    body.innerHTML = '';
+
+    if (!modalState.sections || modalState.sections.length === 0) {
+      body.innerHTML = '<div class="servers-empty">Aucune option détectée.</div>';
+      return;
+    }
+
+    for (const sec of modalState.sections) {
+      const secEl = el('div', { class: 'csp-opt-section' });
+      secEl.appendChild(el('div', { class: 'csp-opt-section-title', text: sec.name }));
+
+      if (sec.hint) {
+        secEl.appendChild(el('div', { class: 'csp-opt-section-hint', text: sec.hint }));
+      }
+
+      for (const entry of sec.entries) {
+        const row = el('div', { class: 'csp-opt-row' });
+        row.appendChild(el('label', {
+          class: 'csp-opt-label',
+          text: entry.label,
+          title: entry.rawConstraints || '',
+        }));
+
+        const ctrl = createCspWidget(entry, () => { modalState.dirty = true; });
+        row.appendChild(ctrl);
+        secEl.appendChild(row);
+      }
+
+      body.appendChild(secEl);
+    }
+  }
+
+  function createCspWidget(entry, onChange) {
+    const wrap = el('div', { class: 'csp-opt-widget' });
+
+    if (entry.type === 'bool') {
+      const cb = el('input', { type: 'checkbox', class: 'ini-checkbox' });
+      cb.checked = (entry.value === '1' || entry.value === 'true');
+      cb.dataset.key = entry.key;
+      cb.addEventListener('change', () => {
+        entry.value = cb.checked ? '1' : '0';
+        onChange();
+      });
+      wrap.appendChild(cb);
+    } else if (entry.type === 'int' || entry.type === 'float') {
+      const step = entry.step != null ? entry.step : (entry.type === 'int' ? 1 : 0.01);
+      const min = entry.min != null ? entry.min : 0;
+      const max = entry.max != null ? entry.max : (entry.type === 'int' ? 100 : 1);
+      const range = el('input', {
+        type: 'range', class: 'ini-range',
+        min, max, step, value: entry.value,
+      });
+      const num = el('input', {
+        type: 'number', class: 'ini-number',
+        min, max, step, value: entry.value,
+      });
+      range.addEventListener('input', () => {
+        num.value = range.value;
+        entry.value = range.value;
+        onChange();
+      });
+      num.addEventListener('input', () => {
+        range.value = num.value;
+        entry.value = num.value;
+        onChange();
+      });
+      wrap.appendChild(range);
+      wrap.appendChild(num);
+    } else if (entry.type === 'enum' && Array.isArray(entry.options) && entry.options.length > 0) {
+      const sel = el('select', { class: 'ini-select' });
+      let matched = false;
+      for (const o of entry.options) {
+        const opt = el('option', { value: o.value, text: o.label });
+        if (String(o.value) === String(entry.value)) { opt.selected = true; matched = true; }
+        sel.appendChild(opt);
+      }
+      if (!matched) {
+        const opt = el('option', { value: entry.value, text: entry.value + ' (actuel)' });
+        opt.selected = true;
+        sel.insertBefore(opt, sel.firstChild);
+      }
+      sel.addEventListener('change', () => {
+        entry.value = sel.value;
+        onChange();
+      });
+      wrap.appendChild(sel);
+    } else {
+      const inp = el('input', { type: 'text', class: 'ini-text', value: entry.value });
+      inp.addEventListener('input', () => {
+        entry.value = inp.value;
+        onChange();
+      });
+      wrap.appendChild(inp);
+    }
+
+    return wrap;
+  }
+
+  async function saveModal() {
+    if (!modalState || !modalState.sections) return;
+    const statusEl = document.getElementById('csp-module-modal-status');
+    if (statusEl) { statusEl.textContent = '⏳ Enregistrement…'; statusEl.style.color = 'var(--text-tertiary)'; }
+
+    try {
+      // Reconstruit le contenu du fichier
+      const newContent = rebuildContent(modalState.sections);
+      const res = await window.api.writeCspModule(modalState.filename, newContent);
+      if (res && res.success) {
+        modalState.dirty = false;
+        modalState.savedContent = newContent;
+        if (statusEl) {
+          statusEl.textContent = '✅ Enregistré à ' + new Date().toLocaleTimeString();
+          statusEl.style.color = '#4caf50';
+          setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+        }
+      } else {
+        alert('Erreur : ' + ((res && res.error) || 'inconnue'));
+        if (statusEl) { statusEl.textContent = '❌ Échec'; statusEl.style.color = '#ff6b6b'; }
+      }
+    } catch (e) {
+      alert('Erreur : ' + e.message);
+      if (statusEl) { statusEl.textContent = '❌ ' + e.message; statusEl.style.color = '#ff6b6b'; }
+    }
+  }
+
+  function rebuildContent(sections) {
+    const lines = [];
+    for (const sec of sections) {
+      lines.push('[' + sec.name + ']');
+      for (const entry of sec.entries) {
+        lines.push(entry.key + '=' + entry.value);
+      }
+      if (sec.hint) {
+        lines.push('__HINT_BOTTOM=' + sec.hint);
+      }
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('csp-module-modal');
+    if (modal) modal.classList.remove('visible');
+    modalState = null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Init
+  // ---------------------------------------------------------------------------
   function init() {
     if (!initialized) {
       initialized = true;
+
       const refreshBtn = document.getElementById('csp-refresh');
       if (refreshBtn) refreshBtn.addEventListener('click', () => load());
+
+      const closeBtn = document.getElementById('csp-module-modal-close');
+      const resetBtn = document.getElementById('csp-module-modal-reset');
+      const saveBtn  = document.getElementById('csp-module-modal-save');
+      const modal    = document.getElementById('csp-module-modal');
+
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      if (resetBtn) resetBtn.addEventListener('click', loadModuleIntoModal);
+      if (saveBtn)  saveBtn.addEventListener('click', saveModal);
+      if (modal)    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal && modal.classList.contains('visible')) closeModal();
+      });
     }
+
     load();
 
-    // Lazy-load au clic sur le subtab
     document.querySelectorAll('.subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const onclick = btn.getAttribute('onclick') || '';

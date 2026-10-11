@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('api', {
   listCspModules: () => ipcRenderer.invoke('list-csp-modules'),
   readCspModule: (filename) => ipcRenderer.invoke('read-csp-module', filename),
   setCspModuleEnabled: (filename, enabled) => ipcRenderer.invoke('set-csp-module-enabled', filename, enabled),
+  writeCspModule: (filename, content) => ipcRenderer.invoke('write-csp-module', filename, content),
 
   // ⭐ Profils volant (mapping Chromium → AC)
   getWheelProfile: (vendor, product) => ipcRenderer.invoke('get-wheel-profile', vendor, product),

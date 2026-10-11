@@ -17,7 +17,7 @@
     // GRAPHISMES & RENDU
     // --------------------------------------------------------------
     { id: 'grass_fx',              label: 'Grass FX',              category: 'graphics', description: 'Herbe procédurale' },
-    { id: 'lighting_fx',           label: 'Lighting FX',           category: 'graphics', description: 'Éclairage avancé' },
+    { id: 'lighting_fx',           label: 'Lighting FX',           category: 'graphics', description: 'Éclairage avancé', disableable: false },
     { id: 'particles_fx',          label: 'Particles FX',          category: 'graphics', description: 'Fumée, flammes, éclats' },
     { id: 'reflections_fx',        label: 'Reflections FX',        category: 'graphics', description: 'Reflets' },
     { id: 'extra_fx',              label: 'Extra FX',              category: 'graphics', description: 'Effets post-process (SSLR, TAA, AO…)' },
@@ -27,7 +27,7 @@
     { id: 'windscreen_fx',         label: 'Windscreen FX',         category: 'graphics', description: 'Effets pare-brise' },
     { id: 'smart_shadows',         label: 'Smart Shadows',         category: 'graphics', description: 'Ombres dynamiques' },
     { id: 'smart_mirror',          label: 'Smart Mirror',          category: 'graphics', description: 'Rétroviseurs haute qualité' },
-    { id: 'graphics_adjustments',  label: 'Graphics Adjustments',  category: 'graphics', description: 'FSR/DLSS, LOD, MSAA' },
+    { id: 'graphics_adjustments',  label: 'Graphics Adjustments',  category: 'graphics', description: 'FSR/DLSS, LOD, MSAA', disableable: false },
 
     // --------------------------------------------------------------
     // CAMÉRA & VUE

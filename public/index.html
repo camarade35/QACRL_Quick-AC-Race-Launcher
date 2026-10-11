@@ -822,6 +822,22 @@
       <div id="wheel-calib-footer" class="wheel-calib-footer"></div>
     </div>
   </div>
+  <div class="modal" id="csp-module-modal">
+    <div class="modal-content csp-module-modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="csp-module-modal-title">Options du module</h3>
+        <button class="modal-close" id="csp-module-modal-close">&times;</button>
+      </div>
+      <div id="csp-module-modal-body" class="csp-module-modal-body"></div>
+      <div class="csp-module-modal-footer">
+        <span class="csp-module-modal-status" id="csp-module-modal-status"></span>
+        <div class="csp-module-modal-actions">
+          <button class="filter-btn" id="csp-module-modal-reset">↶ Recharger</button>
+          <button class="filter-btn ini-btn-save" id="csp-module-modal-save">💾 Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
   
   <script src="src/constants.js"></script>
   <script src="src/utils.js"></script>
@@ -843,6 +859,7 @@
   <script src="src/weatherFx.js"></script>
   <script src="src/freeCamera.js"></script>
   <script src="src/cspModules.js"></script>
+  <script src="src/cspParser.js"></script>
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>

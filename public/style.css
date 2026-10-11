@@ -3363,3 +3363,127 @@ select:disabled, input:disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
+/* ============================================================
+   MODALE OPTIONS CSP
+   ============================================================ */
+
+.csp-module-modal-content {
+  width: 780px !important;
+  max-width: 92vw !important;
+  max-height: 88vh !important;
+}
+
+.csp-module-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+  min-height: 200px;
+}
+
+.csp-module-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.csp-module-modal-status {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  flex: 1;
+}
+
+.csp-module-modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Sections dans la modale */
+.csp-opt-section {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.csp-opt-section-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 10px;
+}
+
+.csp-opt-section-hint {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.csp-opt-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.csp-opt-row:hover {
+  background: var(--bg-hover);
+}
+
+.csp-opt-label {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: help;
+}
+
+.csp-opt-widget {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.csp-opt-widget .ini-range {
+  flex: 1;
+  height: 6px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.csp-opt-widget .ini-number {
+  flex: 0 0 80px;
+  text-align: right;
+}
+
+.csp-opt-widget .ini-text,
+.csp-opt-widget .ini-select {
+  width: 100%;
+}
+.csp-module-nodisable {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  cursor: help;
+  user-select: none;
+  opacity: 0.4;
+}

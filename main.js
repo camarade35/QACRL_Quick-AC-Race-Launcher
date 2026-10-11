@@ -2858,8 +2858,25 @@ ipcMain.handle('read-csp-module', async (event, filename) => {
   }
   try {
     const content = fs.readFileSync(filePath, 'utf8');
-    const enabled = readIniValue(filePath, 'BASIC', 'ENABLED');
-    return { success: true, path: filePath, content, enabled };
+    const raw = readIniValue(filePath, 'BASIC', 'ENABLED');
+    // ⭐ Absence de ligne ENABLED = module ACTIVÉ (pattern CSP standard)
+    const enabledBool = (raw === null || raw === undefined || raw === '1');
+
+    // ⭐ Détecte si le module est désactivable = a une section [BASIC]
+    let hasBasicSection = false;
+    const lines = content.split(/\r?\n/);
+    for (const line of lines) {
+      const clean = line.replace(/^\uFEFF/, '').trim();
+      if (/^\[BASIC\]$/i.test(clean)) { hasBasicSection = true; break; }
+    }
+
+    return {
+      success: true,
+      path: filePath,
+      content,
+      enabled: enabledBool,
+      disableable: hasBasicSection,   // ⭐ nouveau
+    };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -2875,17 +2892,65 @@ ipcMain.handle('set-csp-module-enabled', async (event, filename, enabled) => {
     return { success: false, error: 'Fichier introuvable : ' + filePath };
   }
   try {
-    // Lecture pour vérifier si [BASIC] existe
-    const content = fs.readFileSync(filePath, 'utf8');
-    const hasBasic = /^\s*\[BASIC\]\s*$/mi.test(content);
+    const original = fs.readFileSync(filePath, 'utf8');
+    const eol = original.includes('\r\n') ? '\r\n' : '\n';
+    const lines = original.split(/\r?\n/);
 
-    if (!hasBasic) {
-      // Pas de section [BASIC] → on ne touche pas, certains modules n'ont pas d'ENABLED
-      return { success: false, error: 'Pas de section [BASIC] dans ce module' };
+    // Trouve [BASIC]
+    let basicIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const clean = lines[i].replace(/^\uFEFF/, '').trim();
+      if (/^\[BASIC\]$/i.test(clean)) { basicIdx = i; break; }
     }
 
-    writeIniValue(filePath, 'BASIC', 'ENABLED', enabled ? '1' : '0');
+    // Trouve ENABLED dans [BASIC]
+    let enabledIdx = -1;
+    if (basicIdx >= 0) {
+      for (let i = basicIdx + 1; i < lines.length; i++) {
+        const clean = lines[i].replace(/^\uFEFF/, '').trim();
+        if (/^\[/.test(clean)) break;
+        if (/^ENABLED\s*=/i.test(clean)) { enabledIdx = i; break; }
+      }
+    }
+
+    if (enabled) {
+      // ACTIVER → supprime la ligne ENABLED (absence = actif)
+      if (enabledIdx >= 0) lines.splice(enabledIdx, 1);
+    } else {
+      // DÉSACTIVER → écrit ENABLED=0
+      if (enabledIdx >= 0) {
+        lines[enabledIdx] = 'ENABLED=0';
+      } else if (basicIdx >= 0) {
+        lines.splice(basicIdx + 1, 0, 'ENABLED=0');
+      } else {
+        lines.unshift('[BASIC]', 'ENABLED=0', '');
+      }
+    }
+
+    fs.copyFileSync(filePath, filePath + '.bak');
+    fs.writeFileSync(filePath, lines.join(eol), 'utf8');
     return { success: true, enabled: !!enabled };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('write-csp-module', async (event, filename, content) => {
+  if (!CSP_ALLOWED_FILES.includes(filename)) {
+    return { success: false, error: 'Fichier non autorisé : ' + filename };
+  }
+  if (typeof content !== 'string') {
+    return { success: false, error: 'Contenu invalide' };
+  }
+  const dir = getCspExtensionPath();
+  const filePath = path.join(dir, filename);
+  if (!fs.existsSync(filePath)) {
+    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  }
+  try {
+    fs.copyFileSync(filePath, filePath + '.bak');
+    fs.writeFileSync(filePath, content, 'utf8');
+    return { success: true, path: filePath };
   } catch (e) {
     return { success: false, error: e.message };
   }
