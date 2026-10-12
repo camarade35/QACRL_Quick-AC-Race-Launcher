@@ -4019,8 +4019,8 @@ select:disabled, input:disabled {
    ============================================================ */
 
 .setup-wizard-modal .setup-wizard-content {
-  width: 720px;
-  max-width: 92vw;
+  width: 900px;
+  max-width: 94vw;
   max-height: 90vh;
   padding: 24px 28px;
   gap: 20px;
@@ -4038,32 +4038,37 @@ select:disabled, input:disabled {
 .setup-wizard-steps {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
+  padding-right: 8px;
 }
 
 .setup-wizard-step-dot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
+  gap: 6px;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-tertiary);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .setup-wizard-step-dot .num {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   transition: all 0.2s;
+  flex-shrink: 0;
 }
 
 .setup-wizard-step-dot.active { color: var(--accent); }
@@ -4082,7 +4087,7 @@ select:disabled, input:disabled {
 }
 
 .setup-wizard-step-sep {
-  flex: 0 0 16px;
+  flex: 0 0 10px;
   height: 1px;
   background: var(--border);
 }

@@ -585,6 +585,8 @@
         "welcome": "Welcome",
         "detection": "Detection",
         "identity": "Identity",
+        "graphics": "Graphics",
+        "controls": "Controls",
         "recap": "Summary"
       },
       "welcome": {
@@ -622,6 +624,35 @@
         "steamId": "Steam ID (GUID)",
         "steamIdHint": "Auto-detected from Steam.",
         "nationality": "Driver nationality"
+      },
+        "graphics": {
+        "title": "Graphics rendering",
+        "subtitle": "Adjust visual rendering to your preferences.",
+        "cspDetected": "Custom Shaders Patch",
+        "pureDetected": "Pure (Weather FX)",
+        "detected": "Detected",
+        "notInstalled": "Not installed",
+        "noCspTitle": "Custom Shaders Patch is not installed",
+        "noCspHint": "Without CSP, QACRL will use classic Kunos rendering. You can install CSP later via Content Manager.",
+        "weatherFxEnabled": "Weather FX enabled",
+        "weatherFxStyle": "Weather FX style",
+        "weatherFxStyles": {
+          "default": "Default (Kunos classic)",
+          "gamma": "Pure Gamma",
+          "lcs": "Pure LCS (linear)"
+        },
+        "ppEnabled": "Post-process filter enabled",
+        "ppFilter": "Post-process filter (PP)"
+      },
+      "controls": {
+        "title": "Control devices",
+        "subtitle": "Detect and configure your wheel, gamepad or keyboard.",
+        "detectedDevices": "Detected device",
+        "noDevice": "No wheel or gamepad detected",
+        "keyboardOnly": "Keyboard / Mouse",
+        "refresh": "↻ Refresh",
+        "launchWizard": "🎯 Launch wizard",
+        "wizardHint": "The wizard automatically detects your wheel axes (steering, throttle, brakes, clutch...)."
       },
       "recap": {
         "title": "All set! 🎉",

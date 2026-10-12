@@ -10,9 +10,35 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### À venir
-- Assistant d'installation — Partie 2 (graphismes CSP/Pure + contrôles)
 - Undo fin (par option, pas global)
 - Détection auto de conflits CSP
+- Polish UX (liste d'idées en cours)
+
+---
+
+## [1.3.0] - 2026-10-12
+
+### ✨ Ajouté
+- **Assistant d'installation** (partie 2) — deux nouvelles étapes entre *Identité* et *Récap*
+  - **Graphismes** — détection live de CSP / Pure + configuration directe :
+    - Toggle *Weather FX activé* (écrit dans `weather_fx.ini`)
+    - Sélecteur de *Style Weather FX* (Default / Pure Gamma / Pure LCS)
+    - Toggle *Filtre post-process activé* (écrit dans `video.ini` → `[POST_PROCESS] ENABLED`)
+    - Sélecteur de *Filtre PP* (liste lue depuis `system/cfg/ppfilters/`)
+    - **Mode dégradé** : si CSP ou Pure absent → warning orange + étape skippée proprement
+  - **Contrôles** — détection et calibration des périphériques :
+    - Liste live des gamepads/volants connectés (via `navigator.getGamepads()`)
+    - Fallback clavier/souris si aucun device détecté
+    - Bouton **🎯 Lancer le wizard** qui ouvre la calibration volant par-dessus l'assistant (l'assistant se cache puis se ré-affiche automatiquement à la fin)
+    - Bouton **↻ Actualiser** pour re-scanner les devices à chaud
+
+### 🔧 Modifié
+- `setupWizard.js` : passage à **6 étapes** (`welcome → detection → identity → graphics → controls → recap`)
+- `style.css` : modale wizard **720 → 900px**, dots réduits (26 → 24px), gaps et séparateurs resserrés
+- `fr.json` / `en.json` : ajout des clés `app.setup.steps.graphics`, `app.setup.steps.controls`, `app.setup.graphics.*`, `app.setup.controls.*`
+
+### 🐛 Corrigé
+- Barre de progression du wizard : le 6ᵉ dot (**Récap**) passait sous le bouton de fermeture `×` — corrigé par ajustement combiné largeur / tailles / gaps
 
 ---
 

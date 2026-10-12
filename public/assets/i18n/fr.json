@@ -256,6 +256,8 @@
         "welcome": "Bienvenue",
         "detection": "Détection",
         "identity": "Identité",
+        "graphics": "Graphismes",
+        "controls": "Contrôles",
         "recap": "Récap"
       },
       "welcome": {
@@ -293,6 +295,35 @@
         "steamId": "Steam ID (GUID)",
         "steamIdHint": "Détecté automatiquement depuis Steam.",
         "nationality": "Nationalité du pilote"
+      },
+        "graphics": {
+        "title": "Rendu graphique",
+        "subtitle": "Ajuste le rendu visuel selon tes préférences.",
+        "cspDetected": "Custom Shaders Patch",
+        "pureDetected": "Pure (Weather FX)",
+        "detected": "Détecté",
+        "notInstalled": "Non installé",
+        "noCspTitle": "Custom Shaders Patch non installé",
+        "noCspHint": "Sans CSP, QACRL utilisera le rendu Kunos classique. Tu pourras installer CSP plus tard depuis Content Manager.",
+        "weatherFxEnabled": "Weather FX activé",
+        "weatherFxStyle": "Style Weather FX",
+        "weatherFxStyles": {
+          "default": "Default (Kunos classique)",
+          "gamma": "Pure Gamma",
+          "lcs": "Pure LCS (linéaire)"
+        },
+        "ppEnabled": "Filtre post-process activé",
+        "ppFilter": "Filtre post-process (PP)"
+      },
+      "controls": {
+        "title": "Périphériques de pilotage",
+        "subtitle": "Détecte et configure ton volant, manette ou clavier.",
+        "detectedDevices": "Périphérique détecté",
+        "noDevice": "Aucun volant ou manette détecté",
+        "keyboardOnly": "Clavier / Souris",
+        "refresh": "↻ Actualiser",
+        "launchWizard": "🎯 Lancer le wizard",
+        "wizardHint": "Le wizard détecte automatiquement les axes de ton volant (direction, accélérateur, freins, embrayage...)."
       },
       "recap": {
         "title": "Tout est prêt ! 🎉",
