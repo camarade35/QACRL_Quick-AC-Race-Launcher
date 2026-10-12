@@ -129,6 +129,61 @@
 
     return s;
   }
+  // ---------------------------------------------------------------------------
+  // Traduit un label français (hardcodé dans iniLayout.js / iniSchema.js)
+  // vers la langue courante, si une traduction existe dans le dico inverse.
+  // Sinon retourne le texte d'origine tel quel.
+  // ---------------------------------------------------------------------------
+  function tFr(frText) {
+    if (!frText) return '';
+    if (currentLang === 'fr') return frText; // Pas de traduction nécessaire
+    const dict2 = (dict.app && dict.app.iniLabels) || {};
+    return dict2[frText] || frText;
+  }
+  
+  // ---------------------------------------------------------------------------
+  // Parcourt le DOM et remplace le texte/placeholder/title des éléments
+  // ayant un attribut data-i18n, data-i18n-placeholder, data-i18n-title.
+  // ---------------------------------------------------------------------------
+  function applyToDom(root) {
+    const scope = root || document;
+
+    // Text content
+    scope.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (!key) return;
+      const val = t(key, null);
+      if (val == null) return;
+      // Si l'élément a des enfants HTML, on remplace tout le contenu texte
+      // (mais on garde les <span>, <i>, etc. dans data-i18n-html si fourni)
+      el.textContent = val;
+    });
+
+    // HTML content (avec balises)
+    scope.querySelectorAll('[data-i18n-html]').forEach(el => {
+      const key = el.getAttribute('data-i18n-html');
+      if (!key) return;
+      const val = t(key, null);
+      if (val == null) return;
+      el.innerHTML = val;
+    });
+
+    // Placeholder
+    scope.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+      const key = el.getAttribute('data-i18n-placeholder');
+      if (!key) return;
+      const val = t(key, null);
+      if (val != null) el.placeholder = val;
+    });
+
+    // Title (tooltip)
+    scope.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const key = el.getAttribute('data-i18n-title');
+      if (!key) return;
+      const val = t(key, null);
+      if (val != null) el.title = val;
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // t() générique : accès par clé pointée "csp.keyLabels.Active"
@@ -146,7 +201,7 @@
   function getCurrentLang() { return currentLang; }
   function isLoaded()       { return loaded; }
 
-  const API = { load, setLanguage, t, tSection, tKey, tEnum, tHint, tConstraints, getCurrentLang, isLoaded };
+  const API = { load, setLanguage, t, tSection, tKey, tEnum, tHint, tConstraints, tFr, applyToDom, getCurrentLang, isLoaded };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof global !== 'undefined') global.I18n = API;
 })(typeof window !== 'undefined' ? window : self);

@@ -2,6 +2,11 @@
    QACRL — Serveurs en ligne (liste GS4u)
    ============================================================ */
 
+// Helper : traduit une chaîne hardcodée via I18n.tFr si dispo
+function tSrv(s) {
+  return (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
+}
+
 /* ============================================================
    SERVEURS MANUELS
    ============================================================ */
@@ -36,17 +41,17 @@ function renderManualServers() {
     row.innerHTML = `
       <div class="server-flag">🔧</div>
       <div class="server-info">
-        <div class="server-name">${srv.name || '(sans nom)'}</div>
+        <div class="server-name">${srv.name || tSrv('(sans nom)')}</div>
         <div class="server-meta">
           <code>${srv.ip}:${srv.port}</code>
-          <span>Serveur manuel</span>
+          <span>${tSrv('Serveur manuel')}</span>
         </div>
       </div>
       <div class="server-players empty">—</div>
-      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${fav ? '★' : '☆'}</button>
-      <button class="server-action edit" title="Modifier">⚙️</button>
-      <button class="server-action join">▶ Rejoindre</button>
-      <button class="server-action delete" title="Supprimer">🗑️</button>
+      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? tSrv('Retirer des favoris') : tSrv('Ajouter aux favoris')}">${fav ? '★' : '☆'}</button>
+      <button class="server-action edit" title="${tSrv('Modifier')}">⚙️</button>
+      <button class="server-action join">▶ ${tSrv('Rejoindre')}</button>
+      <button class="server-action delete" title="${tSrv('Supprimer')}">🗑️</button>
     `;
 
     row.querySelector('.server-fav-btn').addEventListener('click', (e) => {
@@ -298,16 +303,17 @@ function pushRecentServer(server, info) {
 
 function formatTimeAgo(timestamp) {
   if (!timestamp) return '—';
+  const tFr = (window.I18n && window.I18n.tFr) ? window.I18n.tFr : (s) => s;
   const diff = Date.now() - timestamp;
   const min = Math.floor(diff / 60000);
-  if (min < 1) return "à l'instant";
-  if (min < 60) return `il y a ${min} min`;
+  if (min < 1) return tFr("à l'instant");
+  if (min < 60) return tFr('il y a') + ' ' + min + ' ' + tFr('min');
   const h = Math.floor(min / 60);
-  if (h < 24) return `il y a ${h}h`;
+  if (h < 24) return tFr('il y a') + ' ' + h + 'h';
   const d = Math.floor(h / 24);
-  if (d < 30) return `il y a ${d}j`;
+  if (d < 30) return tFr('il y a') + ' ' + d + 'j';
   const mo = Math.floor(d / 30);
-  return `il y a ${mo} mois`;
+  return tFr('il y a') + ' ' + mo + ' ' + tFr('mois');
 }
 
 function renderRecentServers() {
@@ -341,7 +347,7 @@ let recent = appData.recentServers || [];
     row.innerHTML = `
       <div class="server-flag" title="${srv.countryName || ''}">${flagDisplay}</div>
       <div class="server-info">
-        <div class="server-name">${srv.name || '(sans nom)'}</div>
+        <div class="server-name">${srv.name || tSrv('(sans nom)')}</div>
         <div class="server-meta">
           <code>${srv.ip}:${srv.port}</code>
           <span>🕒 ${timeAgo}</span>
@@ -349,10 +355,10 @@ let recent = appData.recentServers || [];
         </div>
       </div>
       <div class="server-players empty">—</div>
-      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${fav ? '★' : '☆'}</button>
-      <button class="server-action edit" title="Modifier">⚙️</button>
-      <button class="server-action join">▶ Rejoindre</button>
-      <button class="server-action delete" title="Retirer de l'historique">🗑️</button>
+      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? tSrv('Retirer des favoris') : tSrv('Ajouter aux favoris')}">${fav ? '★' : '☆'}</button>
+      <button class="server-action edit" title="${tSrv('Modifier')}">⚙️</button>
+      <button class="server-action join">▶ ${tSrv('Rejoindre')}</button>
+      <button class="server-action delete" title="${tSrv('Retirer de l\'historique')}">🗑️</button>
     `;
 
     row.querySelector('.server-fav-btn').addEventListener('click', (e) => {
@@ -484,7 +490,7 @@ function renderOnlineServers() {
     row.innerHTML = `
       <div class="server-flag" title="${srv.countryName || ''}">${flagDisplay}</div>
       <div class="server-info">
-        <div class="server-name">${srv.name || '(sans nom)'}</div>
+        <div class="server-name">${srv.name || tSrv('(sans nom)')}</div>
         <div class="server-meta">
           <code>${srv.ip}:${srv.port}</code>
           ${srv.map ? `<span>${srv.map}</span>` : ''}
@@ -493,8 +499,8 @@ function renderOnlineServers() {
       </div>
       <div class="server-players ${playerClass}">${srv.playersCurrent} / ${srv.playersMax}</div>
       ${pingHtml}
-      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${fav ? '★' : '☆'}</button>
-      <button class="server-action join">▶ Rejoindre</button>
+      <button class="server-fav-btn ${fav ? 'active' : ''}" title="${fav ? tSrv('Retirer des favoris') : tSrv('Ajouter aux favoris')}">${fav ? '★' : '☆'}</button>
+      <button class="server-action join">▶ ${tSrv('Rejoindre')}</button>
     `;
     row.querySelector('.server-fav-btn').addEventListener('click', (e) => {
       e.stopPropagation();

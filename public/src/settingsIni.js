@@ -149,14 +149,18 @@
 
           const catLabel = document.createElement('span');
           catLabel.className = 'ini-category-label';
-          catLabel.textContent = group.label;
+          catLabel.textContent = (global.I18n && global.I18n.tFr)
+            ? global.I18n.tFr(group.label)
+            : group.label;
           catHeader.appendChild(catLabel);
 
           // ⭐ Hint optionnel (sous-titre explicatif)
           if (group.hint) {
             const hintEl = document.createElement('span');
             hintEl.className = 'ini-category-hint';
-            hintEl.textContent = group.hint;
+            hintEl.textContent = (global.I18n && global.I18n.tFr)
+              ? global.I18n.tFr(group.hint)
+              : group.hint;
             catHeader.appendChild(hintEl);
           }
 
@@ -250,7 +254,9 @@
     for (const tab of layout.tabs) {
       const btn = document.createElement('button');
       btn.className = 'ini-tab-btn';
-      btn.textContent = tab.label;
+      btn.textContent = (global.I18n && global.I18n.tFr)
+        ? global.I18n.tFr(tab.label)
+        : tab.label;
       if (tab.id === ed.currentTab) btn.classList.add('active');
       btn.addEventListener('click', () => {
         ed.currentTab = tab.id;
@@ -289,11 +295,14 @@
     arrowEl.textContent = '▸';
     headerEl.appendChild(arrowEl);
 
-    const labelEl = document.createElement('span');
-    labelEl.className = 'ini-section-label';
-    labelEl.textContent = customLabel
+    const rawLabel = customLabel
       || (secSchema && secSchema.label)
       || sec.name;
+    const labelEl = document.createElement('span');
+    labelEl.className = 'ini-section-label';
+    labelEl.textContent = (global.I18n && global.I18n.tFr)
+      ? global.I18n.tFr(rawLabel)
+      : rawLabel;
     headerEl.appendChild(labelEl);
 
     if ((secSchema && secSchema.label && secSchema.label !== sec.name) || customLabel) {
@@ -398,7 +407,9 @@
     headerEl.appendChild(arrowEl);
     const labelEl = document.createElement('span');
     labelEl.className = 'ini-section-label';
-    labelEl.textContent = group.label;
+    labelEl.textContent = (global.I18n && global.I18n.tFr)
+      ? global.I18n.tFr(group.label)
+      : group.label;
     headerEl.appendChild(labelEl);
 
     const collapseKey = 'iniCollapsePair:' + ed.file + ':' + secA?.name + '+' + secB?.name;
@@ -424,7 +435,9 @@
       col.className = 'ini-pair-col';
       const titleEl = document.createElement('div');
       titleEl.className = 'ini-pair-col-label';
-      titleEl.textContent = colLabel;
+      titleEl.textContent = (global.I18n && global.I18n.tFr)
+        ? global.I18n.tFr(colLabel)
+        : colLabel;
       col.appendChild(titleEl);
 
       if (!sec) {

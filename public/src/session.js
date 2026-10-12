@@ -190,9 +190,9 @@ function renderExistingPlans() {
         <div class="plan-meta">Dossier : <code>${plan.folder || '(racine)'}</code></div>
       </div>
       <div class="plan-actions">
-        <button class="plan-action load">Charger</button>
-        <button class="plan-action edit">Éditer</button>
-        <button class="plan-action delete">Supprimer</button>
+        <button class="plan-action load">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Charger') : 'Charger'}</button>
+        <button class="plan-action edit">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Éditer') : 'Éditer'}</button>
+        <button class="plan-action delete">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Supprimer') : 'Supprimer'}</button>
       </div>
     `;
 
@@ -347,7 +347,9 @@ function renderPresetsList() {
   if (appData.presets.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'presets-empty';
-    empty.innerText = 'Aucun preset sauvegardé. Configure ta session et clique sur "Sauvegarder".';
+    empty.innerText = (window.I18n && window.I18n.tFr)
+      ? window.I18n.tFr('Aucun preset sauvegardé. Configure ta session et clique sur "Sauvegarder".')
+      : 'Aucun preset sauvegardé. Configure ta session et clique sur "Sauvegarder".';
     list.appendChild(empty);
     return;
   }
@@ -364,8 +366,8 @@ function renderPresetsList() {
         <div class="preset-meta">${carName} • ${trackName} • ${dateStr}</div>
       </div>
       <div class="preset-actions">
-        <button class="preset-action load">Charger</button>
-        <button class="preset-action delete">Supprimer</button>
+        <button class="preset-action load">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Charger') : 'Charger'}</button>
+        <button class="preset-action delete">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Supprimer') : 'Supprimer'}</button>
       </div>
     `;
     row.querySelector('.load').addEventListener('click', () => {
@@ -523,9 +525,9 @@ function renderSessionHistory() {
         </div>
       </div>
       <div class="session-history-actions">
-        <button class="reload" title="Recharger la config et lancer la course">▶ Lancer</button>
-        <button class="load" title="Charger la config sans lancer">Charger</button>
-        <button class="delete" title="Supprimer cette entrée">🗑️</button>
+        <button class="reload" title="${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Recharger la config et lancer la course') : 'Recharger la config et lancer la course'}">▶ ${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Lancer') : 'Lancer'}</button>
+        <button class="load" title="${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Charger la config sans lancer') : 'Charger la config sans lancer'}">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Charger') : 'Charger'}</button>
+        <button class="delete" title="${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Supprimer cette entrée') : 'Supprimer cette entrée'}">🗑️</button>
       </div>
     `;
 

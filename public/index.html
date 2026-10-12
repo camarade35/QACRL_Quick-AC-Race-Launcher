@@ -14,13 +14,13 @@
       <span class="titlebar-title">QACRL — Quick AC Race Launcher</span>
     </div>
     <div class="titlebar-controls">
-      <button class="titlebar-btn" id="tb-minimize" title="Réduire">
+      <button class="titlebar-btn" id="tb-minimize" title="Réduire" data-i18n-title="app.titlebar.minimize">
         <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2" y="5.5" width="8" height="1" fill="currentColor"/></svg>
       </button>
-      <button class="titlebar-btn" id="tb-maximize" title="Agrandir">
+      <button class="titlebar-btn" id="tb-maximize" title="Agrandir" data-i18n-title="app.titlebar.maximize">
         <svg viewBox="0 0 12 12" width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1"/></svg>
       </button>
-      <button class="titlebar-btn titlebar-btn-close" id="tb-close" title="Fermer">
+      <button class="titlebar-btn titlebar-btn-close" id="tb-close" title="Fermer" data-i18n-title="app.titlebar.close">
         <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2.5 2.5 L9.5 9.5 M9.5 2.5 L2.5 9.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
       </button>
     </div>
@@ -36,7 +36,7 @@
           <div class="app-title">QACRL</div>
           <div class="app-subtitle">Custom Launcher</div>
         </div>
-        <button class="theme-toggle" id="theme-mode-toggle" title="Basculer clair/sombre">
+        <button class="theme-toggle" id="theme-mode-toggle" title="Basculer clair/sombre" data-i18n-title="app.theme.toggleTitle">
           <svg class="theme-toggle-icon theme-toggle-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="4"></circle>
             <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
@@ -45,7 +45,7 @@
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
-        <label class="theme-picker" title="Changer la couleur du thème">
+        <label class="theme-picker" title="Changer la couleur du thème" data-i18n-title="app.theme.pickerTitle">
           <input type="color" id="theme-color-input" value="#d32f2f">
           <svg class="theme-picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"></circle>
@@ -53,8 +53,8 @@
         </label>
       </div>
 
-      <div class="recap-card clickable" id="recap-car-section" title="Aller à l'onglet Voitures">
-        <div class="recap-label">Voiture</div>
+      <div class="recap-card clickable" id="recap-car-section" title="Aller à l'onglet Voitures" data-i18n-title="app.sidebar.goCar">
+        <div class="recap-label" data-i18n="app.sidebar.car">Voiture</div>
         <div class="recap-title-row">
           <img class="recap-flag" id="recap-car-flag" alt="" style="display: none;">
           <div class="recap-title" id="recap-car">Aucune sélectionnée</div>
@@ -63,8 +63,8 @@
         <img id="recap-car-img" class="recap-img" alt="Voiture">
       </div>
 
-      <div class="recap-card clickable" id="recap-track-section" title="Aller à l'onglet Circuits">
-        <div class="recap-label">Circuit</div>
+      <div class="recap-card clickable" id="recap-track-section" title="Aller à l'onglet Circuits" data-i18n-title="app.sidebar.goTrack">
+        <div class="recap-label" data-i18n="app.sidebar.track">Circuit</div>
         <div class="recap-title-row">
           <img class="recap-flag" id="recap-track-flag" alt="" style="display: none;">
           <div class="recap-title" id="recap-track">Aucun sélectionné</div>
@@ -75,48 +75,48 @@
         </div>
       </div>
 
-      <div class="recap-card clickable" id="recap-session-section" title="Aller à l'onglet Session">
-        <div class="recap-label">Session</div>
+      <div class="recap-card clickable" id="recap-session-section" title="Aller à l'onglet Session" data-i18n-title="app.sidebar.goSession">
+        <div class="recap-label" data-i18n="app.sidebar.session">Session</div>
         <div class="recap-title" id="recap-session">RACE - 5 tours</div>
         <div class="recap-sub" id="recap-weather">Météo : —</div>
       </div>
     </div>
 
-    <button class="btn-secondary" id="btn-random-all" title="Tirer au sort voiture + skin + circuit + variante">
+    <button class="btn-secondary" id="btn-random-all" title="Tirer au sort voiture + skin + circuit + variante" data-i18n-title="app.sidebar.randomTitle" data-i18n="app.sidebar.random">
       🎲 Sélection aléatoire
     </button>
-    <button class="btn-launch" id="btn-launch-game">▶ Démarrer la course</button>
+    <button class="btn-launch" id="btn-launch-game" data-i18n="app.sidebar.launch">▶ Démarrer la course</button>
   </div>
 
   <div class="main">
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab(event, 'tab-cars')">Voitures</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-tracks')">Circuits</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-online')">🌐 En ligne</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-session')">Session</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-graphics')">Météo</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-mods')">Gestion Mods</button>
-      <button class="tab-btn" onclick="switchTab(event, 'tab-settings')">Paramètres</button>
+      <button class="tab-btn active" onclick="switchTab(event, 'tab-cars')" data-i18n="app.tabs.cars">Voitures</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-tracks')" data-i18n="app.tabs.tracks">Circuits</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-online')" data-i18n="app.tabs.online">🌐 En ligne</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-session')" data-i18n="app.tabs.session">Session</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-graphics')" data-i18n="app.tabs.weather">Météo</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-mods')" data-i18n="app.tabs.mods">Gestion Mods</button>
+      <button class="tab-btn" onclick="switchTab(event, 'tab-settings')" data-i18n="app.tabs.settings">Paramètres</button>
     </div>
 
     <div id="tab-cars" class="tab-content active">
       <div class="section-header">
-        <h3 class="section-title">Sélection de la voiture</h3>
+        <h3 class="section-title" data-i18n="app.sections.carSelection">Sélection de la voiture</h3>
         <div class="filters-group">
-          <button class="filter-btn active" id="btn-car-filter-all">Tous</button>
-          <button class="filter-btn" id="btn-car-filter-kunos">Kunos</button>
-          <button class="filter-btn" id="btn-car-filter-mods">Mods</button>
-          <button class="filter-btn" id="btn-car-filter-favorites">⭐ Favoris</button>
-          <button class="filter-btn" id="btn-car-filter-used">✓ Déjà joués</button>
+          <button class="filter-btn active" id="btn-car-filter-all" data-i18n="app.filters.all">Tous</button>
+          <button class="filter-btn" id="btn-car-filter-kunos" data-i18n="app.filters.kunos">Kunos</button>
+          <button class="filter-btn" id="btn-car-filter-mods" data-i18n="app.filters.mods">Mods</button>
+          <button class="filter-btn" id="btn-car-filter-favorites" data-i18n="app.filters.favorites">⭐ Favoris</button>
+          <button class="filter-btn" id="btn-car-filter-used" data-i18n="app.filters.used">✓ Déjà joués</button>
           <button class="filter-btn" id="btn-car-tags-open">🏷️ Tags <span class="btn-badge" id="btn-car-tags-count" style="display: none;">0</span></button>
         </div>
       </div>
       <div class="toolbar">
         <div class="search-input">
-          <input type="text" id="car-search" placeholder="Rechercher une voiture...">
+          <input type="text" id="car-search" placeholder="Rechercher une voiture..." data-i18n-placeholder="app.search.car">
         </div>
         <select class="manufacturer-select" id="car-manufacturer-select">
-          <option value="">Tous les constructeurs</option>
+          <option value="" data-i18n="app.search.manufacturer">Tous les constructeurs</option>
         </select>
       </div>
       <div class="active-tags-bar" id="cars-active-tags"></div>
@@ -125,19 +125,19 @@
 
     <div id="tab-tracks" class="tab-content">
       <div class="section-header">
-        <h3 class="section-title">Sélection du circuit</h3>
+        <h3 class="section-title" data-i18n="app.sections.trackSelection">Sélection du circuit</h3>
         <div class="filters-group">
-          <button class="filter-btn active" id="btn-track-filter-all">Tous</button>
-          <button class="filter-btn" id="btn-track-filter-kunos">Kunos</button>
-          <button class="filter-btn" id="btn-track-filter-mods">Mods</button>
-          <button class="filter-btn" id="btn-track-filter-favorites">⭐ Favoris</button>
-          <button class="filter-btn" id="btn-track-filter-used">✓ Déjà joués</button>
+          <button class="filter-btn active" id="btn-track-filter-all" data-i18n="app.filters.all">Tous</button>
+          <button class="filter-btn" id="btn-track-filter-kunos" data-i18n="app.filters.kunos">Kunos</button>
+          <button class="filter-btn" id="btn-track-filter-mods" data-i18n="app.filters.mods">Mods</button>
+          <button class="filter-btn" id="btn-track-filter-favorites" data-i18n="app.filters.favorites">⭐ Favoris</button>
+          <button class="filter-btn" id="btn-track-filter-used" data-i18n="app.filters.used">✓ Déjà joués</button>
           <button class="filter-btn" id="btn-track-tags-open">🏷️ Tags <span class="btn-badge" id="btn-track-tags-count" style="display: none;">0</span></button>
         </div>
       </div>
       <div class="toolbar">
         <div class="search-input">
-          <input type="text" id="track-search" placeholder="Rechercher un circuit...">
+          <input type="text" id="track-search" placeholder="Rechercher un circuit..." data-i18n-placeholder="app.search.track">
         </div>
       </div>
       <div class="active-tags-bar" id="tracks-active-tags"></div>
@@ -146,40 +146,40 @@
 
     <div id="tab-online" class="tab-content">
       <div class="section-header">
-        <h3 class="section-title">Serveurs en ligne</h3>
+        <h3 class="section-title" data-i18n="app.sections.onlineServers">Serveurs en ligne</h3>
       </div>
 	  <div class="group">
-        <div class="group-title">🔗 Coller un lien de serveur</div>
+        <div class="group-title" data-i18n="app.online.groups.pasteLink">🔗 Coller un lien de serveur</div>
         <div class="row">
           <div class="field" style="flex: 3;">
-            <label for="server-link-input">Lien acstuff, acmanager:// ou IP:PORT</label>
+            <label for="server-link-input" data-i18n="app.online.fields.linkInput">Lien acstuff, acmanager:// ou IP:PORT</label>
             <input type="text" id="server-link-input" placeholder="https://acstuff.club/s/qrace/online/join?ip=...&httpPort=...">
           </div>
           <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
             <button class="filter-btn" id="btn-server-link-join"
-                    style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+                    style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;" data-i18n="app.online.btn.join">
               ▶ Rejoindre
             </button>
           </div>
         </div>
-        <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+        <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;" data-i18n-html="app.online.hints.pasteLink">
           💡 Colle un lien copié depuis un site (ex : <code>acstuff.club</code>), un raccourci <code>acmanager://</code>,
           ou une simple adresse <code>IP:PORT</code>. Le launcher trouve automatiquement le port de jeu.
         </div>
       </div>
       <div class="group">
-        <div class="group-title">Ajouter un serveur manuellement</div>
+        <div class="group-title" data-i18n="app.online.groups.addManual">Ajouter un serveur manuellement</div>
         <div class="row">
           <div class="field">
-            <label for="online-manual-ip">Adresse IP:Port</label>
+            <label for="online-manual-ip" data-i18n="app.online.fields.manualIp">Adresse IP:Port</label>
             <input type="text" id="online-manual-ip" placeholder="94.130.91.49:8081">
           </div>
           <div class="field">
-            <label for="online-manual-name">Nom (optionnel)</label>
-            <input type="text" id="online-manual-name" placeholder="Mon serveur préféré">
+            <label for="online-manual-name" data-i18n="app.online.fields.manualName">Nom (optionnel)</label>
+            <input type="text" id="online-manual-name" placeholder="Mon serveur préféré" data-i18n-placeholder="app.online.fields.manualNamePlaceholder">
           </div>
           <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
-            <button class="filter-btn" id="btn-online-add-manual" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+            <button class="filter-btn" id="btn-online-add-manual" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;" data-i18n="app.online.btn.add">
               + Ajouter
             </button>
           </div>
@@ -188,10 +188,10 @@
 
       <div class="group">
         <div class="group-title" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
-          <span>🕒 Serveurs récents</span>
+          <span data-i18n="app.online.groups.recent">🕒 Serveurs récents</span>
           <div style="display: flex; gap: 6px;">
-            <button class="filter-btn" id="btn-recent-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;">⭐ Favoris uniquement</button>
-            <button class="filter-btn" id="btn-online-clear-recent" style="padding: 4px 12px; font-size: 0.7rem;">🗑️ Tout effacer</button>
+            <button class="filter-btn" id="btn-recent-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;" data-i18n="app.online.btn.favoritesOnly">⭐ Favoris uniquement</button>
+            <button class="filter-btn" id="btn-online-clear-recent" style="padding: 4px 12px; font-size: 0.7rem;" data-i18n="app.online.btn.clearAll">🗑️ Tout effacer</button>
           </div>
         </div>
         <div class="servers-list" id="online-recent-list"></div>
@@ -199,8 +199,8 @@
 
       <div class="group">
         <div class="group-title" style="display: flex; align-items: center; justify-content: space-between;">
-          <span>Mes serveurs enregistrés</span>
-          <button class="filter-btn" id="btn-manual-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;">
+          <span data-i18n="app.online.groups.savedServers">Mes serveurs enregistrés</span>
+          <button class="filter-btn" id="btn-manual-filter-favorites" style="padding: 4px 12px; font-size: 0.7rem;" data-i18n="app.online.btn.favoritesOnly">
             ⭐ Favoris uniquement
           </button>
         </div>
@@ -209,42 +209,42 @@
 
       <div class="group">
         <div class="group-title" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-          <span>Serveurs publics (GS4u)</span>
+          <span data-i18n="app.online.groups.publicServers">Serveurs publics (GS4u)</span>
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <button class="filter-btn" id="btn-online-refresh">🔄 Rafraîchir</button>
-            <button class="filter-btn" id="btn-online-load-more">⬇ Charger plus</button>
+            <button class="filter-btn" id="btn-online-refresh" data-i18n="app.online.btn.refresh">🔄 Rafraîchir</button>
+            <button class="filter-btn" id="btn-online-load-more" data-i18n="app.online.btn.loadMore">⬇ Charger plus</button>
             <span id="online-servers-count" style="font-size: 0.7rem; color: var(--text-tertiary); font-weight: 500; text-transform: none; letter-spacing: 0;"></span>
           </div>
         </div>
 
         <div class="toolbar" style="margin-bottom: 10px;">
           <div class="search-input">
-            <input type="text" id="online-search" placeholder="Rechercher un serveur (nom, map, IP)...">
+            <input type="text" id="online-search" placeholder="Rechercher un serveur (nom, map, IP)..." data-i18n-placeholder="app.online.fields.search">
           </div>
         </div>
 
         <div class="filters-group" style="margin-bottom: 10px;">
-          <button class="sort-btn" id="btn-sort-name" title="Trier par nom">🔤 Nom</button>
-          <button class="sort-btn active" id="btn-sort-players" title="Trier par nombre de joueurs">👥 Joueurs <span class="sort-arrow">▼</span></button>
-          <button class="sort-btn" id="btn-sort-country" title="Trier par pays">🌍 Pays</button>
-          <button class="sort-btn" id="btn-sort-rating" title="Trier par rating">⭐ Rating</button>
+          <button class="sort-btn" id="btn-sort-name" title="Trier par nom" data-i18n-title="app.online.sort.byName" data-i18n="app.online.sort.name">🔤 Nom</button>
+          <button class="sort-btn active" id="btn-sort-players" title="Trier par nombre de joueurs" data-i18n-title="app.online.sort.byPlayers" data-i18n="app.online.sort.players">👥 Joueurs <span class="sort-arrow">▼</span></button>
+          <button class="sort-btn" id="btn-sort-country" title="Trier par pays" data-i18n-title="app.online.sort.byCountry" data-i18n="app.online.sort.country">🌍 Pays</button>
+          <button class="sort-btn" id="btn-sort-rating" title="Trier par rating" data-i18n-title="app.online.sort.byRating" data-i18n="app.online.sort.rating">⭐ Rating</button>
         </div>
 
         <div class="toolbar" style="margin-bottom: 10px;">
           <div class="field" style="min-width: 200px;">
-            <label for="online-filter-country">Pays</label>
+            <label for="online-filter-country" data-i18n="app.online.fields.country">Pays</label>
             <select id="online-filter-country">
-              <option value="">Tous les pays</option>
+              <option value="" data-i18n="app.online.options.allCountries">Tous les pays</option>
             </select>
           </div>
           <div class="field" style="min-width: 180px;">
-            <label for="online-filter-track">Circuit</label>
+            <label for="online-filter-track" data-i18n="app.online.fields.track">Circuit</label>
             <select id="online-filter-track">
-              <option value="">Tous les circuits</option>
+              <option value="" data-i18n="app.online.options.allTracks">Tous les circuits</option>
             </select>
           </div>
           <div class="field" style="min-width: 140px;">
-            <label for="online-filter-min-players">Joueurs min.</label>
+            <label for="online-filter-min-players" data-i18n="app.online.fields.minPlayers">Joueurs min.</label>
             <input type="number" id="online-filter-min-players" min="0" max="99" value="0" placeholder="0">
           </div>
         </div>
@@ -255,77 +255,81 @@
 
     <div id="tab-session" class="tab-content">
       <div class="subtabs">
-        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-session')">Session</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-race-ia')">Course & IA</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-pilot-realism')">Pilote & Réalisme</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-presets')">Presets</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-history')">Historique</button>
+        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-session')" data-i18n="app.session.subtabs.session">Session</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-race-ia')" data-i18n="app.session.subtabs.raceIa">Course & IA</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-pilot-realism')" data-i18n="app.session.subtabs.pilotRealism">Pilote & Réalisme</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-presets')" data-i18n="app.session.subtabs.presets">Presets</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-history')" data-i18n="app.session.subtabs.history">Historique</button>
       </div>
 
       <div id="subtab-session" class="subtab-content active">
         <div class="group">
-          <div class="group-title">Type et durée de session</div>
+          <div class="group-title" data-i18n="app.session.groups.typeDuration">Type et durée de session</div>
           <div class="row">
             <div class="field">
-              <label for="session-type">Type de session</label>
+              <label for="session-type" data-i18n="app.session.fields.sessionType">Type de session</label>
               <select id="session-type">
-                <option value="PRACTICE">Essais libres (Départ Pit)</option>
-                <option value="RACE" selected>Course (Grille de départ)</option>
-                <option value="HOTLAP">Hotlap (Départ lancé)</option>
+                <option value="PRACTICE" data-i18n="app.session.options.practice">Essais libres (Départ Pit)</option>
+                <option value="RACE" selected data-i18n="app.session.options.race">Course (Grille de départ)</option>
+                <option value="HOTLAP" data-i18n="app.session.options.hotlap">Hotlap (Départ lancé)</option>
               </select>
             </div>
           </div>
           <div class="row" id="session-duration-row">
             <div class="field">
-              <label for="session-minutes">Durée de la session (minutes)</label>
+              <label for="session-minutes" data-i18n="app.session.fields.sessionMinutes">Durée de la session (minutes)</label>
               <input type="number" id="session-minutes" value="30" min="1" max="240">
             </div>
           </div>
           <div class="row" id="race-sessions-row" style="display: none;">
-            <div class="field"><label for="practice-minutes">Essais libres (min, 0 = off)</label><input type="number" id="practice-minutes" value="15" min="0" max="240"></div>
-            <div class="field"><label for="qualify-minutes">Qualifications (min, 0 = off)</label><input type="number" id="qualify-minutes" value="10" min="0" max="120"></div>
-            <div class="field"><label for="race-laps">Tours de course</label><input type="number" id="race-laps" value="5" min="1" max="99"></div>
+            <div class="field"><label for="practice-minutes" data-i18n="app.session.fields.practiceMinutes">Essais libres (min, 0 = off)</label><input type="number" id="practice-minutes" value="15" min="0" max="240"></div>
+            <div class="field"><label for="qualify-minutes" data-i18n="app.session.fields.qualifyMinutes">Qualifications (min, 0 = off)</label><input type="number" id="qualify-minutes" value="10" min="0" max="120"></div>
+            <div class="field"><label for="race-laps" data-i18n="app.session.fields.raceLaps">Tours de course</label><input type="number" id="race-laps" value="5" min="1" max="99"></div>
           </div>
         </div>
       </div>
 
       <div id="subtab-race-ia" class="subtab-content">
         <div class="group">
-          <div class="group-title">Adversaires et grille de départ</div>
+          <div class="group-title" data-i18n="app.session.groups.opponentsGrid">Adversaires et grille de départ</div>
           <div class="row">
-            <div class="field"><label for="opponents-count">Nombre d'adversaires</label><input type="number" id="opponents-count" value="10" min="0" max="35"></div>
-            <div class="field"><label for="grid-type">Type de grille</label>
+            <div class="field"><label for="opponents-count" data-i18n="app.session.fields.opponentsCount">Nombre d'adversaires</label><input type="number" id="opponents-count" value="10" min="0" max="35"></div>
+            <div class="field"><label for="grid-type" data-i18n="app.session.fields.gridType">Type de grille</label>
               <select id="grid-type">
-                <option value="SAME_CAR">Véhicule identique</option>
-                <option value="RANDOM" selected>Aléatoire (Tout)</option>
-                <option value="SAME_CLASS">Même classe / catégorie</option>
-                <option value="SAME_BRAND">Même marque</option>
-                <option value="KUNOS_ONLY">Kunos uniquement</option>
+                <option value="SAME_CAR" data-i18n="app.session.options.gridSameCar">Véhicule identique</option>
+                <option value="RANDOM" selected data-i18n="app.session.options.gridRandom">Aléatoire (Tout)</option>
+                <option value="SAME_CLASS" data-i18n="app.session.options.gridSameClass">Même classe / catégorie</option>
+                <option value="SAME_BRAND" data-i18n="app.session.options.gridSameBrand">Même marque</option>
+                <option value="KUNOS_ONLY" data-i18n="app.session.options.gridKunosOnly">Kunos uniquement</option>
               </select>
             </div>
           </div>
           <div class="row">
-            <div class="field"><label for="starting-position-mode">Position de départ du joueur</label>
+            <div class="field"><label for="starting-position-mode" data-i18n="app.session.fields.startingPos">Position de départ du joueur</label>
               <select id="starting-position-mode">
-                <option value="LAST" selected>Dernier de la grille</option>
-                <option value="RANDOM">Aléatoire</option>
-                <option value="FIRST">1ère position (Pole)</option>
-                <option value="SECOND">2ème position</option>
-                <option value="THIRD">3ème position</option>
-                <option value="CUSTOM">Position spécifique...</option>
+                <option value="LAST" selected data-i18n="app.session.options.posLast">Dernier de la grille</option>
+                <option value="RANDOM" data-i18n="app.session.options.posRandom">Aléatoire</option>
+                <option value="FIRST" data-i18n="app.session.options.posFirst">1ère position (Pole)</option>
+                <option value="SECOND" data-i18n="app.session.options.posSecond">2ème position</option>
+                <option value="THIRD" data-i18n="app.session.options.posThird">3ème position</option>
+                <option value="CUSTOM" data-i18n="app.session.options.posCustom">Position spécifique...</option>
               </select>
             </div>
             <div class="field" id="custom-pos-group" style="display: none;">
-              <label for="custom-start-pos">Position exacte</label><input type="number" id="custom-start-pos" value="1" min="1" max="36">
+              <label for="custom-start-pos" data-i18n="app.session.fields.customStartPos">Position exacte</label><input type="number" id="custom-start-pos" value="1" min="1" max="36">
             </div>
-            <div class="field"><label for="jump-start-penalty">Pénalité départ anticipé</label>
-              <select id="jump-start-penalty"><option value="0">Désactivé</option><option value="1">Drive-through</option><option value="2">Stop & Go (10s)</option></select>
+            <div class="field"><label for="jump-start-penalty" data-i18n="app.session.fields.jumpStartPenalty">Pénalité départ anticipé</label>
+              <select id="jump-start-penalty">
+                <option value="0" data-i18n="app.session.options.penaltyOff">Désactivé</option>
+                <option value="1" data-i18n="app.session.options.penaltyDriveThrough">Drive-through</option>
+                <option value="2" data-i18n="app.session.options.penaltyStopGo">Stop & Go (10s)</option>
+              </select>
             </div>
           </div>
         </div>
 
         <div class="group">
-          <div class="group-title">Comportement de l'IA</div>
+          <div class="group-title" data-i18n="app.session.groups.aiBehavior">Comportement de l'IA</div>
           <div class="row">
             <div class="field">
               <label for="ai-level">Niveau IA (%) : <span id="ai-level-display">90% (±5%)</span></label>
@@ -343,60 +347,68 @@
 
       <div id="subtab-pilot-realism" class="subtab-content">
         <div class="group">
-          <div class="group-title">Nationalité</div>
+          <div class="group-title" data-i18n="app.session.groups.nationality">Nationalité</div>
           <div class="row">
-            <div class="field"><label for="player-flag">Nationalité du pilote</label><select id="player-flag"></select></div>
+            <div class="field"><label for="player-flag" data-i18n="app.session.fields.playerFlag">Nationalité du pilote</label><select id="player-flag"></select></div>
           </div>
           <div class="row">
             <div class="field">
-              <label class="check"><input type="checkbox" id="random-ai-flags" checked> Drapeaux aléatoires pour les IA</label>
+              <label class="check"><input type="checkbox" id="random-ai-flags" checked> <span data-i18n="app.session.fields.randomAiFlags">Drapeaux aléatoires pour les IA</span></label>
             </div>
           </div>
         </div>
 
         <div class="group">
-          <div class="group-title">Assistances de pilotage</div>
+          <div class="group-title" data-i18n="app.session.groups.drivingAssists">Assistances de pilotage</div>
           <div class="row">
-            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-gearbox"> Vitesses auto</label></div>
-            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-clutch" checked> Embrayage auto</label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-gearbox"> <span data-i18n="app.session.fields.autoGearbox">Vitesses auto</span></label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-auto-clutch" checked> <span data-i18n="app.session.fields.autoClutch">Embrayage auto</span></label></div>
           </div>
           <div class="row">
-            <div class="field"><label class="check"><input type="checkbox" id="assist-autoblip"> Autoblip</label></div>
-            <div class="field"><label class="check"><input type="checkbox" id="assist-ideal-line"> Ligne idéale</label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-autoblip"> <span data-i18n="app.session.fields.autoblip">Autoblip</span></label></div>
+            <div class="field"><label class="check"><input type="checkbox" id="assist-ideal-line"> <span data-i18n="app.session.fields.idealLine">Ligne idéale</span></label></div>
           </div>
           <div class="row">
-            <div class="field"><label for="assist-tc">TC</label><select id="assist-tc"><option value="0">Désactivé</option><option value="1" selected>Usine</option><option value="2">Activé</option></select></div>
-            <div class="field"><label for="assist-abs">ABS</label><select id="assist-abs"><option value="0">Désactivé</option><option value="1" selected>Usine</option><option value="2">Activé</option></select></div>
+            <div class="field"><label for="assist-tc" data-i18n="app.session.fields.tc">TC</label><select id="assist-tc">
+              <option value="0" data-i18n="app.session.options.assistOff">Désactivé</option>
+              <option value="1" selected data-i18n="app.session.options.assistFactory">Usine</option>
+              <option value="2" data-i18n="app.session.options.assistOn">Activé</option>
+            </select></div>
+            <div class="field"><label for="assist-abs" data-i18n="app.session.fields.abs">ABS</label><select id="assist-abs">
+              <option value="0" data-i18n="app.session.options.assistOff">Désactivé</option>
+              <option value="1" selected data-i18n="app.session.options.assistFactory">Usine</option>
+              <option value="2" data-i18n="app.session.options.assistOn">Activé</option>
+            </select></div>
           </div>
           <div class="row">
-            <div class="field"><label for="assist-stability">Stabilité : <span id="assist-stability-display">0%</span></label><input type="range" id="assist-stability" min="0" max="100" value="0"></div>
+            <div class="field"><label for="assist-stability"><span data-i18n="app.session.fields.stability">Stabilité</span> : <span id="assist-stability-display">0%</span></label><input type="range" id="assist-stability" min="0" max="100" value="0"></div>
           </div>
         </div>
 
         <div class="group">
-          <div class="group-title">Réalisme & conditions de course</div>
+          <div class="group-title" data-i18n="app.session.groups.realismConditions">Réalisme & conditions de course</div>
           <div class="row">
-            <div class="field"><label for="fuel-rate">Carburant : <span id="fuel-rate-display">1x</span></label><input type="range" id="fuel-rate" min="0" max="5" value="1" step="1"></div>
-            <div class="field"><label for="mechanical-damage">Dommage : <span id="mechanical-damage-display">100%</span></label><input type="range" id="mechanical-damage" min="0" max="100" value="100"></div>
+            <div class="field"><label for="fuel-rate"><span data-i18n="app.session.fields.fuelRate">Carburant</span> : <span id="fuel-rate-display">1x</span></label><input type="range" id="fuel-rate" min="0" max="5" value="1" step="1"></div>
+            <div class="field"><label for="mechanical-damage"><span data-i18n="app.session.fields.mechanicalDamage">Dommage</span> : <span id="mechanical-damage-display">100%</span></label><input type="range" id="mechanical-damage" min="0" max="100" value="100"></div>
           </div>
           <div class="row">
-            <div class="field"><label for="tyre-wear">Usure pneus : <span id="tyre-wear-display">1x</span></label><input type="range" id="tyre-wear" min="0" max="5" value="1" step="1"></div>
-            <div class="field"><label for="slipstream">Aspiration : <span id="slipstream-display">1x</span></label><input type="range" id="slipstream" min="0" max="5" value="1" step="1"></div>
+            <div class="field"><label for="tyre-wear"><span data-i18n="app.session.fields.tyreWear">Usure pneus</span> : <span id="tyre-wear-display">1x</span></label><input type="range" id="tyre-wear" min="0" max="5" value="1" step="1"></div>
+            <div class="field"><label for="slipstream"><span data-i18n="app.session.fields.slipstream">Aspiration</span> : <span id="slipstream-display">1x</span></label><input type="range" id="slipstream" min="0" max="5" value="1" step="1"></div>
           </div>
-          <div class="row"><div class="field"><label class="check"><input type="checkbox" id="tyre-blankets"> Couvertures chauffantes</label></div></div>
+          <div class="row"><div class="field"><label class="check"><input type="checkbox" id="tyre-blankets"> <span data-i18n="app.session.fields.tyreBlankets">Couvertures chauffantes</span></label></div></div>
         </div>
       </div>
 
       <div id="subtab-presets" class="subtab-content">
         <div class="group">
-          <div class="group-title">Sauvegarder la configuration actuelle</div>
+          <div class="group-title" data-i18n="app.session.groups.savePreset">Sauvegarder la configuration actuelle</div>
           <div class="row">
             <div class="field">
-              <label for="preset-name-input">Nom du preset</label>
-              <input type="text" id="preset-name-input" placeholder="Ex : GT3 Spa 20 tours">
+              <label for="preset-name-input" data-i18n="app.session.fields.presetName">Nom du preset</label>
+              <input type="text" id="preset-name-input" placeholder="Ex : GT3 Spa 20 tours" data-i18n-placeholder="app.session.fields.presetNamePlaceholder">
             </div>
             <div class="field" style="flex: 0; min-width: auto; justify-content: flex-end;">
-              <button class="filter-btn" id="btn-save-preset" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;">
+              <button class="filter-btn" id="btn-save-preset" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent); white-space: nowrap;" data-i18n="app.session.btn.savePreset">
                 💾 Sauvegarder
               </button>
             </div>
@@ -404,7 +416,7 @@
         </div>
 
         <div class="group">
-          <div class="group-title">Presets sauvegardés</div>
+          <div class="group-title" data-i18n="app.session.groups.savedPresets">Presets sauvegardés</div>
           <div class="presets-list" id="presets-list"></div>
         </div>
       </div>
@@ -412,8 +424,8 @@
       <div id="subtab-history" class="subtab-content">
         <div class="group">
           <div class="group-title">
-            Sessions récentes
-            <button class="filter-btn" id="btn-clear-session-history" style="float: right; padding: 4px 12px; font-size: 0.7rem;">🗑️ Tout effacer</button>
+            <span data-i18n="app.session.groups.recentSessions">Sessions récentes</span>
+            <button class="filter-btn" id="btn-clear-session-history" style="float: right; padding: 4px 12px; font-size: 0.7rem;" data-i18n="app.session.btn.clearHistory">🗑️ Tout effacer</button>
           </div>
           <div id="session-history-list"></div>
         </div>
@@ -422,10 +434,10 @@
 
     <div id="tab-graphics" class="tab-content">
       <div class="group">
-        <div class="group-title">Heure et progression du temps</div>
+        <div class="group-title" data-i18n="app.weather.groups.time">Heure et progression du temps</div>
         <div class="row">
           <div class="field">
-            <label>Heure de début de session</label>
+            <label data-i18n="app.weather.fields.startTime">Heure de début de session</label>
             <div class="time-picker">
               <select id="session-start-hour"></select>
               <span class="sep">:</span>
@@ -433,55 +445,55 @@
             </div>
             <input type="hidden" id="session-start-time" value="12:00">
           </div>
-          <div class="field"><label for="time-mult">Multiplicateur de temps</label><input type="number" id="time-mult" value="1" min="1" max="24"></div>
+          <div class="field"><label for="time-mult" data-i18n="app.weather.fields.timeMult">Multiplicateur de temps</label><input type="number" id="time-mult" value="1" min="1" max="24"></div>
         </div>
       </div>
 
       <div class="group">
-        <div class="group-title">Conditions météo</div>
+        <div class="group-title" data-i18n="app.weather.groups.conditions">Conditions météo</div>
         <div class="row">
-          <div class="field"><label for="weather-mode">Mode météo</label>
+          <div class="field"><label for="weather-mode" data-i18n="app.weather.fields.weatherMode">Mode météo</label>
             <select id="weather-mode">
-              <option value="static" selected>Météo fixe</option>
-              <option value="existing_plan">Plan Pure existant</option>
-              <option value="custom_plan">Plan personnalisé</option>
+              <option value="static" selected data-i18n="app.weather.options.static">Météo fixe</option>
+              <option value="existing_plan" data-i18n="app.weather.options.existingPlan">Plan Pure existant</option>
+              <option value="custom_plan" data-i18n="app.weather.options.customPlan">Plan personnalisé</option>
             </select>
           </div>
         </div>
         <div class="row" id="weather-static-row">
-          <div class="field"><label for="weather-select">Météo</label><select id="weather-select"></select></div>
+          <div class="field"><label for="weather-select" data-i18n="app.weather.fields.weather">Météo</label><select id="weather-select"></select></div>
         </div>
         <div class="row" id="weather-plan-row" style="display: none;">
-          <div class="field"><label for="pure-plan-select">Plan Pure Planner</label><select id="pure-plan-select"></select></div>
-          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="pure-plan-random"> Sélection aléatoire à chaque lancement</label></div>
+          <div class="field"><label for="pure-plan-select" data-i18n="app.weather.fields.purePlan">Plan Pure Planner</label><select id="pure-plan-select"></select></div>
+          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="pure-plan-random"> <span data-i18n="app.weather.fields.randomPick">Sélection aléatoire à chaque lancement</span></label></div>
         </div>
       </div>
 
       <div class="group" id="weather-custom-group" style="display: none;">
-        <div class="group-title">Plan personnalisé</div>
+        <div class="group-title" data-i18n="app.weather.groups.customPlan">Plan personnalisé</div>
         <div class="row">
-          <div class="field"><label for="custom-plan-name">Nom du plan</label><input type="text" id="custom-plan-name" value="Mon plan"></div>
-          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="plan-loop"> Boucler le plan</label></div>
+          <div class="field"><label for="custom-plan-name" data-i18n="app.weather.fields.planName">Nom du plan</label><input type="text" id="custom-plan-name" value="Mon plan"></div>
+          <div class="field"><label class="check" style="margin-top: 28px;"><input type="checkbox" id="plan-loop"> <span data-i18n="app.weather.fields.loop">Boucler le plan</span></label></div>
         </div>
         <div id="weather-steps-list"></div>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-          <button class="filter-btn" id="btn-add-weather-step" style="padding: 10px 20px; background-color: var(--accent); color: white; border-color: var(--accent);">+ Ajouter une météo</button>
-          <button class="filter-btn" id="btn-clear-weather-steps" style="padding: 10px 20px;">Vider la liste</button>
-          <button class="filter-btn" id="btn-save-plan" style="padding: 10px 20px; background-color: var(--success); color: white; border-color: var(--success);">💾 Sauvegarder le plan</button>
+          <button class="filter-btn" id="btn-add-weather-step" style="padding: 10px 20px; background-color: var(--accent); color: white; border-color: var(--accent);" data-i18n="app.weather.btn.addStep">+ Ajouter une météo</button>
+          <button class="filter-btn" id="btn-clear-weather-steps" style="padding: 10px 20px;" data-i18n="app.weather.btn.clearSteps">Vider la liste</button>
+          <button class="filter-btn" id="btn-save-plan" style="padding: 10px 20px; background-color: var(--success); color: white; border-color: var(--success);" data-i18n="app.weather.btn.savePlan">💾 Sauvegarder le plan</button>
           <span id="weather-total-duration" style="font-size: 0.82rem; color: var(--text-tertiary);"></span>
         </div>
       </div>
 
       <div class="group" id="weather-existing-plans-group">
         <div class="group-title">
-          Plans existants
-          <button class="filter-btn" id="btn-refresh-plans" style="float: right; padding: 4px 12px; font-size: 0.7rem;">🔄 Rafraîchir</button>
+          <span data-i18n="app.weather.groups.existingPlans">Plans existants</span>
+          <button class="filter-btn" id="btn-refresh-plans" style="float: right; padding: 4px 12px; font-size: 0.7rem;" data-i18n="app.weather.btn.refreshPlans">🔄 Rafraîchir</button>
         </div>
         <div class="plans-list" id="existing-plans-list"></div>
       </div>
 
       <div class="group" id="purectrl-settings-group">
-        <div class="group-title">Paramètres pureCtrl</div>
+        <div class="group-title" data-i18n="app.weather.groups.pureCtrl">Paramètres pureCtrl</div>
         <div class="row">
           <div class="field">
             <label class="check"><input type="checkbox" id="purectrl-autostart"> Autostart</label>
@@ -508,8 +520,8 @@
 
     <div id="tab-mods" class="tab-content">
       <div class="group">
-        <div class="group-title">Installation de mods</div>
-        <div class="drop-zone" id="drop-zone">
+        <div class="group-title" data-i18n="app.mods.groups.installation">Installation de mods</div>
+        <div class="drop-zone" id="drop-zone" data-i18n-html="app.mods.dropZone">
           📁 Glissez-déposez une archive ici <span style="color: var(--text-primary); font-weight: 600;">ou cliquez pour parcourir</span><br>
           <span style="font-size: 0.8rem; opacity: 0.7;">Formats : .zip, .rar, .7z, .tar.gz</span><br>
           <span style="font-size: 0.8rem; opacity: 0.7;">Voiture, Circuit, App, Extension...</span>
@@ -521,18 +533,18 @@
       </div>
 
       <div class="group" id="mods-history-group">
-        <div class="group-title">Historique d'installation</div>
+        <div class="group-title" data-i18n="app.mods.groups.history">Historique d'installation</div>
         <div id="mods-history-list"></div>
       </div>
     </div>
 
         <div id="tab-settings" class="tab-content">
       <div class="subtabs">
-        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-settings-general')">Général</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-controls')">🎮 Contrôles</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-video')">🖥️ Vidéo</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-audio')">🔊 Audio</button>
-        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-csp')">🌩️ CSP</button>
+        <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-settings-general')" data-i18n="app.settings.subtabs.general">Général</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-controls')" data-i18n="app.settings.subtabs.controls">🎮 Contrôles</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-video')" data-i18n="app.settings.subtabs.video">🖥️ Vidéo</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-audio')" data-i18n="app.settings.subtabs.audio">🔊 Audio</button>
+        <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-csp')" data-i18n="app.settings.subtabs.csp">🌩️ CSP</button>
       </div>
 
       <div id="subtab-settings-general" class="subtab-content active">
@@ -547,56 +559,56 @@
               </select>
             </div>
           </div>
-          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;" data-i18n-html="app.settings.hints.language">
             💡 La langue s'applique aux libellés des modules CSP et, à terme, à toute l'interface.<br>
             ⚠️ Certains éléments (nom des modules, description) restent en anglais pour le moment.
           </div>
         </div>
 
         <div class="group" id="player-identity-group">
-          <div class="group-title">Identité du pilote</div>
+          <div class="group-title" data-i18n="app.settings.groups.identity">Identité du pilote</div>
           <div class="row">
             <div class="field">
-              <label for="player-name">Nom du pilote (solo)</label>
-              <input type="text" id="player-name" value="Driver" placeholder="Driver">
+              <label for="player-name" data-i18n="app.settings.fields.playerName">Nom du pilote (solo)</label>
+              <input type="text" id="player-name" value="Driver" placeholder="Driver" data-i18n-placeholder="app.settings.fields.playerNamePlaceholder">
             </div>
             <div class="field">
-              <label for="online-name">Nom en ligne (multi)</label>
-              <input type="text" id="online-name" value="" placeholder="(utilise le nom du pilote par défaut)">
+              <label for="online-name" data-i18n="app.settings.fields.onlineName">Nom en ligne (multi)</label>
+              <input type="text" id="online-name" value="" placeholder="(utilise le nom du pilote par défaut)" data-i18n-placeholder="app.settings.fields.onlineNamePlaceholder">
             </div>
           </div>
           <div class="row">
             <div class="field">
-              <label for="steam-id">Steam ID (GUID)</label>
+              <label for="steam-id" data-i18n="app.settings.fields.steamId">Steam ID (GUID)</label>
               <div style="display: flex; gap: 10px; align-items: center;">
                 <input type="text" id="steam-id" value="" placeholder="76561198XXXXXXXXX" style="flex: 1;">
-                <button class="filter-btn" id="btn-detect-steam-id" style="white-space: nowrap;">🔍 Détecter</button>
+                <button class="filter-btn" id="btn-detect-steam-id" style="white-space: nowrap;" data-i18n="app.settings.btn.detectSteam">🔍 Détecter</button>
               </div>
             </div>
           </div>
-          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;" data-i18n-html="app.settings.hints.identity">
             💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>
             💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur "Détecter".
           </div>
         </div>
 
         <div class="group">
-          <div class="group-title">Chemin d'accès au jeu</div>
+          <div class="group-title" data-i18n="app.settings.groups.gamePath">Chemin d'accès au jeu</div>
           <div class="field">
-            <label>Dossier racine Assetto Corsa</label>
+            <label data-i18n="app.settings.fields.acRoot">Dossier racine Assetto Corsa</label>
             <div style="display: flex; gap: 10px; align-items: center;">
               <span id="ac-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Non défini</span>
-              <button class="filter-btn" id="btn-select-ac">Parcourir...</button>
+              <button class="filter-btn" id="btn-select-ac" data-i18n="app.settings.btn.browse">Parcourir...</button>
             </div>
           </div>
         </div>
         <div class="group">
-          <div class="group-title">Dossier Documents</div>
+          <div class="group-title" data-i18n="app.settings.groups.documentsPath">Dossier Documents</div>
           <div class="field">
-            <label>Dossier Documents (contenant "Assetto Corsa/cfg")</label>
+            <label data-i18n="app.settings.fields.documentsFolder">Dossier Documents (contenant "Assetto Corsa/cfg")</label>
             <div style="display: flex; gap: 10px; align-items: center;">
               <span id="documents-path-display" style="color: var(--text-secondary); font-size: 0.85rem; word-break: break-all; flex: 1;">Détection automatique...</span>
-              <button class="filter-btn" id="btn-select-documents">Parcourir...</button>
+              <button class="filter-btn" id="btn-select-documents" data-i18n="app.settings.btn.browse">Parcourir...</button>
             </div>
           </div>
         </div>
@@ -608,15 +620,15 @@
 
       <div id="subtab-settings-video" class="subtab-content">
                 <div class="group" id="weatherfx-group">
-          <div class="group-title">🎨 Rendu — Style & Filtre</div>
+          <div class="group-title" data-i18n="app.settings.groups.render">🎨 Rendu — Style & Filtre</div>
 
           <div class="row">
             <div class="field">
               <div class="field-header">
-                <label for="weatherfx-style-select">Style Weather FX</label>
+                <label for="weatherfx-style-select" data-i18n="app.settings.fields.weatherFxStyle">Style Weather FX</label>
                 <label class="check-inline">
                   <input type="checkbox" id="weatherfx-enabled">
-                  <span>Activer</span>
+                  <span data-i18n="app.settings.fields.enable">Activer</span>
                 </label>
               </div>
               <select id="weatherfx-style-select">
@@ -626,10 +638,10 @@
 
             <div class="field">
               <div class="field-header">
-                <label for="render-ppfilter-select">Filtre post-process (PP)</label>
+                <label for="render-ppfilter-select" data-i18n="app.settings.fields.ppFilter">Filtre post-process (PP)</label>
                 <label class="check-inline">
                   <input type="checkbox" id="render-pp-enabled">
-                  <span>Activer</span>
+                  <span data-i18n="app.settings.fields.enable">Activer</span>
                 </label>
               </div>
               <select id="render-ppfilter-select">
@@ -639,7 +651,7 @@
           </div>
 
           <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-            <span>
+            <span data-i18n-html="app.settings.hints.render">
               💡 Le <strong>Weather FX</strong> définit le traitement en amont des filtres PP.<br>
               • <strong>Default</strong> : rendu Kunos classique<br>
               • <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>
@@ -650,25 +662,25 @@
         </div>
 
         <div class="group" id="free-camera-group">
-          <div class="group-title">🎥 Caméra libre & Vue orbite</div>
+          <div class="group-title" data-i18n="app.settings.groups.freeCamera">🎥 Caméra libre & Vue orbite</div>
           <div class="row">
             <div class="field">
               <label class="check">
                 <input type="checkbox" id="free-camera-enabled">
-                Autoriser la caméra libre (F5)
+                <span data-i18n="app.settings.fields.allowFreeCam">Autoriser la caméra libre (F5)</span>
               </label>
             </div>
             <div class="field">
               <label class="check">
                 <input type="checkbox" id="orbit-mode-enabled">
-                Mode orbite pour la caméra F5
+                <span data-i18n="app.settings.fields.orbitMode">Mode orbite pour la caméra F5</span>
               </label>
             </div>
             <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
               <span id="free-camera-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
             </div>
           </div>
-          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;">
+          <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6;" data-i18n-html="app.settings.hints.freeCamera">
             💡 La <strong>caméra libre</strong> permet de sortir de la voiture avec F5 pour te déplacer librement dans la scène.<br>
             💡 Le <strong>mode orbite</strong> change la rotation F5 en orbite autour de la voiture (plus intuitif à la souris).
           </div>
@@ -685,13 +697,13 @@
 
       <div id="subtab-settings-csp" class="subtab-content">
         <div class="csp-toolbar">
-          <div class="csp-title">🌩️ Custom Shaders Patch — Modules</div>
+          <div class="csp-title" data-i18n="app.settings.groups.cspTitle">🌩️ Custom Shaders Patch — Modules</div>
           <div class="csp-actions">
             <span class="csp-status" id="csp-status"></span>
-            <button class="filter-btn" id="csp-refresh">↶ Rafraîchir</button>
+            <button class="filter-btn" id="csp-refresh" data-i18n="app.settings.btn.refresh">↶ Rafraîchir</button>
           </div>
         </div>
-        <div class="csp-help">
+        <div class="csp-help" data-i18n-html="app.settings.hints.cspHelp">
           💡 Active ou désactive les modules CSP. La désactivation d'un module peut améliorer les performances mais retirer des fonctionnalités visuelles.<br>
           ⚠️ Redémarre Assetto Corsa après modification pour appliquer les changements.
         </div>
@@ -713,9 +725,9 @@
   <div class="modal server-join-modal" id="server-join-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 class="modal-title" id="server-join-title">🌐 Rejoindre un serveur</h3>
+        <h3 class="modal-title" id="server-join-title" data-i18n="app.serverJoin.title">🌐 Rejoindre un serveur</h3>
         <div style="display: flex; gap: 8px; align-items: center;">
-          <button class="filter-btn" id="server-join-refresh" title="Actualiser les infos du serveur" style="padding: 6px 12px; font-size: 0.75rem;">
+          <button class="filter-btn" id="server-join-refresh" title="Actualiser les infos du serveur" data-i18n-title="app.serverJoin.refreshTitle" style="padding: 6px 12px; font-size: 0.75rem;" data-i18n="app.serverJoin.refresh">
             🔄 Rafraîchir
           </button>
           <button class="modal-close" id="server-join-close">&times;</button>
@@ -724,19 +736,19 @@
 
       <div class="server-join-info" id="server-join-info">
         <div class="item">
-          <span class="label">Serveur</span>
+          <span class="label" data-i18n="app.serverJoin.labels.server">Serveur</span>
           <span class="value" id="server-join-name">—</span>
         </div>
         <div class="item">
-          <span class="label">Circuit</span>
+          <span class="label" data-i18n="app.serverJoin.labels.track">Circuit</span>
           <span class="value" id="server-join-track">—</span>
         </div>
         <div class="item">
-          <span class="label">Joueurs</span>
+          <span class="label" data-i18n="app.serverJoin.labels.players">Joueurs</span>
           <span class="value" id="server-join-players">—</span>
         </div>
         <div class="item">
-          <span class="label">Mot de passe</span>
+          <span class="label" data-i18n="app.serverJoin.labels.password">Mot de passe</span>
           <span class="value small" id="server-join-password-required">—</span>
         </div>
       </div>
@@ -745,24 +757,23 @@
 	  <div id="server-join-features" style="display: none;"></div>
 
       <div id="server-join-description-wrap" class="server-description-wrap" style="display:none;">
-        <div class="server-description-label">📢 Description du serveur</div>
+        <div class="server-description-label" data-i18n="app.serverJoin.labels.description">📢 Description du serveur</div>
         <div class="server-description" id="server-join-description"></div>
       </div>
 
       <div id="server-join-warnings"></div>
 
       <div class="field">
-        <label>Choisis ta voiture</label>
+        <label data-i18n="app.serverJoin.labels.pickCar">Choisis ta voiture</label>
         <div class="car-select-list" id="server-join-cars">
-          <div class="servers-loading">⏳ Chargement des voitures du serveur...</div>
+          <div class="servers-loading" data-i18n="app.serverJoin.loadingCars">⏳ Chargement des voitures du serveur...</div>
         </div>
       </div>
 
-      <!-- ⭐ NOUVEAU : Sélection de skin -->
       <div class="field" id="server-join-skin-section" style="display: none;">
         <label>
-          Choisis ta skin
-          <span style="font-weight: 400; color: var(--text-tertiary); font-size: 0.72rem; margin-left: 6px;">
+          <span data-i18n="app.serverJoin.labels.pickSkin">Choisis ta skin</span>
+          <span style="font-weight: 400; color: var(--text-tertiary); font-size: 0.72rem; margin-left: 6px;" data-i18n="app.serverJoin.labels.skinHint">
             (peut être ignorée si le serveur impose ses skins)
           </span>
         </label>
@@ -770,13 +781,13 @@
       </div>
 
       <div class="field">
-        <label for="server-join-password">Mot de passe (si requis)</label>
-        <input type="text" id="server-join-password" placeholder="(laisser vide si aucun)">
+        <label for="server-join-password" data-i18n="app.serverJoin.labels.passwordField">Mot de passe (si requis)</label>
+        <input type="text" id="server-join-password" placeholder="(laisser vide si aucun)" data-i18n-placeholder="app.serverJoin.labels.passwordPlaceholder">
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 10px;">
-        <button class="filter-btn" id="server-join-cancel" style="padding: 10px 20px;">Annuler</button>
-        <button class="filter-btn" id="server-join-confirm" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);">
+        <button class="filter-btn" id="server-join-cancel" style="padding: 10px 20px;" data-i18n="app.serverJoin.cancel">Annuler</button>
+        <button class="filter-btn" id="server-join-confirm" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);" data-i18n="app.serverJoin.confirm">
           ▶ Rejoindre
         </button>
       </div>
@@ -786,24 +797,24 @@
   <div class="modal" id="server-edit-modal">
     <div class="modal-content" style="width: 480px;">
       <div class="modal-header">
-        <h3 class="modal-title" id="server-edit-title">✏️ Modifier le serveur</h3>
+        <h3 class="modal-title" id="server-edit-title" data-i18n="app.serverEdit.title">✏️ Modifier le serveur</h3>
         <button class="modal-close" id="server-edit-close">&times;</button>
       </div>
       <div class="field">
-        <label for="server-edit-name">Nom du serveur</label>
-        <input type="text" id="server-edit-name" placeholder="Mon serveur préféré">
+        <label for="server-edit-name" data-i18n="app.serverEdit.name">Nom du serveur</label>
+        <input type="text" id="server-edit-name" placeholder="Mon serveur préféré" data-i18n-placeholder="app.serverEdit.namePlaceholder">
       </div>
       <div class="field">
-        <label for="server-edit-ip">Adresse IP:PORT</label>
+        <label for="server-edit-ip" data-i18n="app.serverEdit.ip">Adresse IP:PORT</label>
         <input type="text" id="server-edit-ip" placeholder="51.38.180.172:28093">
       </div>
-      <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;">
+      <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.5;" data-i18n-html="app.serverEdit.hint">
         💡 Le port saisi est considéré comme le <strong>port HTTP</strong> (celui de la page web du serveur).
         Le launcher trouve automatiquement le port de jeu.
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px;">
-        <button class="filter-btn" id="server-edit-cancel" style="padding: 10px 20px;">Annuler</button>
-        <button class="filter-btn" id="server-edit-save" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);">
+        <button class="filter-btn" id="server-edit-cancel" style="padding: 10px 20px;" data-i18n="app.serverEdit.cancel">Annuler</button>
+        <button class="filter-btn" id="server-edit-save" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);" data-i18n="app.serverEdit.save">
           💾 Enregistrer
         </button>
       </div>
@@ -814,25 +825,25 @@
   <div class="tags-popup" id="tags-popup">
     <div class="tags-popup-header">
       <div class="tags-popup-title">
-        🏷️ <span id="tags-popup-kind">Filtrer par tags</span>
+        🏷️ <span id="tags-popup-kind" data-i18n="app.tags.title">Filtrer par tags</span>
         <span class="tags-popup-count" id="tags-popup-total">0</span>
       </div>
-      <button class="tags-popup-close" id="tags-popup-close" title="Fermer">×</button>
+      <button class="tags-popup-close" id="tags-popup-close" title="Fermer" data-i18n-title="app.titlebar.close">×</button>
     </div>
     <div class="tags-popup-search">
-      <input type="text" id="tags-popup-search-input" placeholder="Rechercher un tag...">
+      <input type="text" id="tags-popup-search-input" placeholder="Rechercher un tag..." data-i18n-placeholder="app.tags.searchPlaceholder">
     </div>
     <div class="tags-popup-body" id="tags-popup-body"></div>
     <div class="tags-popup-footer">
-      <span class="tags-popup-footer-info" id="tags-popup-selected-info">Aucun tag actif</span>
-      <button class="tags-popup-clear" id="tags-popup-clear">✕ Effacer tout</button>
+      <span class="tags-popup-footer-info" id="tags-popup-selected-info" data-i18n="app.tags.noActive">Aucun tag actif</span>
+      <button class="tags-popup-clear" id="tags-popup-clear" data-i18n="app.tags.clearAll">✕ Effacer tout</button>
     </div>
   </div>
   
     <div class="modal" id="wheel-calib-modal">
     <div class="modal-content wheel-calib-modal-content">
       <div class="modal-header">
-        <h3 class="modal-title">🎯 Calibration du volant</h3>
+        <h3 class="modal-title" data-i18n="app.wheelCalib.title">🎯 Calibration du volant</h3>
         <button class="modal-close" id="wheel-calib-close">&times;</button>
       </div>
       <div id="wheel-calib-content" class="wheel-calib-content"></div>
@@ -842,15 +853,15 @@
   <div class="modal" id="csp-module-modal">
     <div class="modal-content csp-module-modal-content">
       <div class="modal-header">
-        <h3 class="modal-title" id="csp-module-modal-title">Options du module</h3>
+        <h3 class="modal-title" id="csp-module-modal-title" data-i18n="app.cspModule.title">Options du module</h3>
         <button class="modal-close" id="csp-module-modal-close">&times;</button>
       </div>
       <div id="csp-module-modal-body" class="csp-module-modal-body"></div>
       <div class="csp-module-modal-footer">
         <span class="csp-module-modal-status" id="csp-module-modal-status"></span>
         <div class="csp-module-modal-actions">
-          <button class="filter-btn" id="csp-module-modal-reset">↶ Recharger</button>
-          <button class="filter-btn ini-btn-save" id="csp-module-modal-save">💾 Enregistrer</button>
+          <button class="filter-btn" id="csp-module-modal-reset" data-i18n="app.cspModule.reload">↶ Recharger</button>
+          <button class="filter-btn ini-btn-save" id="csp-module-modal-save" data-i18n="app.cspModule.save">💾 Enregistrer</button>
         </div>
       </div>
     </div>
@@ -879,6 +890,7 @@
   <script src="src/cspParser.js"></script>
   <script src="src/cspTemplate.js"></script>
   <script src="src/i18n.js"></script>
+    <script src="src/dialogs.js"></script>
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="app.js"></script>

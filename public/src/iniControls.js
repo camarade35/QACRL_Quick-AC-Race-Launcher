@@ -4,6 +4,12 @@
 
   const _liveIntervals = [];
 
+  // ⭐ Helper de traduction : utilise I18n.tFr si dispo, sinon renvoie le texte
+  function T(s) {
+    if (!s) return '';
+    return (global.I18n && global.I18n.tFr) ? global.I18n.tFr(s) : s;
+  }
+
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) for (const k in attrs) {
@@ -53,7 +59,7 @@
       const seen = new Set();
       if (currentValue) seen.add(currentValue);
       for (const d of outputs) {
-        const label = (d.label || '').trim() || ('Sortie ' + d.deviceId.slice(0, 8));
+        const label = (d.label || '').trim() || (T('Sortie ') + d.deviceId.slice(0, 8));
         if (seen.has(label)) continue;
         seen.add(label);
         const opt = document.createElement('option');
@@ -154,18 +160,18 @@
         if ((opts.key === 'JOY' || opts.key === 'JOY_MODIFICATOR') && opts.sectionContext) {
           const controllers = opts.sectionContext.controllers || [];
           const sel = el('select', { class: 'ini-select' });
-          const none = el('option', { value: '-1', text: '— Aucun —' });
+          const none = el('option', { value: '-1', text: '— ' + T('Aucun') + ' —' });
           if (rawValue === '-1') none.selected = true;
           sel.appendChild(none);
           let matched = false;
           for (const c of controllers) {
-            const label = 'JOY=' + c.index + ' — ' + c.name;
-            const opt = el('option', { value: String(c.index), text: label });
+            const labelTxt = 'JOY=' + c.index + ' — ' + c.name;
+            const opt = el('option', { value: String(c.index), text: labelTxt });
             if (String(c.index) === String(rawValue)) { opt.selected = true; matched = true; }
             sel.appendChild(opt);
           }
           if (!matched && rawValue && rawValue !== '-1') {
-            const opt = el('option', { value: rawValue, text: 'JOY=' + rawValue + ' (inconnu)' });
+            const opt = el('option', { value: rawValue, text: 'JOY=' + rawValue + ' (' + T('inconnu') + ')' });
             opt.selected = true;
             sel.appendChild(opt);
           }
@@ -186,7 +192,7 @@
           let currentValue = rawValue;
           const btn = el('button', { type: 'button', class: 'ini-binding-btn' });
           let capturing = false;
-          const labelFor = (v) => '⌨ ' + (global.KeyboardMapper.formatKey(v) || '(aucune)');
+          const labelFor = (v) => '⌨ ' + (global.KeyboardMapper.formatKey(v) || '(' + T('aucune') + ')');
           const updateLabel = () => { btn.textContent = labelFor(currentValue); };
           updateLabel();
           const onKeyDown = (e) => {
@@ -208,7 +214,7 @@
           const startCapture = () => {
             capturing = true;
             btn.classList.add('capturing');
-            btn.textContent = '⌨ Appuyez sur une touche… (Échap = annule, Suppr = efface)';
+            btn.textContent = T('⌨ Appuyez sur une touche… (Échap = annule, Suppr = efface)');
             document.addEventListener('keydown', onKeyDown, true);
           };
           const stopCapture = () => {
@@ -230,7 +236,7 @@
           let capturing = false;
           const updateLabel = () => {
             const n = parseInt(currentValue, 10);
-            btn.textContent = (!isNaN(n) && n >= 0) ? '🎮 Bouton ' + n : '🎮 (aucun)';
+            btn.textContent = (!isNaN(n) && n >= 0) ? '🎮 ' + T('Bouton') + ' ' + n : '🎮 (' + T('aucun') + ')';
           };
           updateLabel();
           const stopCapture = () => {
@@ -242,7 +248,7 @@
           const startCapture = () => {
             capturing = true;
             btn.classList.add('capturing');
-            btn.textContent = '🎮 Appuyez sur un bouton du pad… (Échap annule, Suppr efface)';
+            btn.textContent = T('🎮 Appuyez sur un bouton du pad… (Échap annule, Suppr efface)');
             global.GamepadCapture.start({
               axesThreshold: 0, timeoutMs: 10000,
               resolveAcIndex: (chromiumIndex) => {
@@ -280,11 +286,13 @@
           let capturing = false;
           let updateLabel = () => {
             const n = parseInt(currentValue, 10);
+            const axisWord = T('Axe');
+            const noneWord = T('Non assigné');
             if (!isNaN(n) && n >= 0) {
-              btn.textContent = '↔ Axe ' + n;
+              btn.textContent = '↔ ' + axisWord + ' ' + n;
               btn.classList.remove('ini-binding-axis-empty');
             } else {
-              btn.textContent = '⚠️ Non assigné — Cliquez pour configurer';
+              btn.textContent = '⚠️ ' + noneWord + ' — ' + T('Cliquez pour configurer');
               btn.classList.add('ini-binding-axis-empty');
             }
           };
@@ -298,7 +306,7 @@
           const startCapture = () => {
             capturing = true;
             btn.classList.add('capturing');
-            btn.textContent = '↔ Bougez l\'axe… (Échap annule)';
+            btn.textContent = T('↔ Bougez l\'axe… (Échap annule)');
             global.GamepadCapture.start({
               axesThreshold: 0.5, timeoutMs: 10000,
               resolveAcIndex: (chromiumIndex) => {
@@ -339,7 +347,7 @@
           const reconfigBtn = el('button', {
             type: 'button',
             class: 'ini-axis-reconfig',
-            title: 'Reconfigurer cet axe avec le wizard guidé'
+            title: T('Reconfigurer cet axe avec le wizard guidé')
           });
           reconfigBtn.textContent = '🎯';
           reconfigBtn.addEventListener('click', (e) => {
@@ -348,7 +356,7 @@
             if (global.WheelCalibration && typeof global.WheelCalibration.startSingleStep === 'function') {
               global.WheelCalibration.startSingleStep(opts.section);
             } else {
-              alert('Le wizard de calibration n\'est pas disponible.');
+              alert(T('Le wizard de calibration n\'est pas disponible.'));
             }
           });
 
@@ -450,7 +458,7 @@
           const sel = el('select', { class: 'ini-select' });
           let matched = false;
           for (const v of values) {
-            const opt = el('option', { value: v, text: v === '-1' ? '(aucun)' : v });
+            const opt = el('option', { value: v, text: v === '-1' ? '(' + T('aucun') + ')' : v });
             if (v === rawValue) { opt.selected = true; matched = true; }
             sel.appendChild(opt);
           }
@@ -467,7 +475,7 @@
 
         // Fallback texte
         const inp = el('input', { type: 'text', class: 'ini-text ini-binding',
-          value: rawValue, placeholder: isJoy ? 'index du périphérique AC' : 'valeur brute' });
+          value: rawValue, placeholder: isJoy ? T('index du périphérique AC') : T('valeur brute') });
         inp.addEventListener('input', () => { if (opts.onChange) opts.onChange(inp.value); });
         controlEl = inp;
         getValue = () => inp.value;
@@ -479,7 +487,7 @@
       // ---------------------------------------------------------------------
       case 'resolution': {
         const sel = el('select', { class: 'ini-select' });
-        const placeholder = el('option', { value: '', text: '⏳ Chargement…' });
+        const placeholder = el('option', { value: '', text: '⏳ ' + T('Chargement…') });
         sel.appendChild(placeholder);
 
         const w = parseInt(rawValue, 10) || 0;
@@ -488,7 +496,7 @@
         if (window.api && window.api.listResolutions) {
           window.api.listResolutions().then(res => {
             if (!res || !res.success) {
-              sel.innerHTML = '<option value="">⚠️ Erreur</option>';
+              sel.innerHTML = '<option value="">⚠️ ' + T('Erreur') + '</option>';
               return;
             }
             sel.innerHTML = '';
@@ -499,7 +507,7 @@
               sel.appendChild(opt);
             }
             if (!matched && w > 0 && h > 0) {
-              const opt = el('option', { value: w + 'x' + h, text: `${w} × ${h} (actuel)` });
+              const opt = el('option', { value: w + 'x' + h, text: `${w} × ${h} (${T('actuel')})` });
               opt.selected = true;
               sel.insertBefore(opt, sel.firstChild);
             }
@@ -537,7 +545,7 @@
           opt0.selected = true;
           sel.appendChild(opt0);
         } else {
-          const opt0 = el('option', { value: '', text: '— Aucun —' });
+          const opt0 = el('option', { value: '', text: '— ' + T('Aucun') + ' —' });
           sel.appendChild(opt0);
         }
         populateAudioSinks(sel, rawValue);
@@ -557,7 +565,8 @@
       }
     }
 
-    const labelEl = el('label', { class: 'ini-label', title: opts.key || '', text: label });
+    const displayLabel = T(label);
+    const labelEl = el('label', { class: 'ini-label', title: opts.key || '', text: displayLabel });
     if (schema.unit) labelEl.appendChild(el('span', { class: 'ini-unit', text: ' (' + schema.unit + ')' }));
     const wrapper = el('div', { class: 'ini-row' }, [labelEl, controlEl]);
 

@@ -141,13 +141,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setupDragAndDrop();
 
-  // ⭐ Charge la langue depuis les settings (fr par défaut) — non bloquant
+  // ⭐ Remplace les alert() natifs par des modales stylées
+  if (window.QacrlDialogs && typeof window.QacrlDialogs.installGlobalOverrides === 'function') {
+    window.QacrlDialogs.installGlobalOverrides();
+  }
+
+  // ⭐ Charge les traductions (fr par défaut) — non bloquant
   if (window.I18n && typeof window.I18n.load === 'function') {
     (async () => {
       try {
         const settings = await window.api.getSettings();
         const lang = (settings && settings.language) || 'fr';
         await window.I18n.load(lang);
+        window.I18n.applyToDom();
         const sel = document.getElementById('language-select');
         if (sel) sel.value = lang;
       } catch (e) {
@@ -473,7 +479,10 @@ function setupEventListeners() {
       return;
     }
 
-    // Ferme la modale CSP si elle est ouverte (pour éviter un état incohérent)
+    // ⭐ Applique à tout le DOM
+    window.I18n.applyToDom();
+
+    // Ferme la modale CSP si elle est ouverte
     const modal = document.getElementById('csp-module-modal');
     if (modal && modal.classList.contains('visible')) {
       modal.classList.remove('visible');
@@ -484,7 +493,24 @@ function setupEventListeners() {
       window.SettingsCsp.load();
     }
 
-    // Petit feedback visuel
+    // ⭐ Re-render les listes dynamiques (voitures, circuits, serveurs)
+    if (typeof renderCarsGrid === 'function') renderCarsGrid();
+    if (typeof renderTracksGrid === 'function') renderTracksGrid();
+    if (typeof renderManualServers === 'function') renderManualServers();
+    if (typeof renderRecentServers === 'function') renderRecentServers();
+    if (typeof renderOnlineServers === 'function') renderOnlineServers();
+
+    // ⭐ Re-render les listes côté Session / Météo / Mods / Historique
+    if (typeof renderPresetsList === 'function') renderPresetsList();
+    if (typeof renderSessionHistory === 'function') renderSessionHistory();
+    if (typeof renderModsHistory === 'function') renderModsHistory();
+    if (typeof renderExistingPlans === 'function') renderExistingPlans();
+    if (typeof renderWeatherSteps === 'function') renderWeatherSteps();
+    if (typeof updateWeatherUI === 'function') updateWeatherUI();
+    if (typeof updateSessionUI === 'function') updateSessionUI();
+    if (typeof updateSlidersDisplay === 'function') updateSlidersDisplay();
+    if (typeof updateRecapSidebar === 'function') updateRecapSidebar();
+
     console.log('[i18n] Langue changée →', newLang);
   });
 

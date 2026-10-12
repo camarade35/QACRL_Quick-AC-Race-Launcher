@@ -1,5 +1,298 @@
 {
   "_meta": { "lang": "fr", "label": "Français", "version": "1.0" },
+    "app": {
+    "titlebar": {
+      "minimize": "Réduire",
+      "maximize": "Agrandir",
+      "close": "Fermer"
+    },
+    "theme": {
+      "toggleTitle": "Basculer clair/sombre",
+      "pickerTitle": "Changer la couleur du thème"
+    },
+    "sidebar": {
+      "car": "Voiture",
+      "track": "Circuit",
+      "session": "Session",
+      "noCar": "Aucune sélectionnée",
+      "noTrack": "Aucun sélectionné",
+      "goCar": "Aller à l'onglet Voitures",
+      "goTrack": "Aller à l'onglet Circuits",
+      "goSession": "Aller à l'onglet Session",
+      "random": "🎲 Sélection aléatoire",
+      "randomTitle": "Tirer au sort voiture + skin + circuit + variante",
+      "launch": "▶ Démarrer la course",
+      "launching": "LANCEMENT..."
+    },
+    "tabs": {
+      "cars": "Voitures",
+      "tracks": "Circuits",
+      "online": "🌐 En ligne",
+      "session": "Session",
+      "weather": "Météo",
+      "mods": "Gestion Mods",
+      "settings": "Paramètres"
+    },
+    "sections": {
+      "carSelection": "Sélection de la voiture",
+      "trackSelection": "Sélection du circuit",
+      "onlineServers": "Serveurs en ligne"
+    },
+    "filters": {
+      "all": "Tous",
+      "kunos": "Kunos",
+      "mods": "Mods",
+      "favorites": "⭐ Favoris",
+      "used": "✓ Déjà joués"
+    },
+    "search": {
+      "car": "Rechercher une voiture...",
+      "track": "Rechercher un circuit...",
+      "manufacturer": "Tous les constructeurs"
+    },
+    "session": {
+      "subtabs": {
+        "session": "Session",
+        "raceIa": "Course & IA",
+        "pilotRealism": "Pilote & Réalisme",
+        "presets": "Presets",
+        "history": "Historique"
+      },
+      "groups": {
+        "typeDuration": "Type et durée de session",
+        "opponentsGrid": "Adversaires et grille de départ",
+        "aiBehavior": "Comportement de l'IA",
+        "nationality": "Nationalité",
+        "drivingAssists": "Assistances de pilotage",
+        "realismConditions": "Réalisme & conditions de course",
+        "savePreset": "Sauvegarder la configuration actuelle",
+        "savedPresets": "Presets sauvegardés",
+        "recentSessions": "Sessions récentes"
+      },
+      "fields": {
+        "sessionType": "Type de session",
+        "sessionMinutes": "Durée de la session (minutes)",
+        "practiceMinutes": "Essais libres (min, 0 = off)",
+        "qualifyMinutes": "Qualifications (min, 0 = off)",
+        "raceLaps": "Tours de course",
+        "opponentsCount": "Nombre d'adversaires",
+        "gridType": "Type de grille",
+        "startingPos": "Position de départ du joueur",
+        "customStartPos": "Position exacte",
+        "jumpStartPenalty": "Pénalité départ anticipé",
+        "playerFlag": "Nationalité du pilote",
+        "randomAiFlags": "Drapeaux aléatoires pour les IA",
+        "autoGearbox": "Vitesses auto",
+        "autoClutch": "Embrayage auto",
+        "autoblip": "Autoblip",
+        "idealLine": "Ligne idéale",
+        "tc": "TC",
+        "abs": "ABS",
+        "stability": "Stabilité",
+        "fuelRate": "Carburant",
+        "mechanicalDamage": "Dommage",
+        "tyreWear": "Usure pneus",
+        "slipstream": "Aspiration",
+        "tyreBlankets": "Couvertures chauffantes",
+        "presetName": "Nom du preset",
+        "presetNamePlaceholder": "Ex : GT3 Spa 20 tours"
+      },
+      "options": {
+        "practice": "Essais libres (Départ Pit)",
+        "race": "Course (Grille de départ)",
+        "hotlap": "Hotlap (Départ lancé)",
+        "gridSameCar": "Véhicule identique",
+        "gridRandom": "Aléatoire (Tout)",
+        "gridSameClass": "Même classe / catégorie",
+        "gridSameBrand": "Même marque",
+        "gridKunosOnly": "Kunos uniquement",
+        "posLast": "Dernier de la grille",
+        "posRandom": "Aléatoire",
+        "posFirst": "1ère position (Pole)",
+        "posSecond": "2ème position",
+        "posThird": "3ème position",
+        "posCustom": "Position spécifique...",
+        "penaltyOff": "Désactivé",
+        "penaltyDriveThrough": "Drive-through",
+        "penaltyStopGo": "Stop & Go (10s)",
+        "assistOff": "Désactivé",
+        "assistFactory": "Usine",
+        "assistOn": "Activé"
+      },
+      "btn": {
+        "savePreset": "💾 Sauvegarder",
+        "clearHistory": "🗑️ Tout effacer"
+      }
+    },
+    "weather": {
+      "groups": {
+        "time": "Heure et progression du temps",
+        "conditions": "Conditions météo",
+        "customPlan": "Plan personnalisé",
+        "existingPlans": "Plans existants",
+        "pureCtrl": "Paramètres pureCtrl"
+      },
+      "fields": {
+        "startTime": "Heure de début de session",
+        "timeMult": "Multiplicateur de temps",
+        "weatherMode": "Mode météo",
+        "weather": "Météo",
+        "purePlan": "Plan Pure Planner",
+        "randomPick": "Sélection aléatoire à chaque lancement",
+        "planName": "Nom du plan",
+        "loop": "Boucler le plan"
+      },
+      "options": {
+        "static": "Météo fixe",
+        "existingPlan": "Plan Pure existant",
+        "customPlan": "Plan personnalisé"
+      },
+      "btn": {
+        "addStep": "+ Ajouter une météo",
+        "clearSteps": "Vider la liste",
+        "savePlan": "💾 Sauvegarder le plan",
+        "refreshPlans": "🔄 Rafraîchir"
+      }
+    },
+    "mods": {
+      "groups": {
+        "installation": "Installation de mods",
+        "history": "Historique d'installation"
+      },
+      "dropZone": "📁 Glissez-déposez une archive ici <span style=\"color: var(--text-primary); font-weight: 600;\">ou cliquez pour parcourir</span><br><span style=\"font-size: 0.8rem; opacity: 0.7;\">Formats : .zip, .rar, .7z, .tar.gz</span><br><span style=\"font-size: 0.8rem; opacity: 0.7;\">Voiture, Circuit, App, Extension...</span>"
+    },
+    "serverEdit": {
+      "title": "✏️ Modifier le serveur",
+      "name": "Nom du serveur",
+      "namePlaceholder": "Mon serveur préféré",
+      "ip": "Adresse IP:PORT",
+      "hint": "💡 Le port saisi est considéré comme le <strong>port HTTP</strong> (celui de la page web du serveur). Le launcher trouve automatiquement le port de jeu.",
+      "cancel": "Annuler",
+      "save": "💾 Enregistrer"
+    },
+    "serverJoin": {
+      "title": "🌐 Rejoindre un serveur",
+      "refresh": "🔄 Rafraîchir",
+      "refreshTitle": "Actualiser les infos du serveur",
+      "cancel": "Annuler",
+      "confirm": "▶ Rejoindre",
+      "loadingCars": "⏳ Chargement des voitures du serveur...",
+      "labels": {
+        "server": "Serveur",
+        "track": "Circuit",
+        "players": "Joueurs",
+        "password": "Mot de passe",
+        "description": "📢 Description du serveur",
+        "pickCar": "Choisis ta voiture",
+        "pickSkin": "Choisis ta skin",
+        "skinHint": "(peut être ignorée si le serveur impose ses skins)",
+        "passwordField": "Mot de passe (si requis)",
+        "passwordPlaceholder": "(laisser vide si aucun)"
+      }
+    },
+    "tags": {
+      "title": "Filtrer par tags",
+      "searchPlaceholder": "Rechercher un tag...",
+      "noActive": "Aucun tag actif",
+      "clearAll": "✕ Effacer tout"
+    },
+    "wheelCalib": {
+      "title": "🎯 Calibration du volant"
+    },
+    "cspModule": {
+      "title": "Options du module",
+      "reload": "↶ Recharger",
+      "save": "💾 Enregistrer"
+    },
+    "online": {
+      "groups": {
+        "pasteLink": "🔗 Coller un lien de serveur",
+        "addManual": "Ajouter un serveur manuellement",
+        "recent": "🕒 Serveurs récents",
+        "savedServers": "Mes serveurs enregistrés",
+        "publicServers": "Serveurs publics (GS4u)"
+      },
+      "fields": {
+        "linkInput": "Lien acstuff, acmanager:// ou IP:PORT",
+        "manualIp": "Adresse IP:Port",
+        "manualName": "Nom (optionnel)",
+        "manualNamePlaceholder": "Mon serveur préféré",
+        "search": "Rechercher un serveur (nom, map, IP)...",
+        "country": "Pays",
+        "track": "Circuit",
+        "minPlayers": "Joueurs min."
+      },
+      "options": {
+        "allCountries": "Tous les pays",
+        "allTracks": "Tous les circuits"
+      },
+      "btn": {
+        "join": "▶ Rejoindre",
+        "add": "+ Ajouter",
+        "favoritesOnly": "⭐ Favoris uniquement",
+        "clearAll": "🗑️ Tout effacer",
+        "refresh": "🔄 Rafraîchir",
+        "loadMore": "⬇ Charger plus"
+      },
+      "sort": {
+        "name": "🔤 Nom",
+        "players": "👥 Joueurs",
+        "country": "🌍 Pays",
+        "rating": "⭐ Rating",
+        "byName": "Trier par nom",
+        "byPlayers": "Trier par nombre de joueurs",
+        "byCountry": "Trier par pays",
+        "byRating": "Trier par rating"
+      },
+      "hints": {
+        "pasteLink": "💡 Colle un lien copié depuis un site (ex : <code>acstuff.club</code>), un raccourci <code>acmanager://</code>, ou une simple adresse <code>IP:PORT</code>. Le launcher trouve automatiquement le port de jeu."
+      }
+    },
+    "iniLabels": {},
+    "settings": {
+      "subtabs": {
+        "general": "Général",
+        "controls": "🎮 Contrôles",
+        "video": "🖥️ Vidéo",
+        "audio": "🔊 Audio",
+        "csp": "🌩️ CSP"
+      },
+      "groups": {
+        "identity": "Identité du pilote",
+        "gamePath": "Chemin d'accès au jeu",
+        "documentsPath": "Dossier Documents",
+        "render": "🎨 Rendu — Style & Filtre",
+        "freeCamera": "🎥 Caméra libre & Vue orbite",
+        "cspTitle": "🌩️ Custom Shaders Patch — Modules"
+      },
+      "fields": {
+        "playerName": "Nom du pilote (solo)",
+        "playerNamePlaceholder": "Driver",
+        "onlineName": "Nom en ligne (multi)",
+        "onlineNamePlaceholder": "(utilise le nom du pilote par défaut)",
+        "steamId": "Steam ID (GUID)",
+        "acRoot": "Dossier racine Assetto Corsa",
+        "documentsFolder": "Dossier Documents (contenant \"Assetto Corsa/cfg\")",
+        "weatherFxStyle": "Style Weather FX",
+        "ppFilter": "Filtre post-process (PP)",
+        "enable": "Activer",
+        "allowFreeCam": "Autoriser la caméra libre (F5)",
+        "orbitMode": "Mode orbite pour la caméra F5"
+      },
+      "btn": {
+        "detectSteam": "🔍 Détecter",
+        "browse": "Parcourir...",
+        "refresh": "↶ Rafraîchir"
+      },
+      "hints": {
+        "identity": "💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur \"Détecter\".",
+        "freeCamera": "💡 La <strong>caméra libre</strong> permet de sortir de la voiture avec F5 pour te déplacer librement dans la scène.<br>💡 Le <strong>mode orbite</strong> change la rotation F5 en orbite autour de la voiture (plus intuitif à la souris).",
+        "render": "💡 Le <strong>Weather FX</strong> définit le traitement en amont des filtres PP.<br>• <strong>Default</strong> : rendu Kunos classique<br>• <strong>Pure Gamma</strong> : pipeline Pure en espace Gamma (recommandé)<br>• <strong>Pure LCS</strong> : pipeline Pure en espace linéaire (plus réaliste, plus coûteux en perf)",
+        "language": "💡 La langue s'applique aux libellés des modules CSP et, à terme, à toute l'interface.<br>⚠️ Certains éléments (nom des modules, description) restent en anglais pour le moment.",
+        "cspHelp": "💡 Active ou désactive les modules CSP. La désactivation d'un module peut améliorer les performances mais retirer des fonctionnalités visuelles.<br>⚠️ Redémarre Assetto Corsa après modification pour appliquer les changements."
+      }
+    }
+  },
   "csp": {
     "sectionLabels": {
       "360°": "360°",

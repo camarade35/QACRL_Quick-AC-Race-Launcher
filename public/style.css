@@ -3524,3 +3524,142 @@ select:disabled, input:disabled {
   user-select: none;
   opacity: 0.4;
 }
+/* ============================================================
+   MODALES CUSTOM (Dialogs) — remplacent alert/confirm/prompt
+   ============================================================ */
+.qacrl-dialog-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  animation: qacrl-dialog-fade-in 0.15s ease;
+}
+.qacrl-dialog-overlay.visible {
+  display: flex;
+}
+:root[data-theme="light"] .qacrl-dialog-overlay {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+@keyframes qacrl-dialog-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes qacrl-dialog-pop-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.qacrl-dialog {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  width: 480px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px;
+  gap: 16px;
+  box-shadow: var(--shadow-lg);
+  animation: qacrl-dialog-pop-in 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.qacrl-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.qacrl-dialog-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.qacrl-dialog-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Variant colorée selon le type */
+.qacrl-dialog-warning .qacrl-dialog-icon { filter: hue-rotate(0deg); }
+.qacrl-dialog-error   .qacrl-dialog-icon { filter: hue-rotate(0deg); }
+.qacrl-dialog-success .qacrl-dialog-icon { filter: hue-rotate(0deg); }
+
+.qacrl-dialog-body {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.qacrl-dialog-body strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.qacrl-dialog-body code {
+  background: var(--bg-elevated);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.qacrl-dialog-input {
+  display: flex;
+}
+.qacrl-dialog-input-field {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.qacrl-dialog-input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.qacrl-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.qacrl-dialog-btn-ok {
+  padding: 10px 22px !important;
+  background-color: var(--accent) !important;
+  color: #fff !important;
+  border-color: var(--accent) !important;
+  font-weight: 700 !important;
+}
+.qacrl-dialog-btn-ok:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+.qacrl-dialog-btn-cancel {
+  padding: 10px 20px !important;
+}

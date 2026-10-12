@@ -91,7 +91,8 @@
       const catEl = el('div', { class: 'csp-category' });
       const header = el('div', { class: 'csp-category-header' });
       header.appendChild(el('span', { class: 'csp-category-arrow', text: '▸' }));
-      header.appendChild(el('span', { class: 'csp-category-label', text: cat.label }));
+      const catLabelTxt = (global.I18n && global.I18n.tFr) ? global.I18n.tFr(cat.label) : cat.label;
+      header.appendChild(el('span', { class: 'csp-category-label', text: catLabelTxt }));
       catEl.appendChild(header);
 
       const content = el('div', { class: 'csp-category-content' });
