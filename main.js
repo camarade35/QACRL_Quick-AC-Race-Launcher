@@ -2862,20 +2862,11 @@ ipcMain.handle('read-csp-module', async (event, filename) => {
     // ⭐ Absence de ligne ENABLED = module ACTIVÉ (pattern CSP standard)
     const enabledBool = (raw === null || raw === undefined || raw === '1');
 
-    // ⭐ Détecte si le module est désactivable = a une section [BASIC]
-    let hasBasicSection = false;
-    const lines = content.split(/\r?\n/);
-    for (const line of lines) {
-      const clean = line.replace(/^\uFEFF/, '').trim();
-      if (/^\[BASIC\]$/i.test(clean)) { hasBasicSection = true; break; }
-    }
-
     return {
       success: true,
       path: filePath,
       content,
       enabled: enabledBool,
-      disableable: hasBasicSection,   // ⭐ nouveau
     };
   } catch (e) {
     return { success: false, error: e.message };

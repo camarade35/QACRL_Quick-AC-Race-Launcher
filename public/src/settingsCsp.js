@@ -58,7 +58,6 @@
               const r = await window.api.readCspModule(m.id + '.ini');
               modulesData[m.id] = {
                 enabled: !!(r && r.success && r.enabled),
-                disableable: !!(r && r.success && r.disableable),
                 exists: true,
               };
             } catch (e) {
@@ -103,7 +102,7 @@
 
         const labelWrap = el('label', { class: 'csp-module-label' });
 
-        const isDisableable = (m.disableable !== false) && data.disableable;
+        const isDisableable = (m.disableable !== false);
 
         if (isDisableable) {
           const cb = el('input', { type: 'checkbox', class: 'csp-module-checkbox' });
