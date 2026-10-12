@@ -201,10 +201,18 @@
       sections: null,
       savedContent: '',
       dirty: false,
+      searchQuery: '',
     };
+
+    // ⭐ Reset la barre de recherche
+    const searchInput = document.getElementById('csp-module-modal-search');
+    if (searchInput) searchInput.value = '';
 
     modal.classList.add('visible');
     loadModuleIntoModal();
+
+    // ⭐ Focus auto sur la recherche à l'ouverture
+    setTimeout(() => { if (searchInput) searchInput.focus(); }, 100);
   }
 
   async function loadModuleIntoModal() {
@@ -409,7 +417,6 @@
     return map;
   }
 
-
     function renderModuleModal() {
     const body = document.getElementById('csp-module-modal-body');
     if (!body || !modalState) return;
@@ -500,7 +507,8 @@
 
   // ---------------------------------------------------------------------------
   // Rafraîchit la visibilité des lignes selon les conditions actuelles.
-  // Appelée après chaque changement de valeur.
+  // Stocke l'état conditionnel sur chaque ref (ref._condVisible) puis
+  // délègue le display final à applySearchFilter().
   // ---------------------------------------------------------------------------
   function refreshConditionalVisibility() {
     if (!modalState || !modalState.sections || !modalState.domRefs) return;
@@ -509,19 +517,28 @@
 
     for (const ref of modalState.domRefs.rows) {
       const cond = ref.entry.conditions;
-      if (!cond) continue;
-      const hasConds = (cond.visible && cond.visible.length > 0)
-                    || (cond.hidden && cond.hidden.length > 0)
-                    || (cond.conflicts && cond.conflicts.length > 0);
-      if (!hasConds) continue;
+      const hasConds = cond && (
+        (cond.visible && cond.visible.length > 0)
+        || (cond.hidden && cond.hidden.length > 0)
+        || (cond.conflicts && cond.conflicts.length > 0)
+      );
 
-      const result = evaluateConditions(cond, ref.sectionName, valuesMap);
-      ref.el.style.display = result.show ? '' : 'none';
+      let condVisible = true;
+      let disabled = false;
+
+      if (hasConds) {
+        const result = evaluateConditions(cond, ref.sectionName, valuesMap);
+        condVisible = result.show;
+        disabled = result.disabled;
+      }
+
+      // ⭐ Mémorise l'état conditionnel (utilisé par applySearchFilter)
+      ref._condVisible = condVisible;
 
       // Désactive les inputs si conflit détecté
       const controls = ref.el.querySelectorAll('input, select, textarea, button');
       controls.forEach(c => {
-        if (result.disabled) {
+        if (disabled) {
           c.disabled = true;
           c.style.opacity = '0.5';
         } else {
@@ -531,12 +548,54 @@
       });
     }
 
-    // Cache les sections dont TOUTES les lignes sont invisibles
+    // ⭐ applySearchFilter gère le display, les sections vides et le message
+    applySearchFilter();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Applique le filtre de recherche aux lignes affichées.
+  // Combine condition (ref._condVisible) + recherche (label/key).
+  // ---------------------------------------------------------------------------
+  function applySearchFilter() {
+    if (!modalState || !modalState.domRefs) return;
+
+    const q = (modalState.searchQuery || '').toLowerCase().trim();
+    const body = document.getElementById('csp-module-modal-body');
+    const i18n = window.I18n;
+
+    // 1) Filtre : visible seulement si condition OK + recherche OK
+    for (const ref of modalState.domRefs.rows) {
+      const condOk = ref._condVisible !== false;
+      const labelText = i18n ? i18n.tKey(ref.entry.label) : ref.entry.label;
+      const haystack = (labelText + ' ' + ref.entry.key).toLowerCase();
+      const searchOk = !q || haystack.includes(q);
+
+      ref.el.style.display = (condOk && searchOk) ? '' : 'none';
+    }
+
+    // 2) Cache les sections sans aucune ligne visible
+    let totalVisible = 0;
     for (const sref of modalState.domRefs.sections) {
-      const allHidden = sref.rowEls.every(el => el.style.display === 'none');
-      sref.sectionEl.style.display = allHidden ? 'none' : '';
+      const anyVisible = sref.rowEls.some(el => el.style.display !== 'none');
+      sref.sectionEl.style.display = anyVisible ? '' : 'none';
+      if (anyVisible) totalVisible++;
+    }
+
+    // 3) Message "aucun résultat"
+    const existingEmpty = body.querySelector('.csp-module-search-empty');
+    if (existingEmpty) existingEmpty.remove();
+
+    if (q && totalVisible === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'csp-module-search-empty';
+      const msgTpl = i18n
+        ? i18n.t('app.cspModule.noResults', 'Aucune option ne correspond à "{query}"')
+        : 'Aucune option ne correspond à "{query}"';
+      empty.textContent = msgTpl.replace('{query}', modalState.searchQuery);
+      body.appendChild(empty);
     }
   }
+
 
   function createCspWidget(entry, onChange) {
     const wrap = el('div', { class: 'csp-opt-widget' });
@@ -631,6 +690,60 @@
       if (statusEl) { statusEl.textContent = '❌ ' + e.message; statusEl.style.color = '#ff6b6b'; }
     }
   }
+  // ---------------------------------------------------------------------------
+  // Charge un module complet (user INI + template) et retourne les sections finales.
+  // Utilisé par la recherche globale pour indexer sans ouvrir la modale.
+  // ---------------------------------------------------------------------------
+  async function loadModuleForSearch(filename) {
+    const [userRes, tplRes] = await Promise.all([
+      window.api.readCspModule(filename),
+      window.api.readCspTemplate(filename).catch(() => ({ success: false }))
+    ]);
+
+    if (!userRes || !userRes.success) return null;
+
+    // Map { SECTION: { KEY: value } }
+    const userSectionsRaw = global.IniParser.parseIni(userRes.content);
+    const userMap = {};
+    for (const s of userSectionsRaw) {
+      if (!s.name) continue;
+      const obj = {};
+      for (const e of s.entries) {
+        if (e.kind === 'kv') obj[e.key] = e.value;
+      }
+      userMap[s.name] = obj;
+    }
+
+    let templateSections = null;
+    if (tplRes && tplRes.success && global.CspTemplate) {
+      try {
+        templateSections = global.CspTemplate.parseTemplate(tplRes.content).sections;
+      } catch (e) {}
+    }
+
+    let finalSections;
+    if (templateSections && templateSections.length > 0) {
+      finalSections = buildSectionsFromTemplate(templateSections, userMap);
+    } else {
+      finalSections = global.CspParser.parseCspContent(userRes.content, global.IniParser);
+    }
+
+    return {
+      filename,
+      sections: finalSections,
+      savedContent: userRes.content,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sauvegarde un module CSP par son nom de fichier (utilisé par la recherche).
+  // ---------------------------------------------------------------------------
+  async function saveCspModuleByName(filename, sections) {
+    const newContent = rebuildContent(sections);
+    const res = await window.api.writeCspModule(filename, newContent);
+    return !!(res && res.success);
+  }
+
 
   function rebuildContent(sections) {
     const lines = [];
@@ -666,6 +779,16 @@
       const resetBtn = document.getElementById('csp-module-modal-reset');
       const saveBtn  = document.getElementById('csp-module-modal-save');
       const modal    = document.getElementById('csp-module-modal');
+      const searchIn = document.getElementById('csp-module-modal-search');
+
+      // ⭐ Recherche live dans la modale CSP
+      if (searchIn) {
+        searchIn.addEventListener('input', () => {
+          if (!modalState) return;
+          modalState.searchQuery = searchIn.value || '';
+          if (modalState.domRefs) applySearchFilter();
+        });
+      }
 
       if (closeBtn) closeBtn.addEventListener('click', closeModal);
       if (resetBtn) resetBtn.addEventListener('click', loadModuleIntoModal);
@@ -687,5 +810,12 @@
     });
   }
 
-  global.SettingsCsp = { init, load };
+  global.SettingsCsp = {
+    init,
+    load,
+    // ⭐ Exposé pour la recherche globale
+    loadModuleForSearch,
+    saveCspModuleByName,
+    createCspWidget,
+  };
 })(window);

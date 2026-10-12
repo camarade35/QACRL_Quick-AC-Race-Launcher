@@ -231,6 +231,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.SettingsCsp.init();
   }
 
+  // ⭐ Init de la recherche globale dans Paramètres
+  if (window.SettingsSearch && typeof window.SettingsSearch.init === 'function') {
+    window.SettingsSearch.init();
+  }
+
   // ⭐ Charge les profils volant appris (mapping Chromium → AC)
   if (window.GamepadMapper && typeof window.GamepadMapper.loadLearnedProfiles === 'function') {
     window.GamepadMapper.loadLearnedProfiles().then(() => {

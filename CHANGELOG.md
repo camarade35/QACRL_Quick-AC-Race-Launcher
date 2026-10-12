@@ -10,9 +10,38 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### À venir
-- Formulaire INI dynamique (contrôles / vidéo / audio)
-- Matching périphériques Chromium ↔ AC
+- Undo fin (par option, pas global)
+- Détection auto de conflits CSP
 
+---
+
+## [1.2.8] - 2026-10-12
+
+### ✨ Ajouté
+- **Recherche globale dans les Paramètres** — barre unique qui cherche dans **tous** les onglets (Général, Contrôles, Vidéo, Audio, CSP) et affiche les résultats regroupés par fichier + section, avec widgets éditables directement
+  - Index INI (controls / video / audio)
+  - Index CSP (~30 modules × ~30 options, template-first)
+  - Index statique (identité pilote, langue, rendu Weather FX + PP filter, caméra libre)
+- **Bandeau de sauvegarde** flottant en bas des résultats :
+  - Délai configurable de `Manuel` (par défaut) à `60min` (paliers : 0.5s / 1s / 3s / 5s / 10s / 30s / 1min / 5min / 10min / 15min → 60min)
+  - Bouton **💾 Enregistrer maintenant**
+  - Bouton **↶ Annuler** (recharge depuis le disque les fichiers modifiés)
+  - Statut en temps réel (`📝 N fichier(s) modifié(s)` / `⏳ Enregistrement…` / `✅ Enregistré à HH:MM:SS`)
+- **Raccourci Ctrl+F** dans l'onglet Paramètres pour focus la barre de recherche
+- Persistance du délai d'auto-save dans `settings.json` (`autoSaveSearchDelay`)
+
+### 🐛 Corrigé
+- **Compteur de fichiers modifiés** dans la recherche globale : bascule sur un `Set` de fichiers dirty pour éviter qu'il ne s'accumule à chaque frappe
+- **`confirm()` natif sur "Recharger"** dans Paramètres > Contrôles/Vidéo/Audio : remplacé par la modale QACRL stylée (`Dialogs.confirm`)
+
+### 🔧 Modifié
+- `settingsIni.js` : expose `getEditor`, `setValueInEditor`, `saveByName`, `reloadByName` pour la recherche globale
+- `settingsCsp.js` : expose `loadModuleForSearch`, `saveCspModuleByName`, `createCspWidget` pour la recherche globale
+- `settingsSearch.js` : nouveau module (IIFE) — construction d'index + rendu + saves débounced
+- Bandeau save : `position: fixed` (au lieu de `sticky`) + couleurs thémées (adapté clair/sombre)
+
+---
+## [1.2.3 à 1.2.7] sur le github, oublie de changelog
 ---
 
 ## [1.2.2] - 2026-10-10

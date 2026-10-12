@@ -27,7 +27,9 @@
   // -------------------------------------------------------------------------
   async function ensureLoaded(filename) {
     const ed = editors[filename];
-    if (!ed || ed.loaded || ed.loading) return;
+    if (!ed) return;
+    if (ed.loaded) return;
+    if (ed.loading) return ed._loadPromise;
 
     const apiErr = checkApi();
     if (apiErr) {
@@ -39,34 +41,37 @@
     ed.loading = true;
     setStatus(ed, '⏳ Chargement...');
 
-    try {
-      const res = await window.api.readIniFile(filename);
-      if (!res || !res.success) {
-        throw new Error((res && res.error) || 'Réponse invalide du process principal');
-      }
-      ed.rawContent = res.content;
-      ed.sections   = global.IniParser.parseIni(res.content);
-      ed.loaded     = true;
-      ed.dirty      = false;
-      // ⭐ Référence "contenu sauvegardé" pour détecter les vraies modifs
+    ed._loadPromise = (async () => {
       try {
-        ed.serializedAtLoad = global.IniParser.serializeIni(ed.sections);
+        const res = await window.api.readIniFile(filename);
+        if (!res || !res.success) {
+          throw new Error((res && res.error) || 'Réponse invalide du process principal');
+        }
+        ed.rawContent = res.content;
+        ed.sections   = global.IniParser.parseIni(res.content);
+        ed.loaded     = true;
+        ed.dirty      = false;
+        try {
+          ed.serializedAtLoad = global.IniParser.serializeIni(ed.sections);
+        } catch (e) {
+          ed.serializedAtLoad = res.content;
+        }
+
+        if (filename === 'controls.ini' && global.GamepadMapper) {
+          ed.gamepadMapper = global.GamepadMapper.create(ed.sections);
+        }
+
+        setStatus(ed, '');
+        renderCurrentView(ed);
       } catch (e) {
-        ed.serializedAtLoad = res.content;
+        console.error('[settingsIni] chargement KO', filename, e);
+        setStatus(ed, '⚠️ ' + e.message, '#ff6b6b');
+      } finally {
+        ed.loading = false;
       }
+    })();
 
-      if (filename === 'controls.ini' && global.GamepadMapper) {
-        ed.gamepadMapper = global.GamepadMapper.create(ed.sections);
-      }
-
-      setStatus(ed, '');
-      renderCurrentView(ed);
-    } catch (e) {
-      console.error('[settingsIni] chargement KO', filename, e);
-      setStatus(ed, '⚠️ ' + e.message, '#ff6b6b');
-    } finally {
-      ed.loading = false;
-    }
+    return ed._loadPromise;
   }
 
   // -------------------------------------------------------------------------
@@ -641,7 +646,12 @@
   }
 
   async function reload(ed) {
-    if (ed.dirty && !confirm('Des modifications non enregistrées seront perdues. Continuer ?')) return;
+    if (ed.dirty) {
+      const ok = window.QacrlDialogs
+        ? await window.QacrlDialogs.confirm('Des modifications non enregistrées seront perdues. Continuer ?', { variant: 'warning' })
+        : confirm('Des modifications non enregistrées seront perdues. Continuer ?');
+      if (!ok) return;
+    }
     ed.loaded = false;
     ed.loading = false;
     ed.sections = null;
@@ -652,6 +662,32 @@
     const btn = ed.container.querySelector('[data-role="save"]');
     if (btn) btn.classList.remove('dirty');
     await ensureLoaded(ed.file);
+  }
+  
+  // -------------------------------------------------------------------------
+  // Helpers publics (utilisés par settingsSearch.js)
+  // -------------------------------------------------------------------------
+  function getEditor(filename) {
+    return editors[filename] || null;
+  }
+
+  function setValueInEditor(filename, sectionName, key, newValue) {
+    const ed = editors[filename];
+    if (!ed || !ed.sections) return false;
+    const sec = ed.sections.find(s => s.name === sectionName);
+    if (!sec) return false;
+    const entry = sec.entries.find(e => e.kind === 'kv' && e.key === key);
+    if (!entry) return false;
+    entry.value = newValue;
+    markDirty(ed);
+    return true;
+  }
+
+  async function saveByName(filename) {
+    const ed = editors[filename];
+    if (!ed || !ed.loaded) return false;
+    await save(ed);
+    return true;
   }
 
   function initEditor(container) {
@@ -757,5 +793,21 @@
     });
   }
 
-  global.SettingsIni = { init, ensureLoaded };
+  async function reloadByName(filename) {
+    const ed = editors[filename];
+    if (!ed) return;
+    // Reset forcé sans confirmation
+    ed.loaded = false;
+    ed.loading = false;
+    ed.sections = null;
+    ed.rawContent = '';
+    ed.dirty = false;
+    ed.serializedAtLoad = null;
+    const btn = ed.container.querySelector('[data-role="save"]');
+    if (btn) btn.classList.remove('dirty');
+    setStatus(ed, '');
+    await ensureLoaded(filename);
+  }
+
+  global.SettingsIni = { init, ensureLoaded, getEditor, setValueInEditor, saveByName, reloadByName };
 })(window);

@@ -202,7 +202,9 @@
     "cspModule": {
       "title": "Module options",
       "reload": "↶ Reload",
-      "save": "💾 Save"
+      "save": "💾 Save",
+      "searchPlaceholder": "Search for an option...",
+      "noResults": "No option matches \"{query}\""
     },
     "online": {
       "groups": {
@@ -579,6 +581,18 @@
       "Supprimer cette entrée": "Delete this entry"
     },
     "settings": {
+      "search": {
+        "placeholder": "Search for an option in settings...",
+        "clear": "Clear search",
+        "pending": "{count} file(s) modified",
+        "saving": "⏳ Saving…",
+        "savedAt": "✅ Saved at {time}",
+        "manual": "Manual",
+        "delayLabel": "Auto:",
+        "saveNow": "Save now",
+        "cancel": "Cancel",
+        "confirmCancel": "Cancel {count} modified file(s)? Unsaved changes will be lost."
+      },
       "subtabs": {
         "general": "General",
         "controls": "🎮 Controls",

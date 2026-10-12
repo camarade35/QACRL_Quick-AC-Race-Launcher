@@ -539,6 +539,17 @@
     </div>
 
         <div id="tab-settings" class="tab-content">
+      <div class="settings-search-bar">
+        <div class="settings-search-input-wrap">
+          <input type="text" id="settings-global-search"
+                 placeholder="Rechercher une option dans les paramètres..."
+                 data-i18n-placeholder="app.settings.search.placeholder">
+          <button type="button" class="settings-search-clear" id="settings-global-search-clear"
+                  title="Effacer la recherche" data-i18n-title="app.settings.search.clear"
+                  style="display:none;">✕</button>
+        </div>
+      </div>
+      <div id="settings-search-results" class="settings-search-results" style="display:none;"></div>
       <div class="subtabs">
         <button class="subtab-btn active" onclick="switchSubTab(event, 'subtab-settings-general')" data-i18n="app.settings.subtabs.general">Général</button>
         <button class="subtab-btn" onclick="switchSubTab(event, 'subtab-settings-controls')" data-i18n="app.settings.subtabs.controls">🎮 Contrôles</button>
@@ -856,6 +867,9 @@
         <h3 class="modal-title" id="csp-module-modal-title" data-i18n="app.cspModule.title">Options du module</h3>
         <button class="modal-close" id="csp-module-modal-close">&times;</button>
       </div>
+      <div class="csp-module-modal-search">
+        <input type="text" id="csp-module-modal-search" placeholder="Rechercher une option..." data-i18n-placeholder="app.cspModule.searchPlaceholder">
+      </div>
       <div id="csp-module-modal-body" class="csp-module-modal-body"></div>
       <div class="csp-module-modal-footer">
         <span class="csp-module-modal-status" id="csp-module-modal-status"></span>
@@ -893,6 +907,7 @@
     <script src="src/dialogs.js"></script>
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
+  <script src="src/settingsSearch.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

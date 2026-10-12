@@ -202,7 +202,9 @@
     "cspModule": {
       "title": "Options du module",
       "reload": "↶ Recharger",
-      "save": "💾 Enregistrer"
+      "save": "💾 Enregistrer",
+      "searchPlaceholder": "Rechercher une option...",
+      "noResults": "Aucune option ne correspond à \"{query}\""
     },
     "online": {
       "groups": {
@@ -250,6 +252,18 @@
     },
     "iniLabels": {},
     "settings": {
+      "search": {
+        "placeholder": "Rechercher une option dans les paramètres...",
+        "clear": "Effacer la recherche",
+        "pending": "{count} fichier(s) modifié(s)",
+        "saving": "⏳ Enregistrement…",
+        "savedAt": "✅ Enregistré à {time}",
+        "manual": "Manuel",
+        "delayLabel": "Auto :",
+        "saveNow": "Enregistrer maintenant",
+        "cancel": "Annuler",
+        "confirmCancel": "Annuler {count} fichier(s) modifié(s) ? Les modifications non enregistrées seront perdues."
+      },
       "subtabs": {
         "general": "Général",
         "controls": "🎮 Contrôles",
