@@ -3,6 +3,25 @@
    ============================================================ */
 
 /* ============================================================
+   HELPER — filtre la liste météo selon les capacités (CSP / Pure)
+   ============================================================ */
+function filterWeatherByCapabilities(list) {
+  const caps = (appData && appData.capabilities) || {};
+  // Si CSP+Pure sont présents → tout passe
+  if (caps.hasCSP && caps.hasPure) return list;
+  // Sinon → uniquement les météos Kunos (numérotées)
+  return list.filter(w => /^\d/.test(w));
+}
+
+/* ============================================================
+   HELPER — les modes Plan Pure sont-ils disponibles ?
+   ============================================================ */
+function isPureAvailable() {
+  const caps = (appData && appData.capabilities) || {};
+  return !!(caps.hasPure && caps.hasCSP);
+}
+
+/* ============================================================
    UI SESSION
    ============================================================ */
 function updateSessionUI() {
@@ -32,6 +51,29 @@ function updateWeatherUI() {
   if (pr) pr.style.display = (mode === 'existing_plan') ? 'flex' : 'none';
   if (cg) cg.style.display = (mode === 'custom_plan') ? 'flex' : 'none';
   if (mode === 'custom_plan') renderWeatherSteps();
+
+  // ⭐ Grise les options "Plan Pure" si pas dispo
+  const pureOk = isPureAvailable();
+  const modeSelect = document.getElementById('weather-mode');
+  if (modeSelect) {
+    const optExisting = modeSelect.querySelector('option[value="existing_plan"]');
+    const optCustom = modeSelect.querySelector('option[value="custom_plan"]');
+    [optExisting, optCustom].forEach(opt => {
+      if (!opt) return;
+      opt.disabled = !pureOk;
+      if (!pureOk) {
+        const baseTxt = opt.textContent.replace(/^⛔\s*/, '');
+        opt.textContent = '⛔ ' + baseTxt + ' (CSP+Pure requis)';
+      } else {
+        opt.textContent = opt.textContent.replace(/^⛔\s*/, '').replace(/\s*\(CSP\+Pure requis\)$/, '');
+      }
+    });
+    // ⭐ Si on était en mode plan alors que Pure n'est plus dispo → bascule en static
+    if (!pureOk && (mode === 'existing_plan' || mode === 'custom_plan')) {
+      modeSelect.value = 'static';
+      updateWeatherUI();
+    }
+  }
 }
 
 /* ============================================================
@@ -57,9 +99,11 @@ function renderWeatherSteps() {
 
       const select = document.createElement('select');
       select.dataset.index = index;
-      const kunos = appData.weatherList.filter(w => /^\d/.test(w));
-      const solPure = appData.weatherList.filter(w => /^(sol|pure|sfx)/i.test(w));
-      const others = appData.weatherList.filter(w => !kunos.includes(w) && !solPure.includes(w));
+      // ⭐ Filtre selon les capacités
+      const filtered = filterWeatherByCapabilities(appData.weatherList);
+      const kunos = filtered.filter(w => /^\d/.test(w));
+      const solPure = filtered.filter(w => /^(sol|pure|sfx)/i.test(w));
+      const others = filtered.filter(w => !kunos.includes(w) && !solPure.includes(w));
       const addGroup = (label, items) => {
         if (items.length === 0) return;
         const og = document.createElement('optgroup'); og.label = label;
@@ -132,9 +176,14 @@ function populateWeatherSelect(weatherList) {
   if (!select) return;
   const prev = select.value;
   select.innerHTML = '';
-  const kunos = weatherList.filter(w => /^\d/.test(w));
-  const solPure = weatherList.filter(w => /^(sol|pure|sfx)/i.test(w));
-  const others = weatherList.filter(w => !kunos.includes(w) && !solPure.includes(w));
+
+  // ⭐ Filtre selon les capacités (pas de SOL/Pure si pas CSP+Pure)
+  const filtered = filterWeatherByCapabilities(weatherList);
+
+  const kunos = filtered.filter(w => /^\d/.test(w));
+  const solPure = filtered.filter(w => /^(sol|pure|sfx)/i.test(w));
+  const others = filtered.filter(w => !kunos.includes(w) && !solPure.includes(w));
+
   const addGroup = (label, items) => {
     if (items.length === 0) return;
     const og = document.createElement('optgroup'); og.label = label;
@@ -148,7 +197,14 @@ function populateWeatherSelect(weatherList) {
   addGroup('Kunos (base)', kunos);
   addGroup('SOL / Pure', solPure);
   addGroup('Autres', others);
-  if (prev && weatherList.includes(prev)) select.value = prev;
+
+  // ⭐ Si l'ancienne valeur n'existe plus (ex : sol_* alors qu'on n'a plus Pure)
+  //    → on bascule sur la 1ère option Kunos disponible
+  if (prev && filtered.includes(prev)) {
+    select.value = prev;
+  } else if (kunos.length > 0) {
+    select.value = kunos[0];
+  }
 }
 
 function populatePurePlansSelect(plans) {

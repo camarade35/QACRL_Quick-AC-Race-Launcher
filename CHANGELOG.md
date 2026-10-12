@@ -10,8 +10,43 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### À venir
+- Assistant d'installation — Partie 2 (graphismes CSP/Pure + contrôles)
 - Undo fin (par option, pas global)
 - Détection auto de conflits CSP
+
+---
+
+## [1.2.9] - 2026-10-12
+
+### ✨ Ajouté
+- **Assistant d'installation** (partie 1) — affiché automatiquement au premier lancement, relançable depuis Paramètres > Général
+  - **Bienvenue** — présentation et option "Passer"
+  - **Détection automatique** — scan de l'installation : chemin AC (registry Steam + fallbacks), dossier Documents (OneDrive inclus), SteamID64 (via `loginusers.vdf` ou `race.ini`), présence de CSP, Pure, 7-Zip, comptage voitures/circuits. Correction manuelle possible (choisir un dossier)
+  - **Identité du pilote** — nom solo, nom en ligne, SteamID, nationalité (drapeaux depuis `assets/flags`)
+  - **Récap** — résumé complet avant validation
+- **Support CSP-agnostique** — QACRL fonctionne maintenant **sans CSP ni Pure installés**
+  - Détection live de CSP / Pure au démarrage et au changement de dossier AC (`check-csp-pure`)
+  - **Mode dégradé** dans `launch-game` : si Pure absent, force une météo Kunos et skip toute la logique `PurePlanner` (plus de crash "Dossier PurePlanner introuvable")
+  - **Onglet CSP** : affiche un message clair "Custom Shaders Patch n'est pas installé" si CSP absent
+  - **Dropdown météo** : filtré pour ne montrer que les météos Kunos si CSP/Pure absents
+  - **Modes "Plan Pure"** grisés avec mention `(CSP+Pure requis)` si indisponibles
+  - Bascule automatique en "Météo fixe" si l'utilisateur était en mode plan et que Pure disparaît
+  - `[LIGHTING]` omis de `race.ini` si CSP absent (les directives `__CM_*` peuvent planter AC)
+
+### 🐛 Corrigé
+- **Assistant — nationalité vide** : les drapeaux sont maintenant chargés via IPC au lieu de dépendre de `appData` (qui n'est pas exposé sur `window`)
+- **`settingsCsp.load()`** : appelle directement `checkCspPure()` via IPC au lieu de lire `window.appData.capabilities`
+
+### 🔧 Modifié
+- `main.js` : ajout IPC `check-csp-pure`, `launch-game` adapté (mode dégradé), `writeRaceConfig` reçoit `{ noCsp }`
+- `preload.js` : expose `checkCspPure()`
+- `app.js` : `appData.capabilities` détectées au démarrage + re-détection au changement de dossier AC
+- `iniWriter.js` : nouvelle signature `writeRaceConfig(..., options)` avec `options.noCsp`
+- `session.js` : helpers `filterWeatherByCapabilities()` et `isPureAvailable()` + UI météo adaptée
+- `settingsCsp.js` : check live CSP + message dédié
+- `setupWizard.js` : nouveau module IIFE (assistant)
+- `style.css` : styles `.setup-wizard-*` et `.csp-not-installed`
+- i18n FR/EN : ajout de `app.setup.*`, `app.settings.cspNotInstalled.*`, `app.settings.groups.setupWizard`, `app.settings.fields.setupWizardHint`, `app.settings.btn.relaunchSetup`
 
 ---
 

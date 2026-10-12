@@ -40,6 +40,31 @@
     if (!container) return;
     container.innerHTML = '<div class="servers-loading">⏳ Chargement des modules…</div>';
 
+    // ⭐ Vérifie en direct si CSP est installé (via IPC, plus fiable)
+    try {
+      const caps = await window.api.checkCspPure();
+      if (!caps || !caps.hasCSP) {
+        const i18n = window.I18n;
+        const title = i18n
+          ? i18n.t('app.settings.cspNotInstalled.title', 'Custom Shaders Patch n\'est pas installé')
+          : 'Custom Shaders Patch n\'est pas installé';
+        const hint = i18n
+          ? i18n.t('app.settings.cspNotInstalled.hint',
+              'QACRL a détecté que CSP n\'est pas présent dans ton installation d\'Assetto Corsa.<br>L\'onglet CSP et les fonctionnalités avancées (météo Pure, plans, filtres PP...) seront indisponibles.<br><br>QACRL fonctionne quand même en <strong>mode Kunos classique</strong>.')
+          : 'QACRL a détecté que CSP n\'est pas présent dans ton installation d\'Assetto Corsa.';
+
+        container.innerHTML =
+          '<div class="csp-not-installed">' +
+            '<div class="csp-not-installed-icon">⚠️</div>' +
+            '<div class="csp-not-installed-title">' + title + '</div>' +
+            '<div class="csp-not-installed-hint">' + hint + '</div>' +
+          '</div>';
+        return;
+      }
+    } catch (e) {
+      console.warn('[settingsCsp] checkCspPure KO', e);
+    }
+
     try {
       const listRes = await window.api.listCspModules();
       if (!listRes || !listRes.success) {

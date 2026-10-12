@@ -576,6 +576,20 @@
           </div>
         </div>
 
+        <div class="group">
+          <div class="group-title" data-i18n="app.settings.groups.setupWizard">Assistant d'installation</div>
+          <div class="row">
+            <div class="field">
+              <label data-i18n="app.settings.fields.setupWizardHint">Relancer la détection et l'assistant de premier lancement</label>
+              <div style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                <button class="filter-btn" id="btn-relaunch-setup" style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);" data-i18n="app.settings.btn.relaunchSetup">
+                  🔄 Relancer l'assistant
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="group" id="player-identity-group">
           <div class="group-title" data-i18n="app.settings.groups.identity">Identité du pilote</div>
           <div class="row">
@@ -881,6 +895,17 @@
     </div>
   </div>
   
+  <div class="modal setup-wizard-modal" id="setup-wizard-modal">
+    <div class="modal-content setup-wizard-content">
+      <div class="setup-wizard-header">
+        <div class="setup-wizard-steps" id="setup-wizard-steps"></div>
+        <button class="modal-close" id="setup-wizard-close">&times;</button>
+      </div>
+      <div class="setup-wizard-body" id="setup-wizard-body"></div>
+      <div class="setup-wizard-footer" id="setup-wizard-footer"></div>
+    </div>
+  </div>
+  
   <script src="src/constants.js"></script>
   <script src="src/utils.js"></script>
   <script src="src/theme.js"></script>
@@ -908,6 +933,7 @@
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="src/settingsSearch.js"></script>
+  <script src="src/setupWizard.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

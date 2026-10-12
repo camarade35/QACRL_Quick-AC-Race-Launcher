@@ -251,6 +251,70 @@
       }
     },
     "iniLabels": {},
+    "setup": {
+      "steps": {
+        "welcome": "Bienvenue",
+        "detection": "Détection",
+        "identity": "Identité",
+        "recap": "Récap"
+      },
+      "welcome": {
+        "title": "Bienvenue dans QACRL !",
+        "desc": "En 3 étapes rapides, on va configurer ton launcher :<br>• Détecter automatiquement ton installation AC<br>• Renseigner ton identité de pilote<br>• Valider que tout est prêt pour lancer une course",
+        "skip": "⏭ Passer (je connais)",
+        "start": "▶ Démarrer l'assistant"
+      },
+      "detection": {
+        "scanning": "🔍 Analyse de ton installation…",
+        "scanningHint": "Détection du chemin AC, du SteamID, de CSP, Pure et de tes contenus.",
+        "title": "Résultats de la détection",
+        "subtitle": "Vérifie que tout est bien détecté. Tu peux corriger manuellement si besoin.",
+        "acPath": "Chemin Assetto Corsa",
+        "documents": "Dossier Documents",
+        "steamId": "SteamID (GUID)",
+        "csp": "Custom Shaders Patch",
+        "pure": "Pure (Weather FX)",
+        "sevenZip": "7-Zip (extraction mods)",
+        "content": "Contenu",
+        "detected": "Détecté",
+        "notFound": "Non détecté",
+        "notInstalled": "Non installé",
+        "selectManually": "Choisir…",
+        "retry": "↻ Relancer le scan"
+      },
+      "identity": {
+        "title": "Identité du pilote",
+        "subtitle": "Ces informations servent en solo et en multijoueur. Tu pourras les modifier plus tard dans Paramètres.",
+        "playerName": "Nom du pilote (solo)",
+        "playerNameHint": "Utilisé en solo et comme nom par défaut.",
+        "onlineName": "Nom en ligne (multi)",
+        "onlineNamePlaceholder": "(utilise le nom solo par défaut)",
+        "onlineNameHint": "Doit être unique sur le serveur.",
+        "steamId": "Steam ID (GUID)",
+        "steamIdHint": "Détecté automatiquement depuis Steam.",
+        "nationality": "Nationalité du pilote"
+      },
+      "recap": {
+        "title": "Tout est prêt ! 🎉",
+        "subtitle": "Voici un résumé de ta configuration. Tu pourras modifier tout ça à tout moment dans Paramètres.",
+        "acPath": "Assetto Corsa",
+        "documents": "Documents",
+        "playerName": "Pilote (solo)",
+        "onlineName": "Pilote (online)",
+        "nationality": "Nationalité",
+        "steamId": "Steam ID",
+        "missing": "⚠️ non renseigné",
+        "content": "Contenu",
+        "finish": "✓ Terminer"
+      },
+      "common": {
+        "cancel": "Annuler",
+        "back": "← Retour",
+        "next": "Suivant →",
+        "loading": "Chargement…",
+        "noFlags": "Aucun drapeau trouvé"
+      }
+    },
     "settings": {
       "search": {
         "placeholder": "Rechercher une option dans les paramètres...",
@@ -271,7 +335,12 @@
         "audio": "🔊 Audio",
         "csp": "🌩️ CSP"
       },
+      "cspNotInstalled": {
+        "title": "Custom Shaders Patch n'est pas installé",
+        "hint": "QACRL a détecté que CSP n'est pas présent dans ton installation d'Assetto Corsa.<br>L'onglet CSP et les fonctionnalités avancées (météo Pure, plans, filtres PP...) seront indisponibles.<br><br>QACRL fonctionne quand même en <strong>mode Kunos classique</strong>."
+      },
       "groups": {
+        "setupWizard": "Assistant d'installation",
         "identity": "Identité du pilote",
         "gamePath": "Chemin d'accès au jeu",
         "documentsPath": "Dossier Documents",
@@ -280,6 +349,7 @@
         "cspTitle": "🌩️ Custom Shaders Patch — Modules"
       },
       "fields": {
+        "setupWizardHint": "Relancer la détection et l'assistant de premier lancement",
         "playerName": "Nom du pilote (solo)",
         "playerNamePlaceholder": "Driver",
         "onlineName": "Nom en ligne (multi)",
@@ -294,6 +364,7 @@
         "orbitMode": "Mode orbite pour la caméra F5"
       },
       "btn": {
+        "relaunchSetup": "🔄 Relancer l'assistant",
         "detectSteam": "🔍 Détecter",
         "browse": "Parcourir...",
         "refresh": "↶ Rafraîchir"

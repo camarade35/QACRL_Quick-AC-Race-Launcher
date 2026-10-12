@@ -131,7 +131,8 @@ function flagFileToNationCode(flagFile) {
   return name.substring(0, 3).toUpperCase();
 }
 
-function writeRaceConfig(acPath, sessionData, settings, availableCars = []) {
+function writeRaceConfig(acPath, sessionData, settings, availableCars = [], options = {}) {
+  const noCsp = !!options.noCsp;
   const documentsRoot = settings.documentsPath;
 
   if (!documentsRoot) {
@@ -366,14 +367,18 @@ function writeRaceConfig(acPath, sessionData, settings, availableCars = []) {
   ini += `[__PREVIEW_GENERATION]\nACTIVE=0\n\n`;
 
   // ---- [LIGHTING] ----
-  ini += `[LIGHTING]\n`;
-  ini += `SUN_ANGLE=${sunAngleNew.toFixed(2)}\n`;
-  ini += `TIME_MULT=${timeMult}.0\n`;
-  ini += `__CM_TIME_MULTIPLIER=${timeMult}\n`;
-  ini += `CLOUD_SPEED=0.200\n`;
-  ini += `__CM_WEATHER_TYPE=${weatherIndex}\n`;
-  ini += `__CM_WEATHER_CONTROLLER=pureCtrl\n`;
-  ini += `\n`;
+  // ⭐ Sans CSP, les directives __CM_* sont ignorées (et peuvent planter AC).
+  //    On omet complètement la section si pas de CSP.
+  if (!noCsp) {
+    ini += `[LIGHTING]\n`;
+    ini += `SUN_ANGLE=${sunAngleNew.toFixed(2)}\n`;
+    ini += `TIME_MULT=${timeMult}.0\n`;
+    ini += `__CM_TIME_MULTIPLIER=${timeMult}\n`;
+    ini += `CLOUD_SPEED=0.200\n`;
+    ini += `__CM_WEATHER_TYPE=${weatherIndex}\n`;
+    ini += `__CM_WEATHER_CONTROLLER=pureCtrl\n`;
+    ini += `\n`;
+  }
 
   // ---- [OPTIONS] ----
   ini += `[OPTIONS]\nUSE_MPH=0\n\n`;

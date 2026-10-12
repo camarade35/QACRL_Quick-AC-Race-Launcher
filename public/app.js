@@ -3,6 +3,8 @@
    ============================================================ */
 let appData = {
   cars: [], tracks: [], weatherList: [], purePlans: [],
+  // ⭐ Capacités détectées au démarrage (CSP / Pure)
+  capabilities: { hasCSP: false, hasPure: false, hasPurePlanner: false, hasWeatherFx: false },
   acPath: '', manufacturers: [], flags: [], presets: [], modsHistory: [],
   sessionHistory: [],
   favorites: { cars: [], tracks: [] },
@@ -180,6 +182,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await scanAssets();
+
+  // ⭐ Détecte CSP / Pure au démarrage
+  try {
+    appData.capabilities = await window.api.checkCspPure();
+    console.log('[Capabilities]', appData.capabilities);
+  } catch (e) {
+    console.warn('[Capabilities] KO', e);
+  }
+
   await refreshAllContent();
   await refreshDocumentsPath();
   await loadPresets();
@@ -202,6 +213,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await loadPureCtrlSettings();
+
+  // ⭐ Assistant d'installation (1er lancement uniquement)
+  if (window.SetupWizard && typeof window.SetupWizard.init === 'function') {
+    window.SetupWizard.init();
+  }
+  try {
+    const s = await window.api.getSettings();
+    if (!s || !s.setupCompleted) {
+      window.SetupWizard.open(async () => {
+        // Après l'assistant → recharger contenu + state
+        await scanAssets();
+        await refreshAllContent();
+        await refreshDocumentsPath();
+        await loadSavedState();
+      });
+    }
+  } catch (e) { console.warn('[SetupWizard] init KO', e); }
+
   updateSessionUI();
   updateWeatherUI();
   renderWeatherSteps();
@@ -521,7 +550,19 @@ function setupEventListeners() {
 
   document.getElementById('btn-select-ac')?.addEventListener('click', async () => {
     const sel = await window.api.selectAcFolder();
-    if (sel) { await refreshAllContent(); populateManufacturerSelect(); }
+    if (sel) {
+      // ⭐ Re-détecte les capacités (CSP / Pure) car le dossier a changé
+      try {
+        appData.capabilities = await window.api.checkCspPure();
+        console.log('[Capabilities] (après changement AC)', appData.capabilities);
+      } catch (e) { console.warn('[Capabilities] KO', e); }
+      await refreshAllContent();
+      populateManufacturerSelect();
+      if (typeof updateWeatherUI === 'function') updateWeatherUI();
+      if (window.SettingsCsp && typeof window.SettingsCsp.load === 'function') {
+        window.SettingsCsp.load();
+      }
+    }
   });
   document.getElementById('btn-select-documents')?.addEventListener('click', async () => {
     const sel = await window.api.selectDocumentsFolder();

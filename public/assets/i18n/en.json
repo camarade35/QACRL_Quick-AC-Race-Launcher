@@ -580,6 +580,70 @@
       "Charger la config sans lancer": "Load config without starting",
       "Supprimer cette entrée": "Delete this entry"
     },
+    "setup": {
+      "steps": {
+        "welcome": "Welcome",
+        "detection": "Detection",
+        "identity": "Identity",
+        "recap": "Summary"
+      },
+      "welcome": {
+        "title": "Welcome to QACRL!",
+        "desc": "In 3 quick steps, let's set up your launcher:<br>• Auto-detect your AC installation<br>• Fill in your driver identity<br>• Confirm everything is ready to race",
+        "skip": "⏭ Skip (I know)",
+        "start": "▶ Start setup"
+      },
+      "detection": {
+        "scanning": "🔍 Scanning your installation…",
+        "scanningHint": "Detecting AC path, SteamID, CSP, Pure and your content.",
+        "title": "Detection results",
+        "subtitle": "Verify everything is detected correctly. You can fix it manually if needed.",
+        "acPath": "Assetto Corsa path",
+        "documents": "Documents folder",
+        "steamId": "SteamID (GUID)",
+        "csp": "Custom Shaders Patch",
+        "pure": "Pure (Weather FX)",
+        "sevenZip": "7-Zip (mod extraction)",
+        "content": "Content",
+        "detected": "Detected",
+        "notFound": "Not found",
+        "notInstalled": "Not installed",
+        "selectManually": "Choose…",
+        "retry": "↻ Rescan"
+      },
+      "identity": {
+        "title": "Driver identity",
+        "subtitle": "This info is used in solo and online. You can change it later in Settings.",
+        "playerName": "Driver name (solo)",
+        "playerNameHint": "Used in solo and as default name.",
+        "onlineName": "Online name (multi)",
+        "onlineNamePlaceholder": "(uses solo name by default)",
+        "onlineNameHint": "Must be unique on the server.",
+        "steamId": "Steam ID (GUID)",
+        "steamIdHint": "Auto-detected from Steam.",
+        "nationality": "Driver nationality"
+      },
+      "recap": {
+        "title": "All set! 🎉",
+        "subtitle": "Here's a summary of your configuration. You can change it anytime in Settings.",
+        "acPath": "Assetto Corsa",
+        "documents": "Documents",
+        "playerName": "Driver (solo)",
+        "onlineName": "Driver (online)",
+        "nationality": "Nationality",
+        "steamId": "Steam ID",
+        "missing": "⚠️ not set",
+        "content": "Content",
+        "finish": "✓ Finish"
+      },
+      "common": {
+        "cancel": "Cancel",
+        "back": "← Back",
+        "next": "Next →",
+        "loading": "Loading…",
+        "noFlags": "No flags found"
+      }
+    },
     "settings": {
       "search": {
         "placeholder": "Search for an option in settings...",
@@ -600,7 +664,12 @@
         "audio": "🔊 Audio",
         "csp": "🌩️ CSP"
       },
+      "cspNotInstalled": {
+        "title": "Custom Shaders Patch is not installed",
+        "hint": "QACRL detected that CSP is not present in your Assetto Corsa installation.<br>The CSP tab and advanced features (Pure weather, plans, PP filters...) will be unavailable.<br><br>QACRL still works in <strong>classic Kunos mode</strong>."
+      },
       "groups": {
+        "setupWizard": "Setup wizard",
         "identity": "Driver identity",
         "gamePath": "Game install path",
         "documentsPath": "Documents folder",
@@ -609,6 +678,7 @@
         "cspTitle": "🌩️ Custom Shaders Patch — Modules"
       },
       "fields": {
+        "setupWizardHint": "Relaunch detection and first-launch wizard",
         "playerName": "Driver name (solo)",
         "playerNamePlaceholder": "Driver",
         "onlineName": "Online name (multi)",
@@ -623,6 +693,7 @@
         "orbitMode": "Orbit mode for F5 camera"
       },
       "btn": {
+        "relaunchSetup": "🔄 Relaunch wizard",
         "detectSteam": "🔍 Detect",
         "browse": "Browse...",
         "refresh": "↶ Refresh"

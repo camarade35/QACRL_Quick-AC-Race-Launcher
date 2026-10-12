@@ -1328,6 +1328,155 @@ ipcMain.handle('detect-steam-id', async () => {
 });
 
 /* ============================================================
+   IPC — DÉTECTION POUR L'ASSISTANT D'INSTALLATION
+   ============================================================ */
+function detectAcPathFromRegistry() {
+  if (process.platform !== 'win32') return null;
+  try {
+    const out = execSync(
+      'reg query "HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam" /v InstallPath',
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    );
+    const match = out.match(/InstallPath\s+REG_SZ\s+(.+)/);
+    if (match) {
+      const acPath = path.join(match[1].trim(), 'steamapps', 'common', 'assettocorsa');
+      if (fs.existsSync(acPath)) return acPath;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function detectAcPathFromDefaults() {
+  const defaults = [
+    'C:\\Program Files (x86)\\Steam\\steamapps\\common\\assettocorsa',
+    'D:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+    'E:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+    'F:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+    'C:\\SteamLibrary\\steamapps\\common\\assettocorsa',
+  ];
+  for (const p of defaults) if (fs.existsSync(p)) return p;
+  return null;
+}
+
+function countDirectories(dirPath) {
+  try {
+    if (!fs.existsSync(dirPath)) return 0;
+    return fs.readdirSync(dirPath, { withFileTypes: true })
+      .filter(e => e.isDirectory()).length;
+  } catch (e) { return 0; }
+}
+
+function detectSevenZip() {
+  const candidates = [
+    'C:\\Program Files\\7-Zip\\7z.exe',
+    'C:\\Program Files (x86)\\7-Zip\\7z.exe',
+  ];
+  if (process.env.LOCALAPPDATA) candidates.push(path.join(process.env.LOCALAPPDATA, 'Programs', '7-Zip', '7z.exe'));
+  if (process.env.ProgramW6432) candidates.push(path.join(process.env.ProgramW6432, '7-Zip', '7z.exe'));
+  for (const exe of candidates) if (fs.existsSync(exe)) return exe;
+  return null;
+}
+
+ipcMain.handle('detect-setup-status', async () => {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+
+  // 1) Chemin AC
+  let acPath = settings.acPath;
+  let acPathSource = acPath && fs.existsSync(acPath) ? 'manual' : null;
+  if (!acPathSource) {
+    acPath = detectAcPathFromRegistry();
+    acPathSource = acPath ? 'registry' : null;
+    if (!acPath) {
+      acPath = detectAcPathFromDefaults();
+      acPathSource = acPath ? 'default' : null;
+    }
+  }
+
+  // 2) Documents
+  const docs = resolveDocumentsPath(settings);
+
+  // 3) SteamID (Steam puis race.ini)
+  let steamResult = { success: false };
+  try {
+    steamResult = await detectSteamIdFromSteam();
+    if (!steamResult.success) steamResult = detectSteamIdFromRaceIni();
+  } catch (e) { console.warn('[setup] SteamID KO', e.message); }
+
+  // 4) CSP / Pure / 7-Zip / contenu
+  const csp = { installed: false };
+  const pure = { installed: false };
+  const sevenZip = { installed: false };
+  const content = { cars: 0, tracks: 0 };
+
+  if (acPath && fs.existsSync(acPath)) {
+    const cspConfigDir = path.join(acPath, 'extension', 'config');
+    if (fs.existsSync(cspConfigDir)) {
+      csp.installed = true;
+      try {
+        const vf = path.join(cspConfigDir, 'version.ini');
+        if (fs.existsSync(vf)) {
+          const m = fs.readFileSync(vf, 'utf8').match(/VERSION=(.+)/i);
+          if (m) csp.version = m[1].trim();
+        }
+      } catch (e) {}
+    }
+    const pureDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
+    if (fs.existsSync(pureDir)) pure.installed = true;
+
+    content.cars = countDirectories(path.join(acPath, 'content', 'cars'));
+    content.tracks = countDirectories(path.join(acPath, 'content', 'tracks'));
+  }
+
+  const sz = detectSevenZip();
+  if (sz) { sevenZip.installed = true; sevenZip.path = sz; }
+
+  return {
+    acPath: acPath || null,
+    acPathSource,
+    documentsPath: docs.path,
+    documentsSource: docs.source,
+    steamId: steamResult.success ? steamResult.steamId : null,
+    steamIdSource: steamResult.source || null,
+    personaName: steamResult.personaName || null,
+    csp, pure, sevenZip, content,
+  };
+});
+
+/* ============================================================
+   IPC — CAPACITÉS DE L'INSTALLATION (CSP / Pure présents ?)
+   ============================================================ */
+ipcMain.handle('check-csp-pure', async () => {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+
+  const result = {
+    hasCSP: false,
+    hasPure: false,
+    hasPurePlanner: false,
+    hasWeatherFx: false,
+  };
+
+  if (acPath && fs.existsSync(acPath)) {
+    result.hasCSP = fs.existsSync(path.join(acPath, 'extension', 'config'));
+    result.hasPure = fs.existsSync(path.join(acPath, 'extension', 'config-ext', 'PurePlanner'));
+    result.hasPurePlanner = fs.existsSync(path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'Plans'));
+  }
+
+  if (documentsPath) {
+    result.hasWeatherFx = fs.existsSync(
+      path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'weather_fx.ini')
+    );
+  }
+
+  return result;
+});
+
+/* ============================================================
    Assistances & launcher.ini
    ============================================================ */
 function forceCustomAssistsProfile(documentsPath) {
@@ -1490,55 +1639,73 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
   forceCustomAssistsProfile(documentsPath);
   writeAssistsIni(documentsPath, sessionData.assists || {});
 
-  try {
-    let planValue = null;
-    let cmWeatherIndex = 2;
+  // ⭐ Détection des capacités Pure
+  const caps = { hasCSP: false, hasPure: false };
+  if (settings.acPath && fs.existsSync(settings.acPath)) {
+    caps.hasCSP = fs.existsSync(path.join(settings.acPath, 'extension', 'config'));
+    caps.hasPure = fs.existsSync(path.join(settings.acPath, 'extension', 'config-ext', 'PurePlanner'));
+  }
 
-    if (weatherMode === 'custom_plan') {
-      if (Array.isArray(sessionData.customPlanSteps) && sessionData.customPlanSteps.length > 0) {
-        const { fileName, folder } = writeCustomPurePlan(settings.acPath,
-          sessionData.customPlanName || 'MonPlan',
-          sessionData.customPlanSteps, sessionStartTime, timeMult, planLoop);
-        planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
-        cmWeatherIndex = 2;
-        sessionData.purePlan = planValue;
-      }
+  // ⭐ Mode dégradé sans Pure : on force météo Kunos et on skip toute la logique Pure
+  const skipPureLogic = !caps.hasPure;
+  if (skipPureLogic) {
+    console.log('[launch-game] Pure non installé → mode dégradé (météo Kunos classique)');
+    const isKunosWeather = typeof sessionData.weather === 'string' && /^\d/.test(sessionData.weather);
+    sessionData.weather = isKunosWeather ? sessionData.weather : '3_clear';
+    sessionData.weatherMode = 'static';
+  }
 
-    } else if (weatherMode === 'existing_plan') {
-      if (sessionData.purePlan) {
-        const fn = sessionData.purePlan.endsWith('.json') ? sessionData.purePlan : sessionData.purePlan + '.json';
-        const folderGuess = sessionData.purePlan.includes('/')
-          ? sessionData.purePlan.substring(0, sessionData.purePlan.lastIndexOf('/'))
-          : 'Stamp';
-        if (activateExistingPurePlan(settings.acPath, fn, timeMult, planLoop)) {
-          const baseName = path.basename(fn, '.json');
-          planValue = `${folderGuess}/${baseName}`;
+  if (!skipPureLogic) {
+    try {
+      let planValue = null;
+      let cmWeatherIndex = 2;
+
+      if (weatherMode === 'custom_plan') {
+        if (Array.isArray(sessionData.customPlanSteps) && sessionData.customPlanSteps.length > 0) {
+          const { fileName, folder } = writeCustomPurePlan(settings.acPath,
+            sessionData.customPlanName || 'MonPlan',
+            sessionData.customPlanSteps, sessionStartTime, timeMult, planLoop);
+          planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
           cmWeatherIndex = 2;
           sessionData.purePlan = planValue;
         }
+
+      } else if (weatherMode === 'existing_plan') {
+        if (sessionData.purePlan) {
+          const fn = sessionData.purePlan.endsWith('.json') ? sessionData.purePlan : sessionData.purePlan + '.json';
+          const folderGuess = sessionData.purePlan.includes('/')
+            ? sessionData.purePlan.substring(0, sessionData.purePlan.lastIndexOf('/'))
+            : 'Stamp';
+          if (activateExistingPurePlan(settings.acPath, fn, timeMult, planLoop)) {
+            const baseName = path.basename(fn, '.json');
+            planValue = `${folderGuess}/${baseName}`;
+            cmWeatherIndex = 2;
+            sessionData.purePlan = planValue;
+          }
+        }
+
+      } else {
+        const staticWeather = sessionData.weather || 'sol_01_clear';
+        const { fileName, folder } = writeStaticPurePlan(settings.acPath, staticWeather, sessionStartTime, timeMult);
+        planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
+        cmWeatherIndex = getPureCtrlCmWeather(staticWeather);
+        sessionData.purePlan = staticWeather;
+        console.log('[launch-game] Météo fixe :', staticWeather,
+                    '→ PLAN =', planValue, '/ CM_WEATHER =', cmWeatherIndex);
       }
 
-    } else {
-      const staticWeather = sessionData.weather || 'sol_01_clear';
-      const { fileName, folder } = writeStaticPurePlan(settings.acPath, staticWeather, sessionStartTime, timeMult);
-      planValue = `${folder}/${fileName.replace(/\.json$/i, '')}`;
-      cmWeatherIndex = getPureCtrlCmWeather(staticWeather);
-      sessionData.purePlan = staticWeather;
-      console.log('[launch-game] Météo fixe :', staticWeather,
-                  '→ PLAN =', planValue, '/ CM_WEATHER =', cmWeatherIndex);
+      writePureCtrlIni(documentsPath, sessionData.pureCtrl || {}, planValue, cmWeatherIndex);
+    } catch (err) {
+      console.error("Erreur plan Pure :", err);
+      throw new Error("Échec écriture plan Pure : " + err.message);
     }
-
-    writePureCtrlIni(documentsPath, sessionData.pureCtrl || {}, planValue, cmWeatherIndex);
-  } catch (err) {
-    console.error("Erreur plan Pure :", err);
-    throw new Error("Échec écriture plan Pure : " + err.message);
   }
 
   settings.nationality = sessionData.nationality || 'France';
   settings.nationCode = sessionData.nationCode || 'FRA';
 
   try {
-    writeRaceConfig(settings.acPath, sessionData, settings, content.cars || []);
+    writeRaceConfig(settings.acPath, sessionData, settings, content.cars || [], { noCsp: !caps.hasCSP });
   } catch (err) {
     console.error("Erreur race.ini :", err);
     throw new Error("Échec race.ini : " + err.message);

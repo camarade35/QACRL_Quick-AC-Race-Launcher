@@ -4014,3 +4014,273 @@ select:disabled, input:disabled {
   color: var(--text-primary);
   border-color: #a83a3a;
 }
+/* ============================================================
+   ASSISTANT D'INSTALLATION (Setup Wizard)
+   ============================================================ */
+
+.setup-wizard-modal .setup-wizard-content {
+  width: 720px;
+  max-width: 92vw;
+  max-height: 90vh;
+  padding: 24px 28px;
+  gap: 20px;
+}
+
+.setup-wizard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.setup-wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-wizard-step-dot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.setup-wizard-step-dot .num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76rem;
+  transition: all 0.2s;
+}
+
+.setup-wizard-step-dot.active { color: var(--accent); }
+.setup-wizard-step-dot.active .num {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-muted);
+}
+
+.setup-wizard-step-dot.done { color: var(--success); }
+.setup-wizard-step-dot.done .num {
+  background: var(--success);
+  color: #fff;
+  border-color: var(--success);
+}
+
+.setup-wizard-step-sep {
+  flex: 0 0 16px;
+  height: 1px;
+  background: var(--border);
+}
+
+.setup-wizard-body {
+  flex: 1;
+  min-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setup-wizard-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.setup-wizard-footer .spacer { flex: 1; }
+
+.setup-wizard-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.setup-wizard-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.setup-wizard-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 20px 0;
+}
+
+.setup-wizard-hero-logo {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+
+.setup-wizard-hero h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.setup-wizard-hero p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+/* Détection */
+.setup-wizard-scanning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.setup-wizard-scanning .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: setupSpin 0.9s linear infinite;
+}
+
+@keyframes setupSpin {
+  to { transform: rotate(360deg); }
+}
+
+.setup-wizard-detect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-wizard-detect-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+}
+
+.setup-wizard-detect-row .status {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.setup-wizard-detect-row .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-wizard-detect-row .label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.setup-wizard-detect-row .value {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  font-family: 'Consolas', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.setup-wizard-detect-row .fix-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.setup-wizard-detect-row .fix-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Récap */
+.setup-wizard-recap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r);
+}
+
+.setup-wizard-recap-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 0.84rem;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-subtle);
+}
+.setup-wizard-recap-row:last-child { border-bottom: none; }
+
+.setup-wizard-recap-row .k { color: var(--text-tertiary); font-weight: 600; }
+.setup-wizard-recap-row .v { color: var(--text-primary); font-weight: 600; text-align: right;
+                             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ============================================================
+   ONGLET CSP — Message "non installé"
+   ============================================================ */
+.csp-not-installed {
+  text-align: center;
+  padding: 60px 24px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.csp-not-installed-icon {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.csp-not-installed-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.csp-not-installed-hint {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}

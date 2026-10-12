@@ -25,8 +25,11 @@ contextBridge.exposeInMainWorld('api', {
   deletePurePlan: (planId) => ipcRenderer.invoke('delete-pure-plan', planId),
   readPureCtrlSettings: () => ipcRenderer.invoke('read-purectrl-settings'),
 
-  // ⭐ Détection SteamID : essaie Steam puis fallback race.ini
-  detectSteamId: () => ipcRenderer.invoke('detect-steam-id'),
+  // ⭐ Détection globale pour l'assistant d'installation
+  detectSetupStatus: () => ipcRenderer.invoke('detect-setup-status'),
+
+  // ⭐ Capacités installation (CSP / Pure présents ?)
+  checkCspPure: () => ipcRenderer.invoke('check-csp-pure'),
 
   // SERVEURS EN LIGNE
   fetchOnlineServers: (page) => ipcRenderer.invoke('fetch-online-servers', page),
