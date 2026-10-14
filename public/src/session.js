@@ -7,8 +7,12 @@
    ============================================================ */
 function filterWeatherByCapabilities(list) {
   const caps = (appData && appData.capabilities) || {};
-  // Si CSP+Pure sont présents → tout passe
+  // CSP + Pure → tout passe (Kunos + Sol + Pure)
   if (caps.hasCSP && caps.hasPure) return list;
+  // CSP + Sol → Kunos + Sol uniquement
+  if (caps.hasCSP && caps.hasSol) {
+    return list.filter(w => /^\d/.test(w) || /^sol_/i.test(w));
+  }
   // Sinon → uniquement les météos Kunos (numérotées)
   return list.filter(w => /^\d/.test(w));
 }

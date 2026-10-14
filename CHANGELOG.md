@@ -16,6 +16,46 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.3.1] - 2026-10-14
+
+### ✨ Ajouté
+- **Assistant d'installation** — détection de Sol en plus de CSP et Pure
+- **Assistant** — étape *Graphismes* : liste de filtres PP avec noms lisibles (`__Sol` → `Sol`, `__Sol_Extra` → `Sol Extra`…)
+- **Assistant** — étape *Graphismes* : styles Weather FX filtrés selon ce qui est installé (Sol 2.x si Sol seul, Pure Gamma/LCS si Pure, Default sinon)
+- **Assistant** — étape *Récap* : détection live des capacités (si CSP/Sol/Pure sont installés pendant le wizard, le récap se met à jour)
+- **Wizard volant** — support de la polarité inversée (pédales Fanatec/load cell) : `MIN` = valeur au repos, `MAX` = valeur à fond
+- **Wizard volant** — écriture automatique dans `controls.ini` : `[CONTROLLERS]`, `[HEADER] INPUT_METHOD=WHEEL`, `JOY`, `AXLE`, `MIN`, `MAX`
+- **Wizard volant** — création de `controls.ini` à partir de zéro si absent (install vierge)
+- **Wizard volant** — calcul automatique de l'index `JOY` (device AC) à partir du gamepad Chromium détecté
+- **Wizard volant** — bouton 🎯 individuel par axe (reconfig rapide sans refaire les 5 étapes)
+- **Installation CSP/Sol** — détection et activation automatique des apps Python Sol dans `python.ini`
+- **Installation CSP/Sol** — détection du dossier `apps/python` dans les archives
+- **Onglet CSP** — bouton « Installer CSP + Sol/Pure » quand CSP est présent mais pas de script météo
+
+### 🐛 Corrigé
+- **`window.api.detectSteamId is not a function`** — handler maintenant exposé dans `preload.js`
+- **`python.ini` mal formé** après installation Sol (`[SOL_CONFIG]ACTIVE=1` collés sur une ligne)
+- **Wizard volant** — skip silencieux des axes non assignés (`AXLE=-1`), empêchant tout mapping sur install vierge
+- **Wizard volant** — priorité aux AXLE réellement assignés (`>= 0`), plus de fallback prématuré sur `-1`
+- **Focus des modales** — `z-index` explicites : wizard volant > guide CSP > setup wizard > update
+- **Rafraîchissement des éditeurs INI** après écriture par le wizard volant
+- **Écriture `video.ini`** — le dossier parent est créé s'il n'existe pas
+- **Récap assistant** — n'affiche plus « sans CSP » alors que CSP est installé
+
+### 🔧 Modifié
+- `preload.js` : `detectSteamId` exposé
+- `main.js` : détection Sol dans `detect-setup-status`, création dossier parent dans `write-ini-file`
+- `public/src/wheelCalibration.js` : refonte complète de `finalizeAndSummary` (écriture `controls.ini`, polarité, `CONTROLLERS`, `HEADER`)
+- `public/src/setupWizard.js` : étape *Graphismes* adaptative (CSP/Sol/Pure), récap live, gestion focus modales
+- `public/src/cspInstallGuide.js` : événement `qacrl:cspinstall-closed`
+- `public/src/weatherFx.js` / `iniControls.js` / `settingsSearch.js` : noms PP filters lisibles
+- `public/src/utils.js` : helper `formatPpFilterName()`
+- `src/cspArchiveInstaller.js` : `activateSolPythonApps` réécrit (regex + EOL), marker `apps/python`
+- `style.css` : z-index explicites par modale
+- i18n FR/EN : nouvelles clés `setup.graphics.*`, `setup.detection.sol`, `setup.recap.cspWeather`
+
+---
+
 ## [1.3.0] - 2026-10-12
 
 ### ✨ Ajouté

@@ -987,8 +987,8 @@
           sel.innerHTML = '';
           for (const f of filters) {
             const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
+            opt.value = f;                                    // ⭐ valeur technique
+            opt.textContent = formatPpFilterName(f);          // ⭐ nom lisible
             if (f === currentVal) opt.selected = true;
             sel.appendChild(opt);
           }

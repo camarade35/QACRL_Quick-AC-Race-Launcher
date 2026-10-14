@@ -8,6 +8,7 @@ const dns = require('dns').promises;
 const { exec, execSync, spawn } = require('child_process');
 const { pathToFileURL } = require('url');
 const { writeRaceConfig } = require('./src/iniWriter');
+const { installArchive, previewArchive } = require('./src/cspArchiveInstaller');
 const AdmZip = require('adm-zip');
 
 const stateFilePath = path.join(app.getPath('userData'), 'user-state.json');
@@ -1404,9 +1405,10 @@ ipcMain.handle('detect-setup-status', async () => {
     if (!steamResult.success) steamResult = detectSteamIdFromRaceIni();
   } catch (e) { console.warn('[setup] SteamID KO', e.message); }
 
-  // 4) CSP / Pure / 7-Zip / contenu
+  // 4) CSP / Pure / Sol / 7-Zip / contenu
   const csp = { installed: false };
   const pure = { installed: false };
+  const sol = { installed: false, version: null };
   const sevenZip = { installed: false };
   const content = { cars: 0, tracks: 0 };
 
@@ -1425,6 +1427,16 @@ ipcMain.handle('detect-setup-status', async () => {
     const pureDir = path.join(acPath, 'extension', 'config-ext', 'PurePlanner');
     if (fs.existsSync(pureDir)) pure.installed = true;
 
+    // ⭐ Détection Sol (manifest.ini dans extension/weather/sol/)
+    const solManifest = path.join(acPath, 'extension', 'weather', 'sol', 'manifest.ini');
+    if (fs.existsSync(solManifest)) {
+      sol.installed = true;
+      try {
+        const m = fs.readFileSync(solManifest, 'utf8').match(/^VERSION\s*=\s*(.+)$/mi);
+        if (m) sol.version = m[1].trim();
+      } catch (e) {}
+    }
+
     content.cars = countDirectories(path.join(acPath, 'content', 'cars'));
     content.tracks = countDirectories(path.join(acPath, 'content', 'tracks'));
   }
@@ -1440,8 +1452,115 @@ ipcMain.handle('detect-setup-status', async () => {
     steamId: steamResult.success ? steamResult.steamId : null,
     steamIdSource: steamResult.source || null,
     personaName: steamResult.personaName || null,
-    csp, pure, sevenZip, content,
+    csp, pure, sol, sevenZip, content,
   };
+});
+
+/* ============================================================
+   IPC — VÉRIFICATION DES MISES À JOUR (GitHub Releases)
+   ============================================================ */
+function compareSemver(a, b) {
+  const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+function fetchLatestRelease() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/camarade35/QACRL_Quick-AC-Race-Launcher/releases/latest',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'QACRL-Launcher',
+        'Accept': 'application/vnd.github+json',
+      },
+      timeout: 8000,
+    };
+    const req = https.request(options, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        return reject(new Error('GitHub HTTP ' + res.statusCode));
+      }
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error('JSON invalide')); }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(new Error('Timeout')); });
+    req.end();
+  });
+}
+
+/* ============================================================
+   IPC — INSTALLATION ARCHIVES CSP / SOL / PURE
+   ============================================================ */
+
+ipcMain.handle('preview-csp-archive', async (event, filePath) => {
+  try {
+    const res = previewArchive(filePath);
+    return { success: true, ...res };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('install-csp-archive', async (event, filePath) => {
+  try {
+    const settings = fs.existsSync(settingsFilePath)
+      ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+      : {};
+    const acPath = settings.acPath;
+    if (!acPath || !fs.existsSync(acPath)) {
+      return { success: false, error: 'Dossier AC non configuré.' };
+    }
+
+    const { path: documentsPath } = resolveDocumentsPath(settings);
+
+    const result = await installArchive(filePath, acPath, documentsPath, (progress) => {
+      event.sender.send('csp-install-progress', progress);
+    });
+
+    return result;
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const localVersion = app.getVersion();
+    const release = await fetchLatestRelease();
+
+    const tagName = (release && release.tag_name) || '';
+    const remoteVersion = tagName.replace(/^v/i, '');
+    if (!remoteVersion) {
+      return { success: false, error: 'Tag de version introuvable.' };
+    }
+
+    const hasUpdate = compareSemver(remoteVersion, localVersion) > 0;
+
+    return {
+      success: true,
+      hasUpdate,
+      localVersion,
+      remoteVersion,
+      releaseUrl: release.html_url || '',
+      releaseName: release.name || tagName,
+      releaseNotes: release.body || '',
+      publishedAt: release.published_at || '',
+    };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 /* ============================================================
@@ -1458,6 +1577,9 @@ ipcMain.handle('check-csp-pure', async () => {
     hasCSP: false,
     hasPure: false,
     hasPurePlanner: false,
+    hasSol: false,
+    solVersion: null,
+    solController: null,
     hasWeatherFx: false,
   };
 
@@ -1465,6 +1587,27 @@ ipcMain.handle('check-csp-pure', async () => {
     result.hasCSP = fs.existsSync(path.join(acPath, 'extension', 'config'));
     result.hasPure = fs.existsSync(path.join(acPath, 'extension', 'config-ext', 'PurePlanner'));
     result.hasPurePlanner = fs.existsSync(path.join(acPath, 'extension', 'config-ext', 'PurePlanner', 'Plans'));
+
+    // ⭐ Détection Sol
+    const solManifest = path.join(acPath, 'extension', 'weather', 'sol', 'manifest.ini');
+    if (fs.existsSync(solManifest)) {
+      result.hasSol = true;
+      try {
+        const content = fs.readFileSync(solManifest, 'utf8');
+        const m = content.match(/^VERSION\s*=\s*(.+)$/mi);
+        if (m) result.solVersion = m[1].trim();
+      } catch (e) { /* ignore */ }
+    }
+
+    // ⭐ Contrôleur Sol 2.5 actif (si présent)
+    const sol2Manifest = path.join(acPath, 'extension', 'weather-controllers', 'sol2', 'manifest.ini');
+    if (fs.existsSync(sol2Manifest)) {
+      try {
+        const content = fs.readFileSync(sol2Manifest, 'utf8');
+        const m = content.match(/^VERSION\s*=\s*(.+)$/mi);
+        if (m) result.solController = m[1].trim();
+      } catch (e) { /* ignore */ }
+    }
   }
 
   if (documentsPath) {
@@ -1639,23 +1782,40 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
   forceCustomAssistsProfile(documentsPath);
   writeAssistsIni(documentsPath, sessionData.assists || {});
 
-  // ⭐ Détection des capacités Pure
-  const caps = { hasCSP: false, hasPure: false };
+  // ⭐ Détection des capacités (CSP / Pure / Sol)
+  const caps = { hasCSP: false, hasPure: false, hasSol: false };
   if (settings.acPath && fs.existsSync(settings.acPath)) {
     caps.hasCSP = fs.existsSync(path.join(settings.acPath, 'extension', 'config'));
     caps.hasPure = fs.existsSync(path.join(settings.acPath, 'extension', 'config-ext', 'PurePlanner'));
+    caps.hasSol = fs.existsSync(path.join(settings.acPath, 'extension', 'weather', 'sol', 'manifest.ini'));
   }
 
-  // ⭐ Mode dégradé sans Pure : on force météo Kunos et on skip toute la logique Pure
-  const skipPureLogic = !caps.hasPure;
-  if (skipPureLogic) {
-    console.log('[launch-game] Pure non installé → mode dégradé (météo Kunos classique)');
+  // ⭐ 3 cas :
+  //   - Pure installé    → toute la logique Pure (plans, pureCtrl)
+  //   - Sol installé     → on garde la météo Sol choisie, on skip la logique Pure
+  //   - Ni Pure ni Sol   → mode dégradé Kunos (force 3_clear)
+  const usePureLogic = caps.hasPure;
+  const useSolWeather = !caps.hasPure && caps.hasSol;
+  const useKunosFallback = !caps.hasPure && !caps.hasSol;
+
+  if (useSolWeather) {
+    console.log('[launch-game] Sol installé → météo Sol directe, skip PurePlanner');
+    sessionData.weatherMode = 'static';
+    if (!sessionData.weather || !/^sol_/i.test(sessionData.weather)) {
+      console.warn('[launch-game] Météo non-Sol détectée, fallback sol_01_clear');
+      sessionData.weather = 'sol_01_clear';
+    }
+    console.log('[launch-game] Météo Sol conservée :', sessionData.weather);
+  }
+
+  if (useKunosFallback) {
+    console.log('[launch-game] Ni Pure ni Sol → mode dégradé (météo Kunos classique)');
     const isKunosWeather = typeof sessionData.weather === 'string' && /^\d/.test(sessionData.weather);
     sessionData.weather = isKunosWeather ? sessionData.weather : '3_clear';
     sessionData.weatherMode = 'static';
   }
 
-  if (!skipPureLogic) {
+  if (usePureLogic) {
     try {
       let planValue = null;
       let cmWeatherIndex = 2;
@@ -1700,6 +1860,24 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
       throw new Error("Échec écriture plan Pure : " + err.message);
     }
   }
+
+  // ⭐ Lit le CONTROLLER depuis weather_fx.ini (source de vérité pour Sol/Pure)
+  let weatherController = null;
+  try {
+    const wfxPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'weather_fx.ini');
+    if (fs.existsSync(wfxPath)) {
+      const wfxContent = fs.readFileSync(wfxPath, 'utf8');
+      const m = wfxContent.match(/^\s*CONTROLLER\s*=\s*(.*)$/m);
+      if (m && m[1].trim()) weatherController = m[1].trim();
+    }
+  } catch (e) { /* ignore */ }
+
+  // Fallback : si Sol installé et rien dans weather_fx.ini → sol2
+  const solInstalled = fs.existsSync(path.join(settings.acPath, 'extension', 'weather', 'sol', 'manifest.ini'));
+  if (!weatherController && solInstalled) weatherController = 'sol2';
+
+  sessionData.weatherController = weatherController;
+  console.log('[launch-game] __CM_WEATHER_CONTROLLER =', weatherController || '(aucun)');
 
   settings.nationality = sessionData.nationality || 'France';
   settings.nationCode = sessionData.nationCode || 'FRA';
@@ -2597,6 +2775,10 @@ ipcMain.handle('write-ini-file', async (event, filename, content) => {
   const filePath = getCfgIniPath(documentsPath, filename);
 
   try {
+    // ⭐ Crée le dossier parent si absent (install vierge où AC n'a jamais été lancé)
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
     // Backup automatique avant chaque écriture
     if (fs.existsSync(filePath)) {
       fs.copyFileSync(filePath, filePath + '.bak');
@@ -2646,10 +2828,18 @@ ipcMain.handle('list-ppfilters', async () => {
    - Pure LCS   → IMPLEMENTATION=Pure LCS
    ============================================================ */
 
+// ⭐ Chaque style écrit 2 clés dans [BASIC] de weather_fx.ini :
+//   impl : IMPLEMENTATION (weather script) — null = supprime la ligne
+//   ctrl : CONTROLLER    (controller script) — null = supprime la ligne
+// Règles :
+//   - Sol style       → pas d'IMPLEMENTATION, juste CONTROLLER=sol2
+//   - Default style   → IMPLEMENTATION=base (Kunos)
+//   - Pure Gamma/LCS  → IMPLEMENTATION=pure / Pure LCS + CONTROLLER=pureCtrl
 const WEATHER_FX_VALUES = {
-  'default': null,             // ligne à supprimer
-  'gamma':   'pure',
-  'lcs':     'Pure LCS',
+  'default': { impl: 'base',     ctrl: 'sol2'     },
+  'sol':     { impl: null,       ctrl: 'sol2'     },
+  'gamma':   { impl: 'pure',     ctrl: 'pureCtrl' },
+  'lcs':     { impl: 'Pure LCS', ctrl: 'pureCtrl' },
 };
 
 function getWeatherFxActivePath() {
@@ -2663,18 +2853,30 @@ function getWeatherFxActivePath() {
 ipcMain.handle('get-weather-fx-style', async () => {
   const active = getWeatherFxActivePath();
   if (!fs.existsSync(active)) {
-    return { success: false, error: 'weather_fx.ini introuvable : ' + active, style: null };
+    return { success: true, style: 'default', implementation: '', controller: '', path: active };
   }
   try {
     const content = fs.readFileSync(active, 'utf8');
-    const m = content.match(/^\s*IMPLEMENTATION\s*=\s*(.*)$/m);
-    const impl = m ? m[1].trim() : '';
+    const implM = content.match(/^\s*IMPLEMENTATION\s*=\s*(.*)$/m);
+    const ctrlM = content.match(/^\s*CONTROLLER\s*=\s*(.*)$/m);
+    const impl = implM ? implM[1].trim() : '';
+    const ctrl = ctrlM ? ctrlM[1].trim().toLowerCase() : '';
 
+    // ⭐ Priorité au CONTROLLER (car Sol n'a pas d'IMPLEMENTATION)
     let style = 'default';
-    if (/^pure\s*lcs$/i.test(impl))    style = 'lcs';
-    else if (/^pure$/i.test(impl))     style = 'gamma';
+    if (ctrl === 'sol2' || ctrl === 'sol2static' || ctrl === 'sol') {
+      style = 'sol';
+    } else if (ctrl === 'purectrl') {
+      style = /^pure\s*lcs$/i.test(impl) ? 'lcs' : 'gamma';
+    } else if (/^pure\s*lcs$/i.test(impl)) {
+      style = 'lcs';
+    } else if (/^pure$/i.test(impl)) {
+      style = 'gamma';
+    } else if (/^sol(\s|$|_)/i.test(impl)) {
+      style = 'sol';
+    }
 
-    return { success: true, style, implementation: impl, path: active };
+    return { success: true, style, implementation: impl, controller: ctrl, path: active };
   } catch (e) {
     return { success: false, error: e.message, style: null };
   }
@@ -2684,53 +2886,193 @@ ipcMain.handle('set-weather-fx-style', async (event, style) => {
   if (!(style in WEATHER_FX_VALUES)) {
     return { success: false, error: 'Style inconnu : ' + style };
   }
-  const newValue = WEATHER_FX_VALUES[style];
+  const values = WEATHER_FX_VALUES[style];
+  const newImpl = values.impl;
+  const newCtrl = values.ctrl;
 
   const active = getWeatherFxActivePath();
+  const activeDir = path.dirname(active);
+
+  if (!fs.existsSync(activeDir)) {
+    try { fs.mkdirSync(activeDir, { recursive: true }); }
+    catch (e) { return { success: false, error: 'Créer ' + activeDir + ' : ' + e.message }; }
+  }
   if (!fs.existsSync(active)) {
-    return { success: false, error: 'weather_fx.ini introuvable : ' + active };
+    try { fs.writeFileSync(active, '[BASIC]\n', 'utf8'); }
+    catch (e) { return { success: false, error: 'Créer weather_fx.ini : ' + e.message }; }
   }
 
   try {
-    // Backup
     fs.copyFileSync(active, active + '.bak');
-
-    // Lit + modifie
     const original = fs.readFileSync(active, 'utf8');
     const eol = original.includes('\r\n') ? '\r\n' : '\n';
     const lines = original.split(/\r?\n/);
 
-    // 1) Cherche une ligne IMPLEMENTATION= existante
-    const implRe = /^\s*IMPLEMENTATION\s*=/i;
-    let implIdx = -1;
-    for (let i = 0; i < lines.length; i++) {
-      if (implRe.test(lines[i])) { implIdx = i; break; }
-    }
-
-    if (newValue === null) {
-      // Style "default" : supprime la ligne si elle existe
-      if (implIdx >= 0) lines.splice(implIdx, 1);
-    } else {
-      const newLine = 'IMPLEMENTATION=' + newValue;
-      if (implIdx >= 0) {
-        lines[implIdx] = newLine;
+    function setBasicKey(linesArr, keyName, newValue) {
+      const keyRe = new RegExp('^\\s*' + keyName + '\\s*=', 'i');
+      let idx = -1, inBasic = false;
+      for (let i = 0; i < linesArr.length; i++) {
+        const secM = linesArr[i].match(/^\s*\[([^\]]+)\]\s*$/);
+        if (secM) { inBasic = (secM[1].toUpperCase() === 'BASIC'); continue; }
+        if (!inBasic) continue;
+        if (keyRe.test(linesArr[i])) { idx = i; break; }
+      }
+      if (newValue === null) {
+        if (idx >= 0) linesArr.splice(idx, 1);
       } else {
-        // Pas de ligne existante → on l'insère juste après [BASIC]
-        const basicIdx = lines.findIndex(l => /^\s*\[BASIC\]\s*$/i.test(l));
-        if (basicIdx >= 0) {
-          lines.splice(basicIdx + 1, 0, newLine);
-        } else {
-          // Aucune section [BASIC] → on la crée en tout début
-          lines.unshift('[BASIC]', newLine, '');
+        const newLine = keyName + '=' + newValue;
+        if (idx >= 0) linesArr[idx] = newLine;
+        else {
+          const basicIdx = linesArr.findIndex(l => /^\s*\[BASIC\]\s*$/i.test(l));
+          if (basicIdx >= 0) linesArr.splice(basicIdx + 1, 0, newLine);
+          else linesArr.unshift('[BASIC]', newLine, '');
         }
       }
     }
 
+    setBasicKey(lines, 'IMPLEMENTATION', newImpl);
+    setBasicKey(lines, 'CONTROLLER', newCtrl);
+
     fs.writeFileSync(active, lines.join(eol), 'utf8');
-    return { success: true, appliedStyle: style, target: active, value: newValue };
+    console.log('[set-weather-fx-style] Style', style, '→ IMPL=' + newImpl + ' / CTRL=' + newCtrl);
+    return { success: true, appliedStyle: style, target: active, impl: newImpl, ctrl: newCtrl };
   } catch (e) {
     return { success: false, error: e.message };
   }
+});
+
+/* ============================================================
+   IPC — AUTO-CONFIG STYLE + FILTRE PP selon ce qui est installé
+   ============================================================ */
+ipcMain.handle('auto-configure-weather', async () => {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+
+  if (!acPath || !fs.existsSync(acPath)) {
+    return { success: false, error: 'Dossier AC non configuré' };
+  }
+
+  // Détection des capacités
+  const caps = {
+    hasCSP: fs.existsSync(path.join(acPath, 'extension', 'config')),
+    hasSol: fs.existsSync(path.join(acPath, 'extension', 'weather', 'sol', 'manifest.ini')),
+    hasPure: fs.existsSync(path.join(acPath, 'extension', 'config-ext', 'PurePlanner')),
+  };
+
+  // Cible
+  let targetStyle, targetFilter;
+  if (caps.hasCSP && caps.hasPure) {
+    targetStyle = 'gamma';
+    targetFilter = 'pure';
+  } else if (caps.hasCSP && caps.hasSol) {
+    targetStyle = 'sol';
+    targetFilter = '__Sol';
+  } else {
+    targetStyle = 'default';
+    targetFilter = 'default';
+  }
+
+  const changes = [];
+
+  // --- Weather FX ---
+  const wfxPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'extension', 'weather_fx.ini');
+  let currentStyle = 'default';
+  if (fs.existsSync(wfxPath)) {
+    try {
+      const content = fs.readFileSync(wfxPath, 'utf8');
+      const implM = content.match(/^\s*IMPLEMENTATION\s*=\s*(.*)$/m);
+      const ctrlM = content.match(/^\s*CONTROLLER\s*=\s*(.*)$/m);
+      const impl = implM ? implM[1].trim() : '';
+      const ctrl = ctrlM ? ctrlM[1].trim().toLowerCase() : '';
+      if (['sol2', 'sol2static', 'sol'].includes(ctrl)) currentStyle = 'sol';
+      else if (ctrl === 'purectrl') currentStyle = /^pure\s*lcs$/i.test(impl) ? 'lcs' : 'gamma';
+      else if (/^pure\s*lcs$/i.test(impl)) currentStyle = 'lcs';
+      else if (/^pure$/i.test(impl)) currentStyle = 'gamma';
+    } catch (e) { /* ignore */ }
+  }
+
+  const styleCoherent = (
+    (targetStyle === 'default' && currentStyle === 'default') ||
+    (targetStyle === 'sol' && currentStyle === 'sol') ||
+    (targetStyle === 'gamma' && (currentStyle === 'gamma' || currentStyle === 'lcs'))
+  );
+
+  if (!styleCoherent) {
+    const vals = WEATHER_FX_VALUES[targetStyle];
+    const dir = path.dirname(wfxPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(wfxPath)) fs.writeFileSync(wfxPath, '[BASIC]\n', 'utf8');
+
+    try {
+      fs.copyFileSync(wfxPath, wfxPath + '.bak');
+      const original = fs.readFileSync(wfxPath, 'utf8');
+      const eol = original.includes('\r\n') ? '\r\n' : '\n';
+      let lines = original.split(/\r?\n/);
+
+      const setKey = (key, val) => {
+        const keyRe = new RegExp('^\\s*' + key + '\\s*=', 'i');
+        let idx = -1, inBasic = false;
+        for (let i = 0; i < lines.length; i++) {
+          const m = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
+          if (m) { inBasic = (m[1].toUpperCase() === 'BASIC'); continue; }
+          if (!inBasic) continue;
+          if (keyRe.test(lines[i])) { idx = i; break; }
+        }
+        if (val === null) { if (idx >= 0) lines.splice(idx, 1); }
+        else {
+          const newLine = key + '=' + val;
+          if (idx >= 0) lines[idx] = newLine;
+          else {
+            const bIdx = lines.findIndex(l => /^\s*\[BASIC\]\s*$/i.test(l));
+            if (bIdx >= 0) lines.splice(bIdx + 1, 0, newLine);
+            else lines.unshift('[BASIC]', newLine, '');
+          }
+        }
+      };
+      setKey('IMPLEMENTATION', vals.impl);
+      setKey('CONTROLLER', vals.ctrl);
+      fs.writeFileSync(wfxPath, lines.join(eol), 'utf8');
+      changes.push({ target: 'weather_fx', from: currentStyle, to: targetStyle });
+    } catch (e) {
+      changes.push({ target: 'weather_fx', error: e.message });
+    }
+  }
+
+  // --- Filtre PP ---
+  const videoPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'video.ini');
+  let currentFilter = null;
+  if (fs.existsSync(videoPath)) {
+    currentFilter = readIniValue(videoPath, 'POST_PROCESS', 'FILTER');
+  }
+
+  const KUNOS_PP = ['default', 'natural', 'CDimImaged'];
+  const isKunos = currentFilter && KUNOS_PP.includes(currentFilter);
+  const isSol = currentFilter && /^__sol/i.test(currentFilter);
+  const isPure = currentFilter && !isKunos && !isSol;
+
+  const filterCoherent = (
+    !currentFilter ? false :
+    targetStyle === 'default' ? isKunos :
+    targetStyle === 'sol' ? isSol :
+    (targetStyle === 'gamma' || targetStyle === 'lcs') ? isPure :
+    true
+  );
+
+  if (!filterCoherent) {
+    try {
+      if (!fs.existsSync(videoPath)) throw new Error('video.ini introuvable');
+      writeIniValue(videoPath, 'POST_PROCESS', 'FILTER', targetFilter);
+      changes.push({ target: 'pp_filter', from: currentFilter, to: targetFilter });
+    } catch (e) {
+      changes.push({ target: 'pp_filter', error: e.message });
+    }
+  }
+
+  console.log('[auto-configure-weather] caps=', caps, 'changes=', changes);
+  return { success: true, caps, targetStyle, targetFilter, changes };
 });
   
   /* ============================================================
@@ -2996,22 +3338,34 @@ const CSP_ALLOWED_FILES = [
 
 ipcMain.handle('list-csp-modules', async () => {
   const dir = getCspExtensionPath();
-  if (!fs.existsSync(dir)) {
+  // ⭐ Templates : fallback si le fichier user n'existe pas encore
+  let templateDir = null;
+  try { templateDir = getCspTemplatePath(); } catch (e) { /* AC non configuré */ }
+
+  if (!fs.existsSync(dir) && !templateDir) {
     return { success: false, error: 'Dossier extension introuvable : ' + dir, modules: [] };
   }
+
   const modules = [];
   for (const filename of CSP_ALLOWED_FILES) {
-    const filePath = path.join(dir, filename);
-    if (!fs.existsSync(filePath)) continue;
-    const stat = fs.statSync(filePath);
+    const userPath = path.join(dir, filename);
+    const tplPath = templateDir ? path.join(templateDir, filename) : null;
+
+    const hasUser = fs.existsSync(userPath);
+    const hasTpl = tplPath && fs.existsSync(tplPath);
+    if (!hasUser && !hasTpl) continue;
+
+    const sourcePath = hasUser ? userPath : tplPath;
+    const stat = fs.statSync(sourcePath);
     modules.push({
       filename,
       exists: true,
+      fromTemplate: !hasUser,
       empty: stat.size === 0,
       size: stat.size,
     });
   }
-  return { success: true, modules, path: dir };
+  return { success: true, modules, path: dir, templateDir };
 });
 
 ipcMain.handle('read-csp-module', async (event, filename) => {
@@ -3019,10 +3373,21 @@ ipcMain.handle('read-csp-module', async (event, filename) => {
     return { success: false, error: 'Fichier non autorisé : ' + filename };
   }
   const dir = getCspExtensionPath();
-  const filePath = path.join(dir, filename);
-  if (!fs.existsSync(filePath)) {
-    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  const userPath = path.join(dir, filename);
+  let tplPath = null;
+  try {
+    tplPath = path.join(getCspTemplatePath(), filename);
+  } catch (e) { /* AC non configuré */ }
+
+  // ⭐ Priorité au fichier user ; fallback sur le template
+  let filePath = null;
+  if (fs.existsSync(userPath)) filePath = userPath;
+  else if (tplPath && fs.existsSync(tplPath)) filePath = tplPath;
+
+  if (!filePath) {
+    return { success: false, error: 'Fichier introuvable : ' + userPath };
   }
+
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     const raw = readIniValue(filePath, 'BASIC', 'ENABLED');
@@ -3032,6 +3397,7 @@ ipcMain.handle('read-csp-module', async (event, filename) => {
     return {
       success: true,
       path: filePath,
+      fromTemplate: filePath === tplPath,
       content,
       enabled: enabledBool,
     };
@@ -3040,14 +3406,37 @@ ipcMain.handle('read-csp-module', async (event, filename) => {
   }
 });
 
+// ⭐ S'assure que le fichier user existe dans Documents\...\extension\
+// Si absent → copie le template depuis <AC>\extension\config\
+// Retourne le chemin du fichier user (ou null si impossible)
+function ensureUserCspFile(filename) {
+  const dir = getCspExtensionPath();
+  const userPath = path.join(dir, filename);
+
+  if (fs.existsSync(userPath)) return userPath;
+
+  let tplPath = null;
+  try {
+    tplPath = path.join(getCspTemplatePath(), filename);
+  } catch (e) {
+    return null;
+  }
+  if (!fs.existsSync(tplPath)) return null;
+
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.copyFileSync(tplPath, userPath);
+  console.log('[ensureUserCspFile] Template copié →', userPath);
+  return userPath;
+}
+
 ipcMain.handle('set-csp-module-enabled', async (event, filename, enabled) => {
   if (!CSP_ALLOWED_FILES.includes(filename)) {
     return { success: false, error: 'Fichier non autorisé : ' + filename };
   }
-  const dir = getCspExtensionPath();
-  const filePath = path.join(dir, filename);
-  if (!fs.existsSync(filePath)) {
-    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  // ⭐ Copie le template si le user n'existe pas encore
+  const filePath = ensureUserCspFile(filename);
+  if (!filePath) {
+    return { success: false, error: 'Fichier introuvable (user ni template) : ' + filename };
   }
   try {
     const original = fs.readFileSync(filePath, 'utf8');
@@ -3100,10 +3489,10 @@ ipcMain.handle('write-csp-module', async (event, filename, content) => {
   if (typeof content !== 'string') {
     return { success: false, error: 'Contenu invalide' };
   }
-  const dir = getCspExtensionPath();
-  const filePath = path.join(dir, filename);
-  if (!fs.existsSync(filePath)) {
-    return { success: false, error: 'Fichier introuvable : ' + filePath };
+  // ⭐ Copie le template si le user n'existe pas encore
+  const filePath = ensureUserCspFile(filename);
+  if (!filePath) {
+    return { success: false, error: 'Fichier introuvable (user ni template) : ' + filename };
   }
   try {
     fs.copyFileSync(filePath, filePath + '.bak');

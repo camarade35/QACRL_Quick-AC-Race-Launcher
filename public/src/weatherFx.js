@@ -10,9 +10,42 @@
     'default': 'Default (Kunos classique)',
     'gamma':   'Pure Gamma',
     'lcs':     'Pure LCS (linéaire)',
+    'sol':     'Sol 2.x',
   };
 
+  // ⭐ Filtres PP natifs d'Assetto Corsa (base game)
+  const KUNOS_PP_FILTERS = [
+    'default',
+    'natural',
+    'CDimImaged',
+  ];
+
+  // Patterns typiques des filtres CSP / Pure / Sol
+  const CSP_ONLY_PATTERNS = [
+    /^pure/i,
+    /^__sol/i,        // ⭐ filtre Sol officiel (__Sol.ini, __Sol_Extra.ini…)
+    /^csp/i,
+    /purecs/i,
+    /pure_lcs/i,
+    /_lcs$/i,
+  ];
+
+  function isKunosPpFilter(name) {
+    if (!name) return false;
+    if (KUNOS_PP_FILTERS.includes(name)) return true;
+    for (const re of CSP_ONLY_PATTERNS) {
+      if (re.test(name)) return false;
+    }
+    return true;
+  }
+
+  // ⭐ Un filtre Sol est-il présent dans la liste ?
+  function isSolPpFilter(name) {
+    return !!name && /^__sol/i.test(name);
+  }
+
   let initialized = false;
+  let _lastCaps = { hasCSP: false, hasPure: false, hasSol: false };
 
   // ---------------------------------------------------------------------------
   async function loadVideoIni() {
@@ -54,35 +87,76 @@
 
     if (statusEl) statusEl.textContent = '';
 
-    // 1) Style + Activé Weather FX
+    // ⭐ Capacités (CSP / Pure / Sol)
+    let caps = { hasCSP: false, hasPure: false, hasSol: false };
+    try {
+      caps = (await window.api.checkCspPure()) || caps;
+    } catch (e) { /* ignore */ }
+    _lastCaps = caps;
+
+    const pureAvailable = !!(caps.hasCSP && caps.hasPure);
+    const solAvailable  = !!(caps.hasCSP && caps.hasSol);
+    const advancedAvailable = pureAvailable || solAvailable;
+
+    // ⭐ 1) Récupère le Style actuel (AVANT de filtrer les PP)
+    let currentStyle = 'default';
+    let wfxEnabled = false;
     try {
       const [styleRes, enabledRes] = await Promise.all([
         window.api.getWeatherFxStyle().catch(() => ({ success: false })),
         window.api.getWeatherFxEnabled().catch(() => ({ success: false })),
       ]);
-
-      if (selectStyle) {
-        if (!styleRes.success) {
-          selectStyle.innerHTML = '<option value="">⚠️ ' + (styleRes.error || 'Erreur') + '</option>';
-        } else {
-          selectStyle.innerHTML = '';
-          for (const key of ['default', 'gamma', 'lcs']) {
-            const opt = document.createElement('option');
-            opt.value = key;
-            opt.textContent = LABELS[key];
-            if (key === styleRes.style) opt.selected = true;
-            selectStyle.appendChild(opt);
-          }
-        }
-      }
-      if (cbWeather && enabledRes.success) {
-        cbWeather.checked = !!enabledRes.enabled;
-      }
+      if (styleRes.success && styleRes.style) currentStyle = styleRes.style;
+      if (enabledRes.success) wfxEnabled = !!enabledRes.enabled;
     } catch (e) {
       console.error('[weatherFx] load style/enabled KO', e);
     }
 
-    // 2) Filtre PP + Activé (video.ini)
+    // ⭐ 2) Construit le select "Style Weather FX"
+    if (selectStyle) {
+      const availableStyles = ['default'];
+      if (pureAvailable) availableStyles.push('gamma', 'lcs');
+      if (solAvailable)  availableStyles.push('sol');
+
+      selectStyle.innerHTML = '';
+      for (const key of availableStyles) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = LABELS[key];
+        selectStyle.appendChild(opt);
+      }
+
+      if (availableStyles.length === 1) {
+        selectStyle.value = 'default';
+        selectStyle.disabled = true;
+        selectStyle.style.opacity = '0.5';
+        selectStyle.style.cursor = 'not-allowed';
+      } else {
+        selectStyle.value = availableStyles.includes(currentStyle) ? currentStyle : 'default';
+        selectStyle.disabled = false;
+        selectStyle.style.opacity = '';
+        selectStyle.style.cursor = '';
+      }
+    }
+
+    // ⭐ 3) Toggle "Activer Weather FX"
+    if (cbWeather) {
+      if (!advancedAvailable) {
+        cbWeather.checked = false;
+        cbWeather.disabled = true;
+        cbWeather.style.opacity = '0.5';
+        cbWeather.style.cursor = 'not-allowed';
+      } else {
+        cbWeather.checked = wfxEnabled;
+        cbWeather.disabled = false;
+        cbWeather.style.opacity = '';
+        cbWeather.style.cursor = '';
+      }
+    }
+
+    // ⭐ 4) Construit le select "Filtre PP"
+    //    - Style = Default → Kunos uniquement
+    //    - Style = autre   → tout
     try {
       const [filtersRes, videoData] = await Promise.all([
         window.api.listPpfilters().catch(() => ({ success: false, filters: [] })),
@@ -92,21 +166,64 @@
       const currentFilter = getPostProcessValue(videoData.sections, 'FILTER');
       const currentEnabled = getPostProcessValue(videoData.sections, 'ENABLED');
 
+      let filters = (filtersRes && filtersRes.success && filtersRes.filters) || [];
+
+      // ⭐ Filtrage selon le STYLE
+      const styleIsKunos = (currentStyle === 'default');
+      if (styleIsKunos) {
+        filters = filters.filter(isKunosPpFilter);
+      }
+
+      // ⭐ FALLBACK : si le dossier ppfilters est vide ou manquant,
+      //    on garde au moins "default" pour éviter un select vide
+      if (filters.length === 0) {
+        filters = ['default'];
+        console.warn('[weatherFx] Aucun filtre PP trouvé → fallback sur "default"');
+      }
+
+      // ⭐ Si le filtre actuel n'est pas dans la liste
+      let filterToSelect = currentFilter;
+      if (currentFilter && !filters.includes(currentFilter)) {
+        if (styleIsKunos) {
+          // Style Default → on force Kunos
+          filterToSelect = filters.includes('default') ? 'default' : (filters[0] || 'default');
+          try {
+            setPostProcessValue(videoData.sections, 'FILTER', filterToSelect);
+            await writeVideoIni(videoData.sections);
+            console.log('[weatherFx] Filtre forcé à "' + filterToSelect + '" (style Default)');
+          } catch (err) {
+            console.warn('[weatherFx] écriture filtre forcé KO', err);
+          }
+        } else {
+          // Style non-Kunos → on ajoute à la liste
+          filters.unshift(currentFilter);
+          filterToSelect = currentFilter;
+        }
+      }
+
       if (selectPp) {
         selectPp.innerHTML = '';
-        const filters = (filtersRes && filtersRes.success && filtersRes.filters) || [];
-        if (currentFilter && !filters.includes(currentFilter)) filters.push(currentFilter);
+
+        // ⭐ Dernier garde-fou : jamais de select vide
+        if (filters.length === 0) filters = ['default'];
+
         for (const f of filters) {
           const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
-          if (f === currentFilter) opt.selected = true;
+          opt.value = f;                                          // ⭐ valeur technique
+          opt.textContent = formatPpFilterName(f);                // ⭐ nom lisible
+          if (f === filterToSelect) opt.selected = true;
           selectPp.appendChild(opt);
         }
       }
 
       if (cbPp) {
         cbPp.checked = (currentEnabled === '1');
+      }
+
+      // ⭐ Affiche / masque le warning CSP
+      const warn = document.getElementById('weatherfx-csp-warning');
+      if (warn) {
+        warn.style.display = advancedAvailable ? 'none' : 'flex';
       }
     } catch (e) {
       console.error('[weatherFx] load PP KO', e);
@@ -139,6 +256,8 @@
       if (res && res.success) {
         setStatus(statusEl, '✅ Appliqué à ' + new Date().toLocaleTimeString(), '#4caf50');
         setTimeout(() => setStatus(statusEl, ''), 3000);
+        // ⭐ Recharge la liste PP selon le nouveau style
+        await load();
       } else {
         alert('Erreur : ' + ((res && res.error) || 'inconnue'));
         setStatus(statusEl, '❌ Échec', '#ff6b6b');
@@ -146,8 +265,6 @@
     } catch (err) {
       alert('Erreur : ' + err.message);
       setStatus(statusEl, '❌ Échec', '#ff6b6b');
-    } finally {
-      el.disabled = false;
     }
   }
 
@@ -223,6 +340,16 @@
 
   function init() {
     load();
+
+    // ⭐ Bouton "Voir l'onglet CSP"
+    const goCspBtn = document.getElementById('weatherfx-go-csp');
+    if (goCspBtn) {
+      goCspBtn.addEventListener('click', () => {
+        const cspBtn = document.querySelector('.subtab-btn[onclick*="subtab-settings-csp"]');
+        if (cspBtn) cspBtn.click();
+      });
+    }
+
     document.querySelectorAll('.subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const onclick = btn.getAttribute('onclick') || '';

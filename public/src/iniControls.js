@@ -140,12 +140,12 @@
         const filters = Array.isArray(opts.ppfilters) ? opts.ppfilters : [];
         let matched = false;
         for (const f of filters) {
-          const opt = el('option', { value: f, text: f });
+          const opt = el('option', { value: f, text: formatPpFilterName(f) });
           if (f === rawValue) { opt.selected = true; matched = true; }
           sel.appendChild(opt);
         }
         if (!matched && rawValue) {
-          const opt = el('option', { value: rawValue, text: rawValue });
+          const opt = el('option', { value: rawValue, text: formatPpFilterName(rawValue) });
           opt.selected = true;
           sel.appendChild(opt);
         }

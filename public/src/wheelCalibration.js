@@ -25,10 +25,65 @@
   }
 
   async function loadControlsData() {
-    const res = await window.api.readIniFile('controls.ini');
-    if (!res.success) throw new Error('controls.ini introuvable');
-    const sections = global.IniParser.parseIni(res.content);
-    return { sections, raw: res.content };
+    let raw = null;
+
+    try {
+      const res = await window.api.readIniFile('controls.ini');
+      if (res && res.success && typeof res.content === 'string' && res.content.trim()) {
+        raw = res.content;
+      }
+    } catch (e) { /* on tombera sur le fallback */ }
+
+    // ⭐ Install vierge : controls.ini n'existe pas encore → structure par défaut
+    if (raw == null) {
+      console.log('[Wizard] controls.ini absent → création d\'une structure par défaut');
+      raw = [
+        '[HEADER]',
+        'INPUT_METHOD=WHEEL',
+        '',
+        '[CONTROLLERS]',
+        '',
+        '[STEER]',
+        'JOY=-1',
+        'AXLE=-1',
+        'MIN=-1',
+        'MAX=1',
+        'LOCK=900',
+        'FF_GAIN=1',
+        '',
+        '[THROTTLE]',
+        'JOY=-1',
+        'AXLE=-1',
+        'MIN=-1',
+        'MAX=1',
+        'GAMMA=1',
+        '',
+        '[BRAKES]',
+        'JOY=-1',
+        'AXLE=-1',
+        'MIN=-1',
+        'MAX=1',
+        'GAMMA=2.4',
+        '',
+        '[CLUTCH]',
+        'JOY=-1',
+        'AXLE=-1',
+        'MIN=-1',
+        'MAX=1',
+        'GAMMA=1',
+        '',
+        '[HANDBRAKE]',
+        'JOY=-1',
+        'AXLE=-1',
+        'MIN=-1',
+        'MAX=1',
+        'GAMMA=1',
+        '',
+      ].join('\n');
+    }
+
+    const sections = global.IniParser.parseIni(raw);
+    return { sections, raw };
   }
 
   function readAxle(sections, sectionName) {
@@ -434,14 +489,25 @@
       }
     }
 
-    // Enregistre le résultat
+    // ⭐ Capture les valeurs brutes pour calculer la polarité (MIN/MAX)
     const step = state.steps[state.currentStep];
     const acAxis = readAxle(state.controls.sections, step.section);
+    const restVal = state.baselineAxes[state.detectedAxis];         // valeur AU REPOS
+    const pressedVal = (state.detectedValue != null)                // valeur QUAND BOUGÉ À FOND
+      ? state.detectedValue
+      : restVal;
+
     state.results.push({
       id: step.id,
       chromiumAxis: state.detectedAxis,
       acAxis: acAxis,
+      restVal: restVal,
+      pressedVal: pressedVal,
     });
+
+    console.log('[Wizard] ' + step.section + ' : rest=' + restVal.toFixed(2) +
+                ' pressed=' + pressedVal.toFixed(2) +
+                ' → polarité ' + (restVal < pressedVal ? 'normale' : 'INVERSÉE'));
 
     // Étape suivante
     state.currentStep++;
@@ -468,18 +534,9 @@
     const step = state.steps[state.currentStep];
     const acAxis = readAxle(state.controls.sections, step.section);
 
-    // Si pas d'AXLE configuré → skip
+    // ⭐ Pas d'AXLE configuré → on continue quand même (sera assigné par défaut à la fin)
     if (acAxis === null) {
-      state.results.push({ id: step.id, chromiumAxis: null, acAxis: null, reason: 'no-ac-axle' });
-      state.currentStep++;
-      state.subStep = 'move';
-      state.detectedAxis = null;
-      if (state.currentStep >= state.steps.length) {
-        finalizeAndSummary();
-      } else {
-        runCurrentStep();
-      }
-      return;
+      console.log('[Wizard] ' + step.section + ' : AXLE vide, une valeur par défaut sera écrite à la fin');
     }
 
     renderStepScreen();
@@ -488,25 +545,233 @@
   // ---------------------------------------------------------------------------
   // Résumé
   // ---------------------------------------------------------------------------
+  // ⭐ Extrait le nom lisible d'un gamepad Chromium
+  // "FANATEC Wheel (Vendor: 0eb7 Product: 0020)" → "FANATEC Wheel"
+  function extractDeviceName(chromiumId) {
+    if (!chromiumId) return '';
+    return String(chromiumId).replace(/\s*\(Vendor:.*$/i, '').trim();
+  }
+
+  // ⭐ Génère un __IGUID déterministe (mais unique par index)
+  // Format observé dans controls.ini : XXXX-NNNN-NNNN-800X-444553540000
+  function makeIguid(index) {
+    // Premier bloc : pseudo-aléatoire mais déterministe par index
+    const a = ((0x5251B780 + index * 0x1A2B3C) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+    const b = '7DD1';
+    const c = '11F1';
+    const d = (0x8001 + index).toString(16).toUpperCase().padStart(4, '0');
+    return a + '-' + b + '-' + c + '-' + d + '-444553540000';
+  }
+
+  // ⭐ Construit la liste des devices AC à partir des gamepads Chromium
+  // Retourne [{ acIndex, name, iguid, pguid, chromiumIndex }]
+  function buildAcControllersFromChromium() {
+    const out = [];
+    if (!global.GamepadMapper || !global.GamepadMapper.getChromiumGamepads) return out;
+    const pads = global.GamepadMapper.getChromiumGamepads();
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i];
+      if (!p || !p.vendor || !p.product) continue;
+      out.push({
+        acIndex: i,
+        name: extractDeviceName(p.id) || ('Device ' + i),
+        iguid: makeIguid(i),
+        pguid: p.product.toUpperCase() + p.vendor.toUpperCase() + '-0000-0000-0000-504944564944',
+        chromiumIndex: p.chromiumIndex,
+        vendor: p.vendor,
+        product: p.product,
+      });
+    }
+    return out;
+  }
+
   async function finalizeAndSummary() {
     stopLive();
-    const axes = {};
-    for (const r of state.results) {
-      if (r.chromiumAxis != null && r.acAxis != null) {
-        axes[String(r.chromiumAxis)] = r.acAxis;
-      }
+
+    // ⭐ Valeurs AC par défaut par section (convention AC / Content Manager)
+    const DEFAULT_AC_AXIS = {
+      'STEER':     0,
+      'THROTTLE':  1,
+      'BRAKES':    2,
+      'CLUTCH':    6,
+      'HANDBRAKE': 5,
+    };
+
+    // ⭐ On (re)construit la liste des devices AC à partir des gamepads Chromium.
+    //    C'est ce qui manquait : [CONTROLLERS] doit être rempli AVANT d'écrire JOY=n.
+    const acControllers = buildAcControllersFromChromium();
+    console.log('[Wizard] Devices AC reconstruits :',
+      acControllers.map(c => c.acIndex + '=' + c.name + '(' + c.vendor + ':' + c.product + ')').join(', ') || '(aucun)');
+
+    // ⭐ Trouve l'index AC du device qui a été détecté par le wizard
+    let acJoy = 0;
+    if (state.device && state.device.vendor && state.device.product) {
+      const match = acControllers.find(c =>
+        c.vendor === state.device.vendor && c.product === state.device.product
+      );
+      if (match) acJoy = match.acIndex;
+      else console.warn('[Wizard] device détecté introuvable dans la liste Chromium');
     }
-    if (Object.keys(axes).length > 0) {
-      await window.api.saveWheelProfile(state.device.vendor, state.device.product, {
-        axes, source: 'wizard',
+    console.log('[Wizard] JOY (AC) =', acJoy, '| device =', state.device.vendor + ':' + state.device.product);
+
+    const axes = {};
+    const updates = [];
+
+    for (const r of state.results) {
+      if (r.chromiumAxis == null) continue;
+      const step = state.steps.find(s => s.id === r.id);
+      if (!step) continue;
+
+      // ⭐ AXLE=-1 = "non assigné" → on utilise la valeur par défaut
+      const isAssigned = (r.acAxis != null && r.acAxis >= 0);
+      const targetAcAxis = isAssigned
+        ? r.acAxis
+        : (DEFAULT_AC_AXIS[step.section] !== undefined
+            ? DEFAULT_AC_AXIS[step.section]
+            : r.chromiumAxis);
+
+      axes[String(r.chromiumAxis)] = targetAcAxis;
+      updates.push({
+        section: step.section,
+        axle: targetAcAxis,
+        restVal: r.restVal,
+        pressedVal: r.pressedVal,
       });
-      if (global.GamepadMapper.refreshLearnedProfiles) {
-        await global.GamepadMapper.refreshLearnedProfiles();
+    }
+
+    // 1) Sauvegarde du profil appris (pour la preview live dans les widgets)
+    if (Object.keys(axes).length > 0) {
+      try {
+        await window.api.saveWheelProfile(state.device.vendor, state.device.product, {
+          axes, source: 'wizard',
+        });
+        if (global.GamepadMapper.refreshLearnedProfiles) {
+          await global.GamepadMapper.refreshLearnedProfiles();
+        }
+      } catch (e) {
+        console.warn('[Wizard] saveWheelProfile KO :', e.message);
       }
     }
 
+    // 2) ⭐ ÉCRITURE dans controls.ini :
+    //    a) [CONTROLLERS] rempli avec les devices détectés
+    //    b) JOY/AXLE/MIN/MAX dans chaque section cible
+    try {
+      // ⭐ Lit le fichier s'il existe, sinon utilise la structure par défaut
+      //    construite par loadControlsData() (state.controls.raw)
+      let baseContent = null;
+      try {
+        const res = await window.api.readIniFile('controls.ini');
+        if (res && res.success && typeof res.content === 'string' && res.content.trim()) {
+          baseContent = res.content;
+        }
+      } catch (e) { /* ignore, on tombe sur le fallback */ }
+
+      if (!baseContent) {
+        baseContent = state.controls.raw;
+        console.log('[Wizard] controls.ini absent → utilisation de la structure par défaut');
+      }
+
+      {
+        const sections = global.IniParser.parseIni(baseContent);
+
+        // --- 2.a) Réécrit [CONTROLLERS] en entier
+        if (acControllers.length > 0) {
+          let ctrlSec = sections.find(s => s.name === 'CONTROLLERS');
+          if (!ctrlSec) {
+            ctrlSec = { name: 'CONTROLLERS', entries: [] };
+            sections.push(ctrlSec);
+          }
+          // On vide les entrées existantes et on réécrit tout proprement
+          ctrlSec.entries = [];
+          for (const c of acControllers) {
+            ctrlSec.entries.push({ kind: 'kv', key: 'CON' + c.acIndex,  value: c.name,  comment: '' });
+            ctrlSec.entries.push({ kind: 'kv', key: '__IGUID' + c.acIndex, value: c.iguid, comment: '' });
+            ctrlSec.entries.push({ kind: 'kv', key: 'PGUID' + c.acIndex,  value: c.pguid, comment: '' });
+          }
+          console.log('[Wizard] [CONTROLLERS] réécrit avec ' + acControllers.length + ' device(s)');
+        }
+
+        // --- 2.a-bis) INPUT_METHOD=WHEEL dans [HEADER] (si un volant/pad est utilisé)
+        if (state.device) {
+          let headSec = sections.find(s => s.name === 'HEADER');
+          if (!headSec) {
+            headSec = { name: 'HEADER', entries: [] };
+            sections.unshift(headSec);
+          }
+          let imEntry = headSec.entries.find(x => x.kind === 'kv' && x.key === 'INPUT_METHOD');
+          if (imEntry) imEntry.value = 'WHEEL';
+          else headSec.entries.push({ kind: 'kv', key: 'INPUT_METHOD', value: 'WHEEL', comment: '' });
+          console.log('[Wizard] [HEADER] INPUT_METHOD = WHEEL');
+        }
+
+        // --- 2.b) Écrit JOY/AXLE/MIN/MAX dans les sections cibles
+        for (const u of updates) {
+          const sec = sections.find(s => s.name === u.section);
+          if (!sec) continue;
+
+          const setKV = (key, val) => {
+            const e = sec.entries.find(x => x.kind === 'kv' && x.key === key);
+            if (e) e.value = val;
+            else sec.entries.push({ kind: 'kv', key, value: val, comment: '' });
+          };
+
+          setKV('JOY',  String(acJoy));
+          setKV('AXLE', String(u.axle));
+
+          // ⭐ Calcul MIN/MAX (convention AC) :
+          //    - MIN = valeur brute de l'axe AU REPOS
+          //    - MAX = valeur brute de l'axe À FOND
+          //    Peu importe que MIN > MAX numériquement : AC interprète
+          //    toujours MIN comme 0% et MAX comme 100%.
+          //    - STEER : symétrique, on garde -1 / +1
+          let minVal = '-1';
+          let maxVal = '1';
+
+          if (u.section !== 'STEER' && u.restVal != null && u.pressedVal != null) {
+            const r = parseFloat(u.restVal.toFixed(2));
+            const p = parseFloat(u.pressedVal.toFixed(2));
+            const span = Math.abs(p - r);
+
+            if (span < 0.3) {
+              // L'axe n'a pas assez bougé → valeurs par défaut
+              console.warn('[Wizard] ' + u.section +
+                ' : amplitude trop faible (' + span.toFixed(2) + '), MIN/MAX par défaut');
+              minVal = '-1';
+              maxVal = '1';
+            } else {
+              // ⭐ Toujours : MIN = repos, MAX = à fond
+              minVal = String(r);
+              maxVal = String(p);
+              console.log('[Wizard] ' + u.section +
+                ' : MIN=' + minVal + ' MAX=' + maxVal +
+                (r > p ? ' (inversé — normal pour ce type d\'axe)' : ' (normal)'));
+            }
+          }
+          setKV('MIN', minVal);
+          setKV('MAX', maxVal);
+        }
+
+        const newContent = global.IniParser.serializeIni(sections);
+        await window.api.writeIniFile('controls.ini', newContent);
+        console.log('[Wizard] controls.ini mis à jour (' + updates.length + ' section(s), JOY=' + acJoy + ')');
+
+        // ⭐ Force le rechargement de l'éditeur INI pour que l'UI affiche les nouvelles valeurs
+        if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
+          try {
+            await global.SettingsIni.reloadByName('controls.ini');
+            console.log('[Wizard] Éditeur controls.ini rechargé');
+          } catch (e) {
+            console.warn('[Wizard] reloadByName KO :', e.message);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Wizard] écriture controls.ini KO :', e.message);
+    }
+
     const rows = state.results
-      .filter(r => r.chromiumAxis != null && r.acAxis != null)
+      .filter(r => r.chromiumAxis != null)
       .map(r => {
         const step = state.steps.find(s => s.id === r.id);
         return '<tr>' +
@@ -521,8 +786,8 @@
       ? 'Reconfiguration réussie !'
       : 'Calibration réussie !';
     const finalSub = state.isSingleStep
-      ? 'Axe mis à jour pour <code>' + state.device.vendor + ':' + state.device.product + '</code>'
-      : 'Profil enregistré pour <code>' + state.device.vendor + ':' + state.device.product + '</code>';
+      ? 'Axe mis à jour dans <code>controls.ini</code> pour <code>' + state.device.vendor + ':' + state.device.product + '</code>'
+      : 'Profil enregistré dans <code>controls.ini</code> pour <code>' + state.device.vendor + ':' + state.device.product + '</code>';
 
     elements.content.innerHTML =
       '<div class="wheel-calib-step">' +
@@ -592,6 +857,10 @@
     }
     if (elements && elements.modal) elements.modal.classList.remove('visible');
     state = null;
+    // ⭐ Prévient les modules qui attendent la fermeture (ex : setup wizard)
+    try {
+      window.dispatchEvent(new CustomEvent('qacrl:wheelcalib-closed'));
+    } catch (e) { /* ignore */ }
   }
 
   function init() {

@@ -232,6 +232,16 @@ const STEP_LABELS = {
       null
     ));
 
+    // ⭐ Sol
+    list.appendChild(makeDetectRow(
+      d.sol && d.sol.installed ? '✅' : '⚠️',
+      t('detection.sol', 'Sol (Weather FX)'),
+      d.sol && d.sol.installed
+        ? (d.sol.version ? (t('detection.detected', 'Détecté') + ' — v' + d.sol.version) : t('detection.detected', 'Détecté'))
+        : t('detection.notInstalled', 'Non installé'),
+      null
+    ));
+
     // 7-Zip
     list.appendChild(makeDetectRow(
       d.sevenZip && d.sevenZip.installed ? '✅' : '⚠️',
@@ -397,11 +407,14 @@ const STEP_LABELS = {
     body.appendChild(el('div', { class: 'setup-wizard-title', text: t('graphics.title', 'Rendu graphique') }));
     body.appendChild(el('p', { class: 'setup-wizard-subtitle', text: t('graphics.subtitle', 'Ajuste le rendu visuel selon tes préférences.') }));
 
-    // Détection CSP / Pure en direct
-    let caps = { hasCSP: false, hasPure: false };
+    // Détection CSP / Pure / Sol en direct
+    let caps = { hasCSP: false, hasPure: false, hasSol: false };
     try {
       caps = (await window.api.checkCspPure()) || caps;
     } catch (e) { /* ignore */ }
+
+    const hasWeatherScript = !!(caps.hasPure || caps.hasSol);
+    const weatherName = caps.hasPure ? 'Pure' : (caps.hasSol ? 'Sol' : null);
 
     // Bloc de statut détection
     const detectBox = el('div', { class: 'setup-wizard-detect-list' });
@@ -412,15 +425,17 @@ const STEP_LABELS = {
       null
     ));
     detectBox.appendChild(makeDetectRow(
-      caps.hasPure ? '✅' : '⚠️',
-      t('graphics.pureDetected', 'Pure (Weather FX)'),
-      caps.hasPure ? t('graphics.detected', 'Détecté') : t('graphics.notInstalled', 'Non installé'),
+      hasWeatherScript ? '✅' : '⚠️',
+      t('graphics.weatherScriptDetected', 'Script météo (Pure / Sol)'),
+      hasWeatherScript
+        ? t('graphics.detected', 'Détecté') + ' — ' + weatherName
+        : t('graphics.notInstalled', 'Non installé'),
       null
     ));
     body.appendChild(detectBox);
 
-    // Si CSP+Pure absents → pas de formulaire, juste un warning + Next
-    if (!caps.hasCSP || !caps.hasPure) {
+    // Cas 1 : CSP absent → warning CSP, pas de formulaire
+    if (!caps.hasCSP) {
       const warn = el('div', { class: 'setup-wizard-recap' });
       warn.style.borderLeft = '3px solid #e6a33b';
       warn.appendChild(el('div', {
@@ -432,6 +447,37 @@ const STEP_LABELS = {
         class: 'setup-wizard-subtitle',
         text: t('graphics.noCspHint', 'Sans CSP, QACRL utilisera le rendu Kunos classique. Tu pourras installer CSP plus tard depuis Content Manager.')
       }));
+
+      // ⭐ Bouton d'accès au guide d'installation
+      const guideBtn = document.createElement('button');
+      guideBtn.type = 'button';
+      guideBtn.className = 'filter-btn';
+      guideBtn.style.marginTop = '12px';
+      guideBtn.style.padding = '10px 22px';
+      guideBtn.style.background = 'var(--accent)';
+      guideBtn.style.color = '#fff';
+      guideBtn.style.borderColor = 'var(--accent)';
+      guideBtn.textContent = '📥 ' + t('graphics.openInstallGuide', 'Guide d\'installation CSP + Sol');
+      guideBtn.addEventListener('click', () => {
+        if (!global.CspInstallGuide || typeof global.CspInstallGuide.open !== 'function') return;
+
+        // ⭐ Cache le setup wizard pendant l'affichage du guide CSP
+        const setupModal = getModal();
+        if (setupModal) setupModal.style.display = 'none';
+
+        // ⭐ Écoute la fermeture du guide pour réafficher le setup wizard
+        const onCspInstallClosed = () => {
+          window.removeEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+          if (setupModal) setupModal.style.display = 'flex';
+          // Re-render l'étape graphismes (les capacités CSP/Pure ont pu changer)
+          renderGraphics();
+        };
+        window.addEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+
+        global.CspInstallGuide.open();
+      });
+      warn.appendChild(guideBtn);
+
       body.appendChild(warn);
 
       setFooter([
@@ -442,7 +488,54 @@ const STEP_LABELS = {
       return;
     }
 
-    // -------- Formulaire Weather FX + PP --------
+    // Cas 2 : CSP OK mais pas de script météo (Sol/Pure absents)
+    if (!hasWeatherScript) {
+      const warn = el('div', { class: 'setup-wizard-recap' });
+      warn.style.borderLeft = '3px solid #e6a33b';
+      warn.appendChild(el('div', {
+        class: 'setup-wizard-title',
+        style: 'font-size:1rem;',
+        text: t('graphics.noWeatherScriptTitle', 'Aucun script météo installé')
+      }));
+      warn.appendChild(el('p', {
+        class: 'setup-wizard-subtitle',
+        text: t('graphics.noWeatherScriptHint', 'CSP est installé, mais aucun script météo (Sol ou Pure) n\'a été détecté. Installe Sol (gratuit) ou Pure (payant) pour débloquer les météos dynamiques.')
+      }));
+
+      const guideBtn = document.createElement('button');
+      guideBtn.type = 'button';
+      guideBtn.className = 'filter-btn';
+      guideBtn.style.marginTop = '12px';
+      guideBtn.style.padding = '10px 22px';
+      guideBtn.style.background = 'var(--accent)';
+      guideBtn.style.color = '#fff';
+      guideBtn.style.borderColor = 'var(--accent)';
+      guideBtn.textContent = '📥 ' + t('graphics.openInstallGuide', 'Guide d\'installation CSP + Sol');
+      guideBtn.addEventListener('click', () => {
+        if (!global.CspInstallGuide || typeof global.CspInstallGuide.open !== 'function') return;
+        const setupModal = getModal();
+        if (setupModal) setupModal.style.display = 'none';
+        const onCspInstallClosed = () => {
+          window.removeEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+          if (setupModal) setupModal.style.display = 'flex';
+          renderGraphics();
+        };
+        window.addEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+        global.CspInstallGuide.open();
+      });
+      warn.appendChild(guideBtn);
+
+      body.appendChild(warn);
+
+      setFooter([
+        { label: t('common.back', '← Retour'), onClick: () => goTo(2) },
+        'spacer',
+        { label: t('common.next', 'Suivant →'), variant: 'primary', onClick: () => goTo(4) },
+      ]);
+      return;
+    }
+
+    // Cas 3 : CSP + Sol/Pure OK → formulaire complet
     const group = el('div', { class: 'group', style: 'gap:14px;' });
 
     // Weather FX activé
@@ -472,19 +565,38 @@ const STEP_LABELS = {
       if (r && r.success && r.style) wfxStyleVal = r.style;
     } catch (e) { /* ignore */ }
 
+    // ⭐ Options disponibles selon ce qui est installé
+    const styleOptions = [
+      { v: 'default', key: 'graphics.weatherFxStyles.default', fb: 'Default (Kunos classique)' },
+    ];
+    if (caps.hasPure) {
+      styleOptions.push({ v: 'gamma', key: 'graphics.weatherFxStyles.gamma', fb: 'Pure Gamma' });
+      styleOptions.push({ v: 'lcs',   key: 'graphics.weatherFxStyles.lcs',   fb: 'Pure LCS (linéaire)' });
+    }
+    if (caps.hasSol && !caps.hasPure) {
+      styleOptions.push({ v: 'sol', key: 'graphics.weatherFxStyles.sol', fb: 'Sol 2.x' });
+    }
+
+    // ⭐ Style par défaut : Sol si Sol installé sans Pure, sinon Gamma si Pure, sinon Default
+    let defaultStyle = 'default';
+    if (caps.hasSol && !caps.hasPure) defaultStyle = 'sol';
+    else if (caps.hasPure)            defaultStyle = 'gamma';
+
     const styleSelect = document.createElement('select');
     styleSelect.className = 'ini-select';
-    [
-      { v: 'default', key: 'graphics.weatherFxStyles.default', fb: 'Default (Kunos classique)' },
-      { v: 'gamma',   key: 'graphics.weatherFxStyles.gamma',   fb: 'Pure Gamma' },
-      { v: 'lcs',     key: 'graphics.weatherFxStyles.lcs',     fb: 'Pure LCS (linéaire)' },
-    ].forEach(o => {
+    for (const o of styleOptions) {
       const opt = document.createElement('option');
       opt.value = o.v;
       opt.textContent = t(o.key, o.fb);
-      if (o.v === wfxStyleVal) opt.selected = true;
+      // ⭐ Sélection : on garde la valeur actuelle si elle est dispo, sinon le défaut
+      if (o.v === wfxStyleVal && styleOptions.some(x => x.v === wfxStyleVal)) opt.selected = true;
+      else if (o.v === defaultStyle && !styleOptions.some(x => x.v === wfxStyleVal)) opt.selected = true;
       styleSelect.appendChild(opt);
-    });
+    }
+    // ⭐ Si la valeur actuelle n'est pas dans la liste, on force le défaut visuel
+    if (!styleOptions.some(x => x.v === wfxStyleVal)) {
+      styleSelect.value = defaultStyle;
+    }
     styleSelect.addEventListener('change', async () => {
       try { await window.api.setWeatherFxStyle(styleSelect.value); }
       catch (e) { console.warn('[SetupWizard] setWeatherFxStyle KO', e); }
@@ -538,8 +650,8 @@ const STEP_LABELS = {
       } else {
         filters.forEach(f => {
           const opt = document.createElement('option');
-          opt.value = f;
-          opt.textContent = f;
+          opt.value = f;                                          // ⭐ valeur technique
+          opt.textContent = formatPpFilterName(f);                // ⭐ nom lisible
           if (f === currentFilter) opt.selected = true;
           ppSelect.appendChild(opt);
         });
@@ -683,28 +795,25 @@ const STEP_LABELS = {
     const setupModal = getModal();
     if (setupModal) setupModal.style.display = 'none';
 
-    // Lance le wizard de calibration
-    global.WheelCalibration.start();
+    // ⭐ Écoute la fermeture du wizard volant (événement émis par wheelCalibration.close)
+    const onCalibClosed = () => {
+      window.removeEventListener('qacrl:wheelcalib-closed', onCalibClosed);
+      if (setupModal) setupModal.style.display = 'flex';
+      // Re-render la liste des devices (le profil appris peut avoir changé)
+      renderControls();
+    };
+    window.addEventListener('qacrl:wheelcalib-closed', onCalibClosed);
 
-    // Poll : on attend que la modale de calibration perde sa classe .visible
-    const poll = setInterval(() => {
-      const calibModal = document.getElementById('wheel-calib-modal');
-      const stillOpen = calibModal && calibModal.classList.contains('visible');
-      if (!stillOpen) {
-        clearInterval(poll);
-        if (setupModal) setupModal.style.display = 'flex';
-        // Re-render la liste des devices (le profil appris peut avoir changé)
-        renderControls();
-      }
-    }, 300);
+    // Lance le wizard de calibration (après avoir posé le listener)
+    global.WheelCalibration.start();
   }
 
 
 
   // ---------------------------------------------------------------------------
-  // Étape 4 : Récap
+  // Étape 6 : Récap
   // ---------------------------------------------------------------------------
-  function renderRecap() {
+  async function renderRecap() {
     const body = getBody();
     body.innerHTML = '';
 
@@ -722,8 +831,13 @@ const STEP_LABELS = {
     recap.appendChild(makeRecapRow(t('recap.steamId', 'Steam ID'), formData.steamId || t('recap.missing', '⚠️ non renseigné')));
     recap.appendChild(makeRecapRow(t('recap.content', 'Contenu'),
       (d.content ? d.content.cars : 0) + ' voitures • ' + (d.content ? d.content.tracks : 0) + ' circuits'));
-    recap.appendChild(makeRecapRow('CSP / Pure',
-      (d.csp && d.csp.installed ? '✅ CSP' : '⚠️ sans CSP') + ' • ' + (d.pure && d.pure.installed ? '✅ Pure' : '⚠️ sans Pure')));
+
+    // ⭐ Ligne CSP / Météo — placeholder tant que la détection live n'est pas arrivée
+    const cspRow = makeRecapRow(
+      t('recap.cspWeather', 'CSP / Météo'),
+      '⏳ ' + t('common.loading', 'Chargement…')
+    );
+    recap.appendChild(cspRow);
 
     body.appendChild(recap);
 
@@ -732,6 +846,36 @@ const STEP_LABELS = {
       'spacer',
       { label: t('recap.finish', '✓ Terminer'), variant: 'primary', onClick: () => finish(false) },
     ]);
+
+    // ⭐ Re-détection LIVE : si l'utilisateur a installé CSP/Sol via le guide
+    //    pendant le wizard, detectionData est obsolète.
+    let caps = { hasCSP: false, hasSol: false, hasPure: false };
+    try {
+      caps = (await window.api.checkCspPure()) || caps;
+    } catch (e) {
+      console.warn('[SetupWizard] recap checkCspPure KO :', e.message);
+    }
+
+    // ⭐ Mise à jour de detectionData pour cohérence globale
+    if (detectionData) {
+      if (!detectionData.csp)  detectionData.csp  = {};
+      if (!detectionData.pure) detectionData.pure = {};
+      if (!detectionData.sol)  detectionData.sol  = {};
+      detectionData.csp.installed  = !!caps.hasCSP;
+      detectionData.pure.installed = !!caps.hasPure;
+      detectionData.sol.installed  = !!caps.hasSol;
+      if (caps.solVersion) detectionData.sol.version = caps.solVersion;
+      if (caps.cspVersion) detectionData.csp.version = caps.cspVersion;
+    }
+
+    // ⭐ Reconstruit le label final
+    let weatherLabel;
+    if (!caps.hasCSP)                  weatherLabel = '⚠️ sans CSP';
+    else if (caps.hasPure)             weatherLabel = '✅ CSP + Pure';
+    else if (caps.hasSol)              weatherLabel = '✅ CSP + Sol';
+    else                               weatherLabel = '⚠️ CSP seul (sans météo)';
+
+    cspRow.querySelector('.v').textContent = weatherLabel;
   }
 
   function makeRecapRow(k, v) {

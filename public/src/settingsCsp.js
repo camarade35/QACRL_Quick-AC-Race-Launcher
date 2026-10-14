@@ -41,8 +41,9 @@
     container.innerHTML = '<div class="servers-loading">⏳ Chargement des modules…</div>';
 
     // ⭐ Vérifie en direct si CSP est installé (via IPC, plus fiable)
+    let caps = { hasCSP: false, hasPure: false, hasSol: false };
     try {
-      const caps = await window.api.checkCspPure();
+      caps = await window.api.checkCspPure();
       if (!caps || !caps.hasCSP) {
         const i18n = window.I18n;
         const title = i18n
@@ -58,11 +59,60 @@
             '<div class="csp-not-installed-icon">⚠️</div>' +
             '<div class="csp-not-installed-title">' + title + '</div>' +
             '<div class="csp-not-installed-hint">' + hint + '</div>' +
+            '<button type="button" class="filter-btn" id="csp-install-launch" ' +
+              'style="margin-top:20px;padding:10px 22px;background:var(--accent);color:#fff;border-color:var(--accent);">' +
+              '📥 ' + (window.I18n ? window.I18n.t('app.cspInstall.launchBtn', 'Installer CSP + Sol/Pure') : 'Installer CSP + Sol/Pure') +
+            '</button>' +
           '</div>';
+
+        // ⭐ Handler du bouton (attaché après l'insertion)
+        const launchBtn = document.getElementById('csp-install-launch');
+        if (launchBtn) {
+          launchBtn.addEventListener('click', () => {
+            if (!global.CspInstallGuide || typeof global.CspInstallGuide.open !== 'function') return;
+            // ⭐ Rafraîchit l'onglet CSP après la fermeture du guide
+            const onCspInstallClosed = () => {
+              window.removeEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+              load();
+            };
+            window.addEventListener('qacrl:cspinstall-closed', onCspInstallClosed);
+            global.CspInstallGuide.open();
+          });
+        }
         return;
       }
     } catch (e) {
       console.warn('[settingsCsp] checkCspPure KO', e);
+    }
+
+    // ⭐ CSP installé mais ni Sol ni Pure → proposer le guide d'installation
+    if (caps.hasCSP && !caps.hasSol && !caps.hasPure) {
+      const i18n = window.I18n;
+      container.innerHTML =
+        '<div class="csp-not-installed">' +
+          '<div class="csp-not-installed-icon">🌦️</div>' +
+          '<div class="csp-not-installed-title">' +
+            (i18n ? i18n.t('app.settings.cspNoWeatherScript.title', 'Aucun script météo installé') : 'Aucun script météo installé') +
+          '</div>' +
+          '<div class="csp-not-installed-hint">' +
+            (i18n ? i18n.t('app.settings.cspNoWeatherScript.hint',
+              'CSP est bien installé, mais aucun script météo (Sol ou Pure) n\'a été détecté.<br>Installe Sol (gratuit) ou Pure (payant) pour débloquer les météos dynamiques.') : 'Installe Sol ou Pure.') +
+          '</div>' +
+          '<button type="button" class="filter-btn" id="csp-install-launch-2" ' +
+            'style="margin-top:20px;padding:10px 22px;background:var(--accent);color:#fff;border-color:var(--accent);">' +
+            '📥 ' + (window.I18n ? window.I18n.t('app.cspInstall.launchBtn', 'Installer CSP + Sol/Pure') : 'Installer Sol/Pure') +
+          '</button>' +
+        '</div>';
+
+      const launchBtn = document.getElementById('csp-install-launch-2');
+      if (launchBtn) {
+        launchBtn.addEventListener('click', () => {
+          if (global.CspInstallGuide && typeof global.CspInstallGuide.open === 'function') {
+            global.CspInstallGuide.open();
+          }
+        });
+      }
+      return;
     }
 
     try {
@@ -199,7 +249,28 @@
     }
 
     if (totalShown === 0) {
-      container.innerHTML = '<div class="servers-empty">Aucun module CSP trouvé.</div>';
+      const i18n = window.I18n;
+      const title = i18n
+        ? i18n.t('app.settings.cspNoFiles.title', 'Fichiers CSP non générés')
+        : 'Fichiers CSP non générés';
+      const hint = i18n
+        ? i18n.t('app.settings.cspNoFiles.hint',
+            'Les fichiers de configuration CSP n\'existent pas encore.<br>Lance Assetto Corsa <strong>une première fois</strong> avec CSP actif pour qu\'ils soient créés dans <code>Documents\\Assetto Corsa\\cfg\\extension\\</code>, puis clique sur <strong>↶ Rafraîchir</strong>.')
+        : 'Lance Assetto Corsa une première fois avec CSP actif, puis clique sur Rafraîchir.';
+
+      container.innerHTML =
+        '<div class="csp-not-installed">' +
+          '<div class="csp-not-installed-icon">📁</div>' +
+          '<div class="csp-not-installed-title">' + title + '</div>' +
+          '<div class="csp-not-installed-hint">' + hint + '</div>' +
+          '<button type="button" class="filter-btn" id="csp-no-files-refresh" ' +
+            'style="margin-top:20px;padding:10px 22px;">' +
+            '↶ ' + (i18n ? i18n.t('app.settings.btn.refresh', 'Rafraîchir') : 'Rafraîchir') +
+          '</button>' +
+        '</div>';
+
+      const refreshBtn = document.getElementById('csp-no-files-refresh');
+      if (refreshBtn) refreshBtn.addEventListener('click', () => load());
     }
   }
 

@@ -278,6 +278,40 @@ function getChecked(id) { const el = document.getElementById(id); return el ? el
 function setChecked(id, val) { const el = document.getElementById(id); if (el && val != null) el.checked = Boolean(val); }
 
 /* ============================================================
+   PP FILTERS — noms d'affichage
+   ============================================================ */
+// ⭐ Transforme un nom technique en nom lisible :
+//   __Sol                    → Sol
+//   __Sol_Extra              → Sol Extra
+//   __Sol_color_neutral_Linear → Sol Color Neutral Linear
+//   default                  → Default
+//   blue_steel               → Blue Steel
+// Le NOM TECHNIQUE reste utilisé pour l'écriture dans video.ini.
+function formatPpFilterName(raw) {
+  if (!raw) return '';
+  let s = String(raw);
+
+  // Retire le préfixe "__" (marqueur Sol/CSP)
+  s = s.replace(/^_+/, '');
+
+  // Remplace les underscores par des espaces
+  s = s.replace(/_/g, ' ').trim();
+
+  if (!s) return String(raw);
+
+  // Capitalise la première lettre de chaque mot,
+  // sauf si le mot contient un acronyme (2+ majuscules consécutives) ou commence par un chiffre
+  s = s.split(/\s+/).map(w => {
+    if (!w) return w;
+    if (/[A-Z]{2,}/.test(w)) return w;   // HDR, LCS, PP… → on laisse tel quel
+    if (/^\d/.test(w)) return w;
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(' ');
+
+  return s;
+}
+
+/* ============================================================
    PARSING DE LIEN DE SERVEUR
    ============================================================ */
 function parseServerLink(raw) {

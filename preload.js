@@ -28,8 +28,23 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Détection globale pour l'assistant d'installation
   detectSetupStatus: () => ipcRenderer.invoke('detect-setup-status'),
 
+  // ⭐ Détection du SteamID (loginusers.vdf → fallback race.ini)
+  detectSteamId: () => ipcRenderer.invoke('detect-steam-id'),
+
   // ⭐ Capacités installation (CSP / Pure présents ?)
   checkCspPure: () => ipcRenderer.invoke('check-csp-pure'),
+
+  // ⭐ Vérification des mises à jour GitHub
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+
+  // ⭐ Installation archives CSP/Sol/Pure (remplace Content Manager)
+  previewCspArchive: (filePath) => ipcRenderer.invoke('preview-csp-archive', filePath),
+  installCspArchive: (filePath) => ipcRenderer.invoke('install-csp-archive', filePath),
+  onCspInstallProgress: (callback) => {
+    const subscription = (_e, data) => callback(data);
+    ipcRenderer.on('csp-install-progress', subscription);
+    return () => ipcRenderer.removeListener('csp-install-progress', subscription);
+  },
 
   // SERVEURS EN LIGNE
   fetchOnlineServers: (page) => ipcRenderer.invoke('fetch-online-servers', page),
@@ -77,6 +92,9 @@ contextBridge.exposeInMainWorld('api', {
   setWeatherFxStyle: (style) => ipcRenderer.invoke('set-weather-fx-style', style),
   getWeatherFxEnabled: () => ipcRenderer.invoke('get-weather-fx-enabled'),
   setWeatherFxEnabled: (enabled) => ipcRenderer.invoke('set-weather-fx-enabled', enabled),
+
+  // ⭐ Auto-configure style + filtre PP selon ce qui est installé
+  autoConfigureWeather: () => ipcRenderer.invoke('auto-configure-weather'),
 
   // ⭐ Résolutions d'écran disponibles
   listResolutions: () => ipcRenderer.invoke('list-resolutions'),

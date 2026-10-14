@@ -8,6 +8,20 @@
 </head>
 <body>
 
+  <div class="qacrl-loading-overlay visible" id="qacrl-loading-overlay">
+    <div class="qacrl-loading-card">
+      <div class="qacrl-loading-media">
+        <img class="qacrl-loading-gif" id="qacrl-loading-gif" src="assets/loading.gif" alt=""
+             onerror="this.style.display='none'; var s=document.getElementById('qacrl-loading-spinner'); if(s) s.style.display='';">
+        <div class="qacrl-loading-spinner" id="qacrl-loading-spinner" style="display:none;"></div>
+      </div>
+      <div class="qacrl-loading-title" id="qacrl-loading-title"
+           data-i18n="app.loading.title">Chargement du contenu Assetto Corsa…</div>
+      <div class="qacrl-loading-subtitle" id="qacrl-loading-subtitle"
+           data-i18n="app.loading.subtitle">Analyse des voitures, circuits et météos en cours</div>
+    </div>
+  </div>
+
   <div class="titlebar" id="titlebar">
     <div class="titlebar-brand">
       <img class="titlebar-logo" src="assets/logo.png" alt="" onerror="this.style.display='none'">
@@ -618,6 +632,18 @@
         </div>
 
         <div class="group">
+          <div class="group-title" data-i18n="app.settings.groups.updates">🔄 Mises à jour</div>
+          <div class="row">
+            <div class="field">
+              <label class="check">
+                <input type="checkbox" id="check-updates-startup" checked>
+                <span data-i18n="app.settings.fields.checkUpdatesOnStartup">Vérifier les mises à jour au démarrage</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
           <div class="group-title" data-i18n="app.settings.groups.gamePath">Chemin d'accès au jeu</div>
           <div class="field">
             <label data-i18n="app.settings.fields.acRoot">Dossier racine Assetto Corsa</label>
@@ -673,6 +699,21 @@
                 <option value="">⏳ Chargement…</option>
               </select>
             </div>
+          </div>
+
+          <div id="weatherfx-csp-warning" class="weatherfx-csp-warning" style="display:none;">
+            <div class="weatherfx-csp-warning-icon">⚠️</div>
+            <div class="weatherfx-csp-warning-body">
+              <div class="weatherfx-csp-warning-title" data-i18n="app.settings.cspWarning.title">
+                Filtres avancés indisponibles
+              </div>
+              <div class="weatherfx-csp-warning-text" data-i18n="app.settings.cspWarning.text">
+                Sans CSP + Pure, la liste est limitée aux filtres Kunos natifs. Installe CSP et Pure pour débloquer Pure Gamma, Pure LCS, PureCS et autres.
+              </div>
+            </div>
+            <button type="button" class="filter-btn weatherfx-csp-warning-btn" id="weatherfx-go-csp">
+              <span data-i18n="app.settings.cspWarning.btn">🌩️ Voir l'onglet CSP</span>
+            </button>
           </div>
 
           <div style="font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.6; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
@@ -895,6 +936,63 @@
     </div>
   </div>
   
+  <div class="modal" id="update-modal">
+    <div class="modal-content update-modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <span class="update-emoji">🎉</span>
+          <span data-i18n="app.update.title">Nouvelle version disponible</span>
+        </h3>
+        <button class="modal-close" id="update-modal-close">&times;</button>
+      </div>
+
+      <div class="update-versions">
+        <div class="update-version-row">
+          <span class="update-version-label" data-i18n="app.update.newVersion">Nouvelle version</span>
+          <span class="update-version-value update-version-new" id="update-new-version">—</span>
+        </div>
+        <div class="update-version-row">
+          <span class="update-version-label" data-i18n="app.update.currentVersion">Version installée</span>
+          <span class="update-version-value" id="update-current-version">—</span>
+        </div>
+        <div class="update-version-row" id="update-date-row" style="display:none;">
+          <span class="update-version-label" data-i18n="app.update.publishedAt">Publiée le</span>
+          <span class="update-version-value" id="update-published-at">—</span>
+        </div>
+      </div>
+
+      <div class="update-notes-wrap">
+        <button type="button" class="update-notes-toggle" id="update-notes-toggle">
+          <span>📋 <span data-i18n="app.update.whatsNew">Nouveautés</span></span>
+          <span class="update-notes-chevron" id="update-notes-chevron">▾</span>
+        </button>
+        <div class="update-notes-body" id="update-notes-body"></div>
+      </div>
+
+      <div class="update-actions">
+        <button class="filter-btn" id="update-modal-later" style="padding: 10px 22px;" data-i18n="app.update.later">
+          Plus tard
+        </button>
+        <button class="filter-btn" id="update-modal-github"
+                style="padding: 10px 22px; background-color: var(--accent); color: white; border-color: var(--accent);"
+                data-i18n="app.update.viewOnGitHub">
+          ⬇ Voir sur GitHub
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="csp-install-modal">
+    <div class="modal-content csp-install-modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title" id="csp-install-title" data-i18n="app.cspInstall.title">📥 Installer CSP + Météo</h3>
+        <button class="modal-close" id="csp-install-close">&times;</button>
+      </div>
+      <div class="csp-install-body" id="csp-install-body"></div>
+      <div class="csp-install-footer" id="csp-install-footer"></div>
+    </div>
+  </div>
+
   <div class="modal setup-wizard-modal" id="setup-wizard-modal">
     <div class="modal-content setup-wizard-content">
       <div class="setup-wizard-header">
@@ -933,6 +1031,7 @@
   <script src="src/settingsCsp.js"></script>
   <script src="src/settingsIni.js"></script>
   <script src="src/settingsSearch.js"></script>
+  <script src="src/cspInstallGuide.js"></script>
   <script src="src/setupWizard.js"></script>
   <script src="app.js"></script>
 </body>

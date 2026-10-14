@@ -1,4 +1,164 @@
 /* ============================================================
+   OVERLAY DE CHARGEMENT
+   ============================================================ */
+function showLoadingOverlay(title, subtitle) {
+  const ov = document.getElementById('qacrl-loading-overlay');
+  if (!ov) return;
+  if (title) {
+    const t = document.getElementById('qacrl-loading-title');
+    if (t) t.textContent = title;
+  }
+  if (subtitle) {
+    const s = document.getElementById('qacrl-loading-subtitle');
+    if (s) s.textContent = subtitle;
+  }
+  ov.classList.add('visible');
+}
+
+function hideLoadingOverlay() {
+  const ov = document.getElementById('qacrl-loading-overlay');
+  if (!ov) return;
+  ov.classList.remove('visible');
+}
+
+/* ============================================================
+   MODALE MISE À JOUR
+   ============================================================ */
+function renderReleaseNotesMarkdown(md) {
+  if (!md || typeof md !== 'string') return '';
+  const esc = md
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const inlineFmt = (s) => s
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  const lines = esc.split(/\r?\n/);
+  const out = [];
+  let inList = false;
+
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    if (/^[-*•]\s+/.test(line)) {
+      if (!inList) { out.push('<ul>'); inList = true; }
+      out.push('<li>' + inlineFmt(line.replace(/^[-*•]\s+/, '')) + '</li>');
+      continue;
+    }
+
+    closeList();
+
+    if (!line) continue;
+
+    if (/^###\s+/.test(line))      out.push('<h3>' + inlineFmt(line.replace(/^###\s+/, '')) + '</h3>');
+    else if (/^##\s+/.test(line))  out.push('<h2>' + inlineFmt(line.replace(/^##\s+/, '')) + '</h2>');
+    else if (/^#\s+/.test(line))   out.push('<h1>' + inlineFmt(line.replace(/^#\s+/, '')) + '</h1>');
+    else if (/^---+$/.test(line))  out.push('<hr>');
+    else                           out.push('<p>' + inlineFmt(line) + '</p>');
+  }
+
+  closeList();
+  return out.join('\n');
+}
+
+function openUpdateModal(updateInfo) {
+  const modal = document.getElementById('update-modal');
+  if (!modal || !updateInfo) return;
+
+  const elNew = document.getElementById('update-new-version');
+  const elCur = document.getElementById('update-current-version');
+  const elDate = document.getElementById('update-published-at');
+  const elDateRow = document.getElementById('update-date-row');
+  const elNotes = document.getElementById('update-notes-body');
+  const notesWrap = document.querySelector('.update-notes-wrap');
+
+  if (elNew) elNew.textContent = 'v' + updateInfo.remoteVersion;
+  if (elCur) elCur.textContent = 'v' + updateInfo.localVersion;
+
+  if (updateInfo.publishedAt && elDate && elDateRow) {
+    try {
+      const d = new Date(updateInfo.publishedAt);
+      elDate.textContent = d.toLocaleDateString('fr-FR', {
+        day: 'numeric', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+      elDateRow.style.display = '';
+    } catch (e) { elDateRow.style.display = 'none'; }
+  }
+
+  if (elNotes) {
+    elNotes.innerHTML = renderReleaseNotesMarkdown(updateInfo.releaseNotes)
+      || '<p><em>' + ((window.I18n && window.I18n.tFr && window.I18n.tFr('Aucune note de version')) || 'Aucune note de version') + '</em></p>';
+  }
+
+  // État initial : déplié
+  if (notesWrap) notesWrap.classList.remove('collapsed');
+
+  // Stocke l'URL pour le bouton GitHub
+  modal.dataset.releaseUrl = updateInfo.releaseUrl || '';
+
+  modal.style.display = 'flex';
+}
+
+function closeUpdateModal() {
+  const modal = document.getElementById('update-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setupUpdateModalHandlers() {
+  const modal = document.getElementById('update-modal');
+  if (!modal) return;
+
+  document.getElementById('update-modal-close')?.addEventListener('click', closeUpdateModal);
+  document.getElementById('update-modal-later')?.addEventListener('click', closeUpdateModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeUpdateModal();
+  });
+
+  document.getElementById('update-modal-github')?.addEventListener('click', async () => {
+    const url = modal.dataset.releaseUrl;
+    if (!url) return;
+    try { await window.api.openExternal(url); } catch (e) {}
+    closeUpdateModal();
+  });
+
+  // Toggle "Nouveautés"
+  const toggle = document.getElementById('update-notes-toggle');
+  const wrap = document.querySelector('.update-notes-wrap');
+  if (toggle && wrap) {
+    toggle.addEventListener('click', () => {
+      wrap.classList.toggle('collapsed');
+    });
+  }
+}
+
+async function checkForUpdatesOnStartup() {
+  try {
+    const settings = await window.api.getSettings();
+    if (settings && settings.checkUpdatesOnStartup === false) return;
+  } catch (e) { /* on continue */ }
+
+  try {
+    const res = await window.api.checkForUpdates();
+    if (res && res.success && res.hasUpdate) {
+      openUpdateModal(res);
+    } else if (res && res.success) {
+      console.log('[update] à jour (v' + res.localVersion + ')');
+    } else {
+      console.warn('[update] check KO :', res && res.error);
+    }
+  } catch (e) {
+    console.warn('[update] exception :', e.message);
+  }
+}
+
+/* ============================================================
    ÉTAT GLOBAL
    ============================================================ */
 let appData = {
@@ -137,6 +297,8 @@ function switchSubTab(event, subtabId) {
    INIT
    ============================================================ */
 document.addEventListener('DOMContentLoaded', async () => {
+  showLoadingOverlay();
+
   populateTimePickers();
   setTimePickerFromString('12:00');
   setupThemePicker();
@@ -177,6 +339,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (settings && settings.accentColor) applyAccentColor(settings.accentColor);
     if (settings && settings.themeMode) applyThemeMode(settings.themeMode);
     else applyThemeMode('dark');
+
+    // ⭐ Toggle "Vérifier les MAJ au démarrage"
+    const updCb = document.getElementById('check-updates-startup');
+    if (updCb && settings && settings.checkUpdatesOnStartup === false) {
+      updCb.checked = false;
+    }
   } catch (e) {
     applyThemeMode('dark');
   }
@@ -187,6 +355,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     appData.capabilities = await window.api.checkCspPure();
     console.log('[Capabilities]', appData.capabilities);
+    // ⭐ Auto-configure style Weather FX + filtre PP selon ce qui est installé
+    try { await window.api.autoConfigureWeather(); } catch (e) { console.warn('[AutoConfig] KO', e); }
   } catch (e) {
     console.warn('[Capabilities] KO', e);
   }
@@ -197,6 +367,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadModsHistory();
   await loadSessionHistory();
   await loadSavedState();
+
+  // ⭐ Le contenu principal est chargé → on peut cacher l'overlay
+  hideLoadingOverlay();
+
+  // ⭐ Vérification des mises à jour (non bloquant)
+  setupUpdateModalHandlers();
+  checkForUpdatesOnStartup();
+
+  // ⭐ Guide d'installation CSP/Sol/Pure
+  if (window.CspInstallGuide && typeof window.CspInstallGuide.init === 'function') {
+    window.CspInstallGuide.init();
+  }
 
   // Auto-détection du SteamID au premier lancement
   if (!getValue('steam-id')) {
@@ -613,6 +795,15 @@ function setupEventListeners() {
     };
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
+  });
+
+  // ⭐ Toggle "Vérifier les mises à jour au démarrage"
+  document.getElementById('check-updates-startup')?.addEventListener('change', async (e) => {
+    try {
+      const settings = await window.api.getSettings();
+      settings.checkUpdatesOnStartup = !!e.target.checked;
+      await window.api.saveSettings(settings);
+    } catch (err) { console.warn('[update] save toggle KO', err); }
   });
 
   for (const id of PURECTRL_IDS) {

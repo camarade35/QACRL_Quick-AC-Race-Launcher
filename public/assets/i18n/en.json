@@ -10,6 +10,19 @@
       "toggleTitle": "Toggle light/dark",
       "pickerTitle": "Change theme color"
     },
+    "update": {
+      "title": "New version available",
+      "newVersion": "New version",
+      "currentVersion": "Installed version",
+      "publishedAt": "Published on",
+      "whatsNew": "What's new",
+      "later": "Later",
+      "viewOnGitHub": "⬇ View on GitHub"
+    },
+    "loading": {
+      "title": "Loading Assetto Corsa content…",
+      "subtitle": "Analyzing cars, tracks and weather"
+    },
     "sidebar": {
       "car": "Car",
       "track": "Track",
@@ -198,6 +211,61 @@
     },
     "wheelCalib": {
       "title": "🎯 Wheel calibration"
+    },
+    "cspInstall": {
+      "title": "📥 Install CSP + Weather",
+      "launchBtn": "📥 Install CSP + Sol/Pure",
+      "chooseIntro": "Two options depending on your budget:",
+      "seeGuide": "See the guide",
+      "back": "← Back to options",
+      "download": "Download",
+      "openCM": "Content Manager",
+      "openAcFolder": "Open AC folder",
+      "recheck": "I installed it, re-check",
+      "checking": "Checking…",
+      "folderHint": "Open your Assetto Corsa folder manually from Windows Explorer.",
+      "freeLabel": "100% FREE",
+      "premiumLabel": "PREMIUM (Patreon)",
+      "freeFeat1": "Stable and battle-tested by the community",
+      "freeFeat2": "No paid version required",
+      "freeFeat3": "⚠️ No dynamic rain (RainFX is paid)",
+      "premFeat1": "Dynamic rain (RainFX)",
+      "premFeat2": "Pure LCS / Pure Gamma",
+      "premFeat3": "Full support, regular updates",
+      "premFeat4": "⚠️ Patreon subscription required",
+      "freeIntro": "This combo is stable and free. No dynamic rain, but everything else (lighting, day/night weather, effects) works.",
+      "freeStep1Title": "Download CSP 0.1.79",
+      "freeStep1Desc": "Official .zip file from acstuff.club.",
+      "freeStep2Title": "Download Sol 2.2.9",
+      "freeStep2Desc": "Final free version, development discontinued.",
+      "freeStep3Title": "Install via QACRL",
+      "freeStep3Desc": "Drag the downloaded .zip files below, or click to browse. QACRL detects the type and installs automatically.",
+      "dropTitle": "Drop your .zip files here",
+      "dropSubtitle": "or click to browse your files",
+      "preparing": "Preparing…",
+      "installed": "Installed",
+      "premiumIntro": "Patreon subscription required (x4fab for CSP Preview, Peter Boese for Pure). Full support, dynamic rain, Pure LCS.",
+      "premStep1Title": "Subscribe to x4fab on Patreon (CSP)",
+      "premStep1Desc": "Allows you to download CSP Preview (0.2.11 minimum recommended).",
+      "premStep2Title": "Subscribe to Peter Boese on Patreon (Pure)",
+      "premStep2Desc": "Gives access to Pure (v3.2x recommended with CSP 0.3.0 Preview).",
+      "premStep3Title": "Install via QACRL",
+      "premStep3Desc": "Drag the downloaded archives below, or click to browse. QACRL detects the type and installs automatically.",
+      "compatTitle": "Compatibility",
+      "detectedFull": "Complete installation detected: CSP + {name}{version}!",
+      "detectedPartial": "CSP is installed, but no weather script (Sol / Pure) has been detected.\n\nDrag the Sol or Pure archive into the zone above, then click \"I installed it, re-check\" again.",
+      "orderTitle": "Mandatory installation order",
+      "orderStep1": "Install <strong>CSP</strong> first",
+      "orderStep2": "Then install <strong>Sol</strong> (or Pure)",
+      "orderHint": "Sol and Pure require CSP to work. If you install Sol before CSP, detection will fail.",
+      "detectedNone": "No installation detected yet.\n\n⚠️ Mandatory order:\n1. Install CSP first\n2. Then Sol or Pure\n\nCSP is required for Sol / Pure to work.",
+      "detectedArchive": "Detected archive: {type}",
+      "alreadyInstalled": "already installed",
+      "redownload": "Redownload",
+      "step1Already": "You can go directly to the next step.",
+      "step2Already": "You can go directly to the next step.",
+      "allInstalled": "Everything is installed",
+      "allInstalledDesc": "You can close this guide and enjoy Sol!"
     },
     "cspModule": {
       "title": "Module options",
@@ -605,6 +673,7 @@
         "steamId": "SteamID (GUID)",
         "csp": "Custom Shaders Patch",
         "pure": "Pure (Weather FX)",
+        "sol": "Sol (Weather FX)",
         "sevenZip": "7-Zip (mod extraction)",
         "content": "Content",
         "detected": "Detected",
@@ -630,16 +699,21 @@
         "subtitle": "Adjust visual rendering to your preferences.",
         "cspDetected": "Custom Shaders Patch",
         "pureDetected": "Pure (Weather FX)",
+        "weatherScriptDetected": "Weather script (Pure / Sol)",
         "detected": "Detected",
         "notInstalled": "Not installed",
         "noCspTitle": "Custom Shaders Patch is not installed",
         "noCspHint": "Without CSP, QACRL will use classic Kunos rendering. You can install CSP later via Content Manager.",
+        "noWeatherScriptTitle": "No weather script installed",
+        "noWeatherScriptHint": "CSP is installed, but no weather script (Sol or Pure) was detected. Install Sol (free) or Pure (paid) to unlock dynamic weather.",
+        "openInstallGuide": "CSP + Sol install guide",
         "weatherFxEnabled": "Weather FX enabled",
         "weatherFxStyle": "Weather FX style",
         "weatherFxStyles": {
           "default": "Default (Kunos classic)",
           "gamma": "Pure Gamma",
-          "lcs": "Pure LCS (linear)"
+          "lcs": "Pure LCS (linear)",
+          "sol": "Sol 2.x"
         },
         "ppEnabled": "Post-process filter enabled",
         "ppFilter": "Post-process filter (PP)"
@@ -665,6 +739,7 @@
         "steamId": "Steam ID",
         "missing": "⚠️ not set",
         "content": "Content",
+        "cspWeather": "CSP / Weather",
         "finish": "✓ Finish"
       },
       "common": {
@@ -695,13 +770,27 @@
         "audio": "🔊 Audio",
         "csp": "🌩️ CSP"
       },
+      "cspNoFiles": {
+        "title": "CSP files not generated",
+        "hint": "CSP configuration files don't exist yet.<br>Launch Assetto Corsa <strong>once</strong> with CSP active so they get created in <code>Documents\\Assetto Corsa\\cfg\\extension\\</code>, then click <strong>↶ Refresh</strong>."
+      },
+      "cspNoWeatherScript": {
+        "title": "No weather script installed",
+        "hint": "CSP is installed, but no weather script (Sol or Pure) was detected.<br>Install Sol (free) or Pure (paid) to unlock dynamic weather."
+      },
       "cspNotInstalled": {
         "title": "Custom Shaders Patch is not installed",
         "hint": "QACRL detected that CSP is not present in your Assetto Corsa installation.<br>The CSP tab and advanced features (Pure weather, plans, PP filters...) will be unavailable.<br><br>QACRL still works in <strong>classic Kunos mode</strong>."
       },
+      "cspWarning": {
+        "title": "Advanced filters unavailable",
+        "text": "Without CSP + Pure or Sol, the list is limited to native Kunos filters. Install CSP and Pure (or Sol) to unlock advanced filters.",
+        "btn": "🌩️ Go to CSP tab"
+      },
       "groups": {
         "setupWizard": "Setup wizard",
         "identity": "Driver identity",
+        "updates": "🔄 Updates",
         "gamePath": "Game install path",
         "documentsPath": "Documents folder",
         "render": "🎨 Rendering — Style & Filter",
@@ -715,6 +804,7 @@
         "onlineName": "Online name (multi)",
         "onlineNamePlaceholder": "(uses driver name by default)",
         "steamId": "Steam ID (GUID)",
+        "checkUpdatesOnStartup": "Check for updates on startup",
         "acRoot": "Assetto Corsa root folder",
         "documentsFolder": "Documents folder (containing \"Assetto Corsa/cfg\")",
         "weatherFxStyle": "Weather FX style",

@@ -1822,6 +1822,17 @@ select:disabled, input:disabled {
   align-items: center;
   z-index: 1000;
 }
+
+/* ⭐ Ordre d'empilement explicite des modales QACRL
+   (du plus bas au plus haut dans la pile) */
+#csp-module-modal    { z-index:  900; }
+#selection-modal     { z-index:  950; }
+#server-join-modal   { z-index:  960; }
+#server-edit-modal   { z-index:  960; }
+#setup-wizard-modal  { z-index: 1000; }
+#csp-install-modal   { z-index: 1100; }
+#wheel-calib-modal   { z-index: 1200; }
+#update-modal        { z-index: 1300; }
 :root[data-theme="light"] .modal { background: rgba(0,0,0,0.4); }
 .modal-content {
   background: var(--bg-panel);
@@ -4288,4 +4299,691 @@ select:disabled, input:disabled {
   font-size: 0.88rem;
   color: var(--text-secondary);
   line-height: 1.7;
+}
+
+/* ============================================================
+   OVERLAY DE CHARGEMENT GLOBAL
+   ============================================================ */
+.qacrl-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+:root[data-theme="light"] .qacrl-loading-overlay {
+  background: rgba(0, 0, 0, 0.5);
+}
+.qacrl-loading-overlay.visible {
+  display: flex;
+  opacity: 1;
+}
+
+.qacrl-loading-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: 36px 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-lg);
+  min-width: 340px;
+  max-width: 90vw;
+  animation: qacrlLoadingCardIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes qacrlLoadingCardIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.qacrl-loading-media {
+  width: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.qacrl-loading-gif {
+  width: auto;
+  height: auto;
+  max-width: 280px;
+  max-height: 280px;
+  min-width: 160px;
+  min-height: 160px;
+  object-fit: contain;
+  border-radius: var(--r-sm);
+  image-rendering: auto;
+}
+
+.qacrl-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: qacrlSpin 0.9s linear infinite;
+}
+
+@keyframes qacrlSpin {
+  to { transform: rotate(360deg); }
+}
+
+.qacrl-loading-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.qacrl-loading-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  line-height: 1.55;
+  max-width: 320px;
+}
+
+/* ============================================================
+   MODALE MISE À JOUR
+   ============================================================ */
+.update-modal-content {
+  width: 560px;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.update-emoji {
+  margin-right: 6px;
+  font-size: 1.15rem;
+}
+
+.update-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+}
+
+.update-version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.update-version-label {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.update-version-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: 'Consolas', 'Monaco', monospace;
+}
+
+.update-version-value.update-version-new {
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+/* ---------- Section "Nouveautés" ---------- */
+.update-notes-wrap {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.update-notes-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--t);
+}
+.update-notes-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.update-notes-chevron {
+  font-size: 0.9rem;
+  color: var(--accent);
+  transition: transform var(--t);
+}
+.update-notes-wrap.collapsed .update-notes-chevron {
+  transform: rotate(-90deg);
+}
+
+.update-notes-body {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 18px 16px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  border-top: 1px solid var(--border-subtle);
+  transition: max-height var(--t);
+}
+
+.update-notes-wrap.collapsed .update-notes-body {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: none;
+  overflow: hidden;
+}
+
+.update-notes-body h1,
+.update-notes-body h2,
+.update-notes-body h3 {
+  color: var(--text-primary);
+  font-weight: 700;
+  margin: 14px 0 6px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+.update-notes-body h1 { font-size: 0.95rem; }
+.update-notes-body h2 { font-size: 0.88rem; color: var(--accent); }
+.update-notes-body h3 { font-size: 0.84rem; color: var(--accent); }
+
+.update-notes-body p {
+  margin: 6px 0;
+}
+
+.update-notes-body ul {
+  margin: 6px 0;
+  padding-left: 20px;
+  list-style: none;
+}
+.update-notes-body li {
+  position: relative;
+  margin: 3px 0;
+}
+.update-notes-body li::before {
+  content: '•';
+  position: absolute;
+  left: -14px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.update-notes-body code {
+  background: var(--bg-panel);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
+
+.update-notes-body strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.update-notes-body hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 12px 0;
+}
+
+/* ---------- Actions ---------- */
+.update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* ============================================================
+   MODALE GUIDE D'INSTALLATION CSP/SOL/PURE
+   ============================================================ */
+.csp-install-modal-content {
+  width: 620px;
+  max-width: 92vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.csp-install-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-right: 4px;
+}
+
+.csp-install-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+/* ---- Cartes option (Gratuit / Premium) ---- */
+.csp-install-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color var(--t), box-shadow var(--t);
+}
+
+.csp-install-card-free {
+  border-left: 4px solid #4caf50;
+}
+.csp-install-card-premium {
+  border-left: 4px solid #f5b400;
+}
+
+.csp-install-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.csp-install-card-badge {
+  font-size: 0.72rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.csp-install-card-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.csp-install-card-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.csp-install-card-list li {
+  position: relative;
+  padding-left: 16px;
+  line-height: 1.5;
+}
+.csp-install-card-list li::before {
+  content: '•';
+  position: absolute;
+  left: 4px;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.csp-install-card-btn {
+  align-self: flex-start;
+  padding: 8px 18px;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+/* ---- Étapes pas-à-pas ---- */
+.csp-install-back {
+  margin-bottom: 4px;
+}
+.csp-install-back-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  font-family: inherit;
+  transition: color var(--t);
+}
+.csp-install-back-btn:hover {
+  color: var(--accent);
+}
+
+.csp-install-tab-title {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.csp-install-note {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.csp-install-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  transition: border-color var(--t);
+}
+.csp-install-step:hover {
+  border-color: var(--border-strong);
+}
+
+.csp-install-step-num {
+  width: 26px;
+  height: 26px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+
+.csp-install-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.csp-install-step-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.csp-install-step-desc {
+  font-size: 0.76rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.csp-install-step-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+/* ---- Encart warning ---- */
+.csp-install-warn {
+  padding: 12px 14px;
+  background: rgba(230, 163, 59, 0.08);
+  border: 1px solid rgba(230, 163, 59, 0.35);
+  border-radius: var(--r-sm);
+  color: #e6a33b;
+  font-size: 0.82rem;
+}
+.csp-install-warn-body {
+  color: var(--text-secondary);
+  margin-top: 8px;
+  line-height: 1.65;
+  font-size: 0.8rem;
+}
+.csp-install-warn code {
+  background: var(--bg-panel);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.76rem;
+  color: var(--accent);
+}
+
+/* ---- Footer ---- */
+.csp-install-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+}
+.csp-install-footer .spacer {
+  flex: 1;
+}
+
+/* ============================================================
+   ZONE DE DROP + PROGRESSION (guide d'installation CSP)
+   ============================================================ */
+.csp-install-drop-zone {
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--r);
+  padding: 28px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  transition: all var(--t);
+  margin-top: 6px;
+}
+.csp-install-drop-zone:hover,
+.csp-install-drop-zone.dragging {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  box-shadow: 0 0 0 4px var(--accent-muted);
+}
+.csp-install-drop-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+.csp-install-drop-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.csp-install-drop-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+.csp-install-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  margin-top: 6px;
+}
+.csp-install-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-panel);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.csp-install-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  transition: width 0.25s ease;
+  border-radius: var(--r-pill);
+}
+.csp-install-progress-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ============================================================
+   AVERTISSEMENT CSP DANS PARAMÈTRES > VIDÉO
+   ============================================================ */
+.weatherfx-csp-warning {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: rgba(230, 163, 59, 0.08);
+  border: 1px solid rgba(230, 163, 59, 0.35);
+  border-left: 4px solid #e6a33b;
+  border-radius: var(--r-sm);
+  margin-top: 6px;
+}
+
+.weatherfx-csp-warning-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.weatherfx-csp-warning-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.weatherfx-csp-warning-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e6a33b;
+  margin-bottom: 3px;
+}
+
+.weatherfx-csp-warning-text {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.weatherfx-csp-warning-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.weatherfx-csp-warning-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+/* ============================================================
+   BANDEAU "ORDRE OBLIGATOIRE" (guide CSP)
+   ============================================================ */
+.csp-install-order-banner {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  background: rgba(230, 163, 59, 0.08);
+  border: 1px solid rgba(230, 163, 59, 0.4);
+  border-left: 4px solid #e6a33b;
+  border-radius: var(--r-sm);
+  margin-bottom: 4px;
+}
+
+.csp-install-order-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.csp-install-order-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.csp-install-order-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #e6a33b;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.csp-install-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.csp-install-order-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.csp-install-order-step .num {
+  width: 22px;
+  height: 22px;
+  background: #e6a33b;
+  color: #0f1219;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.csp-install-order-step strong {
+  color: var(--accent);
+}
+
+.csp-install-order-hint {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(230, 163, 59, 0.3);
 }

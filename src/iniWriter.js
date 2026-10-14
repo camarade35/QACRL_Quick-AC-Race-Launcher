@@ -376,7 +376,10 @@ function writeRaceConfig(acPath, sessionData, settings, availableCars = [], opti
     ini += `__CM_TIME_MULTIPLIER=${timeMult}\n`;
     ini += `CLOUD_SPEED=0.200\n`;
     ini += `__CM_WEATHER_TYPE=${weatherIndex}\n`;
-    ini += `__CM_WEATHER_CONTROLLER=pureCtrl\n`;
+    // ⭐ Controller dynamique (sol2 / pureCtrl / …) — pas hardcodé
+    if (sessionData.weatherController) {
+      ini += `__CM_WEATHER_CONTROLLER=${sessionData.weatherController}\n`;
+    }
     ini += `\n`;
   }
 
