@@ -150,14 +150,14 @@
         "timeMult": "Time multiplier",
         "weatherMode": "Weather mode",
         "weather": "Weather",
-        "purePlan": "Pure Planner plan",
+        "purePlan": "Plan (Sol/Pure)",
         "randomPick": "Random selection on each launch",
         "planName": "Plan name",
         "loop": "Loop plan"
       },
       "options": {
         "static": "Static weather",
-        "existingPlan": "Existing Pure plan",
+        "existingPlan": "Existing plan",
         "customPlan": "Custom plan"
       },
       "btn": {

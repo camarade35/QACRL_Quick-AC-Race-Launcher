@@ -26,6 +26,26 @@ function isPureAvailable() {
 }
 
 /* ============================================================
+   HELPER — Sol Planner est-il disponible ?
+   (Sol + CSP + app Python sol_planner installée)
+   ============================================================ */
+function isSolAvailable() {
+  const caps = (appData && appData.capabilities) || {};
+  return !!(caps.hasSol && caps.hasCSP && caps.hasSolPlanner);
+}
+
+/* ============================================================
+   HELPER — Quel moteur de plans est actif ?
+   Priorité PURE > SOL (règle v1.4.0).
+   Retourne : 'pure' | 'sol' | null
+   ============================================================ */
+function getActivePlanner() {
+  if (isPureAvailable()) return 'pure';
+  if (isSolAvailable()) return 'sol';
+  return null;
+}
+
+/* ============================================================
    UI SESSION
    ============================================================ */
 function updateSessionUI() {
@@ -56,24 +76,32 @@ function updateWeatherUI() {
   if (cg) cg.style.display = (mode === 'custom_plan') ? 'flex' : 'none';
   if (mode === 'custom_plan') renderWeatherSteps();
 
-  // ⭐ Grise les options "Plan Pure" si pas dispo
-  const pureOk = isPureAvailable();
+  // ⭐ Grise les options "Plan" si aucun planner n'est dispo (Pure OU Sol)
+  const planner = getActivePlanner();
+  const plansOk = !!planner;
   const modeSelect = document.getElementById('weather-mode');
   if (modeSelect) {
     const optExisting = modeSelect.querySelector('option[value="existing_plan"]');
     const optCustom = modeSelect.querySelector('option[value="custom_plan"]');
     [optExisting, optCustom].forEach(opt => {
       if (!opt) return;
-      opt.disabled = !pureOk;
-      if (!pureOk) {
-        const baseTxt = opt.textContent.replace(/^⛔\s*/, '');
-        opt.textContent = '⛔ ' + baseTxt + ' (CSP+Pure requis)';
+      opt.disabled = !plansOk;
+      if (!plansOk) {
+        // Nettoie le texte de base (retire anciens préfixes/suffixes, même ceux en double)
+        const baseTxt = opt.textContent
+          .replace(/^⛔\s*/, '')
+          .replace(/(\s*\((?:CSP\+)?(?:Pure|Sol) requis\))+/gi, '')
+          .trim();
+        opt.textContent = '⛔ ' + baseTxt + ' (CSP+Pure ou Sol requis)';
       } else {
-        opt.textContent = opt.textContent.replace(/^⛔\s*/, '').replace(/\s*\(CSP\+Pure requis\)$/, '');
+        opt.textContent = opt.textContent
+          .replace(/^⛔\s*/, '')
+          .replace(/(\s*\((?:CSP\+)?(?:Pure|Sol) requis\))+/gi, '')
+          .trim();
       }
     });
-    // ⭐ Si on était en mode plan alors que Pure n'est plus dispo → bascule en static
-    if (!pureOk && (mode === 'existing_plan' || mode === 'custom_plan')) {
+    // ⭐ Si on était en mode plan alors qu'aucun planner n'est dispo → bascule en static
+    if (!plansOk && (mode === 'existing_plan' || mode === 'custom_plan')) {
       modeSelect.value = 'static';
       updateWeatherUI();
     }
@@ -214,14 +242,22 @@ function populateWeatherSelect(weatherList) {
 function populatePurePlansSelect(plans) {
   const select = document.getElementById('pure-plan-select');
   if (!select) return;
+
+  // ⭐ Router : si Pure actif → plans Pure, sinon si Sol actif → plans Sol
+  const planner = getActivePlanner();
+  const activePlans = (planner === 'sol')
+    ? (appData.solPlans || [])
+    : (plans || []);
+
   const prev = select.value;
   select.innerHTML = '';
-  plans.forEach(p => {
+  activePlans.forEach(p => {
     const opt = document.createElement('option');
-    opt.value = p.id; opt.textContent = p.name;
+    opt.value = p.id;
+    opt.textContent = p.name;
     select.appendChild(opt);
   });
-  if (prev && plans.some(p => p.id === prev)) select.value = prev;
+  if (prev && activePlans.some(p => p.id === prev)) select.value = prev;
 }
 
 /* ============================================================
@@ -232,11 +268,40 @@ function renderExistingPlans() {
   if (!container) return;
   container.innerHTML = '';
 
-  const plans = appData.purePlans || [];
+  const planner = getActivePlanner();
+
+  // ⭐ Badge dynamique "Sol" / "Pure" dans le titre du groupe
+  try {
+    const titleEl = document.querySelector('#weather-existing-plans-group .group-title span');
+    if (titleEl) {
+      const baseTitle = (window.I18n && window.I18n.tFr)
+        ? window.I18n.tFr('Plans existants')
+        : 'Plans existants';
+      if (planner === 'sol') {
+        titleEl.innerHTML = baseTitle + ' <span style="color:var(--accent);font-weight:800;margin-left:6px;font-size:0.72rem;letter-spacing:1px;">SOL</span>';
+      } else if (planner === 'pure') {
+        titleEl.innerHTML = baseTitle + ' <span style="color:var(--accent);font-weight:800;margin-left:6px;font-size:0.72rem;letter-spacing:1px;">PURE</span>';
+      } else {
+        titleEl.textContent = baseTitle;
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  // ⭐ Route selon le planner actif (Pure prioritaire, sinon Sol)
+  const plans = (planner === 'sol')
+    ? (appData.solPlans || [])
+    : (appData.purePlans || []);
+
   if (plans.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
-    empty.innerText = 'Aucun plan Pure trouvé dans extension/config-ext/PurePlanner/Plans/.';
+    if (planner === 'sol') {
+      empty.innerText = 'Aucun plan Sol trouvé dans apps/python/sol_planner/plans/.';
+    } else if (planner === 'pure') {
+      empty.innerText = 'Aucun plan Pure trouvé dans extension/config-ext/PurePlanner/Plans/.';
+    } else {
+      empty.innerText = 'Aucun système de plans disponible (CSP + Pure ou Sol requis).';
+    }
     container.appendChild(empty);
     return;
   }
@@ -244,14 +309,27 @@ function renderExistingPlans() {
   plans.forEach(plan => {
     const row = document.createElement('div');
     row.className = 'plan-row';
+
+    // ⭐ Meta adapté selon la source
+    const metaHtml = (planner === 'sol')
+      ? (plan.isQacrl
+          ? '<span style="color: var(--accent);">Créé par QACRL</span>'
+          : 'Fichier Sol : <code>' + (plan.id || '') + '</code>')
+      : 'Dossier : <code>' + (plan.folder || '(racine)') + '</code>';
+
+    // ⭐ Édition désactivée pour les plans Sol (pas d'équivalent applyPlanToEditor)
+    const editBtnHtml = (planner === 'sol')
+      ? ''
+      : '<button class="plan-action edit">' + ((window.I18n && window.I18n.tFr) ? window.I18n.tFr('Éditer') : 'Éditer') + '</button>';
+
     row.innerHTML = `
       <div class="plan-info">
         <div class="plan-name">${plan.name}</div>
-        <div class="plan-meta">Dossier : <code>${plan.folder || '(racine)'}</code></div>
+        <div class="plan-meta">${metaHtml}</div>
       </div>
       <div class="plan-actions">
         <button class="plan-action load">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Charger') : 'Charger'}</button>
-        <button class="plan-action edit">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Éditer') : 'Éditer'}</button>
+        ${editBtnHtml}
         <button class="plan-action delete">${(window.I18n && window.I18n.tFr) ? window.I18n.tFr('Supprimer') : 'Supprimer'}</button>
       </div>
     `;
@@ -268,20 +346,27 @@ function renderExistingPlans() {
       saveCurrentState();
     });
 
-    row.querySelector('.edit').addEventListener('click', async () => {
-      try {
-        const res = await window.api.loadPurePlan(plan.id);
-        if (!res || !res.success) throw new Error('Chargement impossible.');
-        applyPlanToEditor(res);
-      } catch (err) {
-        alert('Erreur : ' + err.message);
-      }
-    });
+    // Édition : uniquement pour Pure
+    if (planner !== 'sol') {
+      row.querySelector('.edit').addEventListener('click', async () => {
+        try {
+          const res = await window.api.loadPurePlan(plan.id);
+          if (!res || !res.success) throw new Error('Chargement impossible.');
+          applyPlanToEditor(res);
+        } catch (err) {
+          alert('Erreur : ' + err.message);
+        }
+      });
+    }
 
     row.querySelector('.delete').addEventListener('click', async () => {
       if (!confirm(`Supprimer le plan "${plan.name}" ?\n\nCette action est irréversible.`)) return;
       try {
-        await window.api.deletePurePlan(plan.id);
+        if (planner === 'sol') {
+          await window.api.deleteSolPlan(plan.id);
+        } else {
+          await window.api.deletePurePlan(plan.id);
+        }
         await refreshAllContent();
         alert(`Plan "${plan.name}" supprimé.`);
       } catch (err) {
@@ -720,12 +805,25 @@ async function launchGame() {
       ? { name: flagFileToCountryName(flagFile), code: flagFileToCountryName(flagFile).substring(0, 3).toUpperCase() }
       : { name: 'France', code: 'FRA' };
 
+    // ⭐ Sélection du plan : route selon le planner actif (Pure prioritaire)
+    const planner = getActivePlanner();
     let purePlanId = '';
+    let solPlanId = '';
+
     if (weatherMode === 'existing_plan') {
-      if (getChecked('pure-plan-random') && appData.purePlans.length > 0) {
-        purePlanId = appData.purePlans[Math.floor(Math.random() * appData.purePlans.length)].id;
+      if (planner === 'sol') {
+        const list = appData.solPlans || [];
+        if (getChecked('pure-plan-random') && list.length > 0) {
+          solPlanId = list[Math.floor(Math.random() * list.length)].id;
+        } else {
+          solPlanId = getValue('pure-plan-select');
+        }
       } else {
-        purePlanId = getValue('pure-plan-select');
+        if (getChecked('pure-plan-random') && appData.purePlans.length > 0) {
+          purePlanId = appData.purePlans[Math.floor(Math.random() * appData.purePlans.length)].id;
+        } else {
+          purePlanId = getValue('pure-plan-select');
+        }
       }
     }
 
@@ -753,6 +851,7 @@ async function launchGame() {
       weather: getValue('weather-select'),
       weatherMode: weatherMode,
       purePlan: purePlanId,
+      solPlan: solPlanId,
       customPlanName: getValue('custom-plan-name') || 'MonPlan',
       customPlanSteps: customPlanSteps.slice(),
       planLoop: getChecked('plan-loop'),

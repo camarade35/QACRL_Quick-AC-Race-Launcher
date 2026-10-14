@@ -25,6 +25,14 @@ contextBridge.exposeInMainWorld('api', {
   deletePurePlan: (planId) => ipcRenderer.invoke('delete-pure-plan', planId),
   readPureCtrlSettings: () => ipcRenderer.invoke('read-purectrl-settings'),
 
+  // ⭐ Plans Sol Planner (INI) — coexiste avec Pure, sans le perturber
+  scanSolPlans: () => ipcRenderer.invoke('scan-sol-plans'),
+  loadSolPlan: (planId) => ipcRenderer.invoke('load-sol-plan', planId),
+  deleteSolPlan: (planId) => ipcRenderer.invoke('delete-sol-plan', planId),
+  saveCustomSolPlan: (planName, steps, sessionStartTime, timeMult, loop) =>
+    ipcRenderer.invoke('save-custom-sol-plan', planName, steps, sessionStartTime, timeMult, loop),
+  cleanupSolPresets: () => ipcRenderer.invoke('cleanup-sol-presets'),
+
   // ⭐ Détection globale pour l'assistant d'installation
   detectSetupStatus: () => ipcRenderer.invoke('detect-setup-status'),
 

@@ -9,6 +9,7 @@ const { exec, execSync, spawn } = require('child_process');
 const { pathToFileURL } = require('url');
 const { writeRaceConfig } = require('./src/iniWriter');
 const { installArchive, previewArchive } = require('./src/cspArchiveInstaller');
+const solPlanner = require('./src/solPlanner');
 const AdmZip = require('adm-zip');
 
 const stateFilePath = path.join(app.getPath('userData'), 'user-state.json');
@@ -1408,7 +1409,7 @@ ipcMain.handle('detect-setup-status', async () => {
   // 4) CSP / Pure / Sol / 7-Zip / contenu
   const csp = { installed: false };
   const pure = { installed: false };
-  const sol = { installed: false, version: null };
+  const sol = { installed: false, version: null, plannerInstalled: false };
   const sevenZip = { installed: false };
   const content = { cars: 0, tracks: 0 };
 
@@ -1436,6 +1437,11 @@ ipcMain.handle('detect-setup-status', async () => {
         if (m) sol.version = m[1].trim();
       } catch (e) {}
     }
+
+    // ⭐ Détection Sol Planner (app Python)
+    sol.plannerInstalled = fs.existsSync(
+      path.join(acPath, 'apps', 'python', 'sol_planner', 'presets', 'presets.ini')
+    );
 
     content.cars = countDirectories(path.join(acPath, 'content', 'cars'));
     content.tracks = countDirectories(path.join(acPath, 'content', 'tracks'));
@@ -1580,6 +1586,7 @@ ipcMain.handle('check-csp-pure', async () => {
     hasSol: false,
     solVersion: null,
     solController: null,
+    hasSolPlanner: false,
     hasWeatherFx: false,
   };
 
@@ -1598,6 +1605,11 @@ ipcMain.handle('check-csp-pure', async () => {
         if (m) result.solVersion = m[1].trim();
       } catch (e) { /* ignore */ }
     }
+
+    // ⭐ Détection Sol Planner (app Python installée via CSP)
+    result.hasSolPlanner = fs.existsSync(
+      path.join(acPath, 'apps', 'python', 'sol_planner', 'presets', 'presets.ini')
+    );
 
     // ⭐ Contrôleur Sol 2.5 actif (si présent)
     const sol2Manifest = path.join(acPath, 'extension', 'weather-controllers', 'sol2', 'manifest.ini');
@@ -1682,15 +1694,17 @@ function loadContentInternal() {
       }
     }
   }
-  let cars = [], tracks = [], weatherList = [], purePlans = [];
+  let cars = [], tracks = [], weatherList = [], purePlans = [], solPlans = [];
   if (acPath && fs.existsSync(acPath)) {
     cars = scanCars(acPath);
     tracks = scanTracks(acPath);
     weatherList = scanWeather(acPath);
     purePlans = scanPurePlans(acPath);
+    // ⭐ Plans Sol Planner (uniquement si l'app est installée) — scan défensif
+    try { solPlans = solPlanner.scanSolPlans(acPath); } catch (e) { solPlans = []; }
   }
   flushJsonWarnings();  // ⭐ résumé compact au lieu d'une ligne par fichier
-  return { cars, tracks, weatherList, purePlans, acPath: acPath || '' };
+  return { cars, tracks, weatherList, purePlans, solPlans, acPath: acPath || '' };
 }
 
 ipcMain.handle('load-content', async () => loadContentInternal());
@@ -1752,6 +1766,121 @@ ipcMain.handle('delete-pure-plan', async (event, planId) => {
   return { success: true };
 });
 
+/* ============================================================
+   IPC — GESTION DES PLANS SOL PLANNER (INI)
+   ⚠️ Ne touche JAMAIS aux fichiers Pure (PurePlanner, pureCtrl).
+   ============================================================ */
+function resolveSolPlanPath(acPath, planId) {
+  if (!acPath || !planId) return null;
+  const plansDir = path.join(acPath, 'apps', 'python', 'sol_planner', 'plans');
+  const normalized = String(planId).replace(/\\/g, '/');
+  if (normalized.includes('..')) return null;
+  const full = path.join(plansDir, normalized);
+  const resolved = path.resolve(full);
+  if (!resolved.startsWith(path.resolve(plansDir))) return null;
+  return resolved;
+}
+
+ipcMain.handle('scan-sol-plans', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) return { success: false, plans: [] };
+  try {
+    const plans = solPlanner.scanSolPlans(acPath);
+    return { success: true, plans };
+  } catch (e) {
+    return { success: false, error: e.message, plans: [] };
+  }
+});
+
+ipcMain.handle('load-sol-plan', async (event, planId) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  const planPath = resolveSolPlanPath(acPath, planId);
+  if (!planPath || !fs.existsSync(planPath)) throw new Error("Plan Sol introuvable : " + planId);
+  let parsed;
+  try { parsed = solPlanner.parseSolPlanFile(planPath); }
+  catch (e) { throw new Error("Fichier de plan Sol illisible : " + e.message); }
+  return {
+    success: true,
+    planId: planId,
+    planName: path.basename(planPath, '.ini'),
+    data: parsed,
+  };
+});
+
+ipcMain.handle('delete-sol-plan', async (event, planId) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  const planPath = resolveSolPlanPath(acPath, planId);
+  if (!planPath || !fs.existsSync(planPath)) throw new Error("Plan Sol introuvable : " + planId);
+  try { fs.unlinkSync(planPath); }
+  catch (e) { throw new Error("Impossible de supprimer le plan Sol : " + e.message); }
+  return { success: true };
+});
+
+ipcMain.handle('save-custom-sol-plan', async (event, planName, steps, sessionStartTime, timeMult, loop) => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error("Dossier AC non configuré.");
+  if (!planName || !planName.trim()) throw new Error("Nom du plan manquant.");
+  if (!Array.isArray(steps) || steps.length === 0) throw new Error("Aucune étape dans le plan.");
+  const planData = solPlanner.buildSolPlanData(steps, {
+    sessionStartTime: sessionStartTime || '12:00',
+    timeMult: parseInt(timeMult, 10) || 1,
+    timemode: 1,
+    loop: !!loop,
+    playing: true,
+  });
+  // Archive seule — l'activation dans presets.ini se fera au lancement
+  const archive = solPlanner.writeSolPlanArchive(acPath, planName, planData);
+  return {
+    success: true,
+    fileName: archive.fileName,
+    planName: archive.fileName.replace(/\.ini$/i, ''),
+  };
+});
+
+// ⭐ One-shot : nettoie les loadwithstart (lowercase) résiduels dans presets.ini
+ipcMain.handle('cleanup-sol-presets', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) {
+    return { success: false, error: 'Dossier AC non configuré.' };
+  }
+  const presetsFile = path.join(acPath, 'apps', 'python', 'sol_planner', 'presets', 'presets.ini');
+  if (!fs.existsSync(presetsFile)) {
+    return { success: true, changed: false, reason: 'presets.ini absent' };
+  }
+  try {
+    const content = fs.readFileSync(presetsFile, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const out = [];
+    let inGeneral = false;
+    let removed = 0;
+    for (const raw of lines) {
+      const trimmed = raw.trim();
+      if (/^\[general\]/i.test(trimmed)) { inGeneral = true; out.push(raw); continue; }
+      if (/^\[/.test(trimmed)) { inGeneral = false; out.push(raw); continue; }
+      // Supprime les loadwithstart (lowercase uniquement) dans [general]
+      if (inGeneral && /^loadwithstart\s*=/i.test(trimmed) && !/^loadWithStart\s*=/.test(trimmed)) {
+        removed++;
+        continue;
+      }
+      out.push(raw);
+    }
+    if (removed > 0) {
+      fs.copyFileSync(presetsFile, presetsFile + '.bak-cleanup');
+      fs.writeFileSync(presetsFile, out.join('\n'), 'utf8');
+    }
+    return { success: true, changed: removed > 0, removed };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 function resolveDocumentsPath(settings) {
   if (settings && settings.documentsPath && fs.existsSync(settings.documentsPath))
     return { path: settings.documentsPath, source: 'manuel' };
@@ -1782,24 +1911,93 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
   forceCustomAssistsProfile(documentsPath);
   writeAssistsIni(documentsPath, sessionData.assists || {});
 
-  // ⭐ Détection des capacités (CSP / Pure / Sol)
-  const caps = { hasCSP: false, hasPure: false, hasSol: false };
+  // ⭐ Détection des capacités (CSP / Pure / Sol / Sol Planner)
+  const caps = { hasCSP: false, hasPure: false, hasSol: false, hasSolPlanner: false };
   if (settings.acPath && fs.existsSync(settings.acPath)) {
     caps.hasCSP = fs.existsSync(path.join(settings.acPath, 'extension', 'config'));
     caps.hasPure = fs.existsSync(path.join(settings.acPath, 'extension', 'config-ext', 'PurePlanner'));
     caps.hasSol = fs.existsSync(path.join(settings.acPath, 'extension', 'weather', 'sol', 'manifest.ini'));
+    caps.hasSolPlanner = fs.existsSync(path.join(settings.acPath, 'apps', 'python', 'sol_planner', 'presets', 'presets.ini'));
   }
 
-  // ⭐ 3 cas :
-  //   - Pure installé    → toute la logique Pure (plans, pureCtrl)
-  //   - Sol installé     → on garde la météo Sol choisie, on skip la logique Pure
-  //   - Ni Pure ni Sol   → mode dégradé Kunos (force 3_clear)
-  const usePureLogic = caps.hasPure;
-  const useSolWeather = !caps.hasPure && caps.hasSol;
+  // ⭐ PRIORITÉ PURE : si Pure est installé, on garde le flux Pure intact.
+  //    Sol (avec ou sans Sol Planner) n'est utilisé QUE si Pure est absent.
+  //
+  //   Cas 1 : Pure installé             → logique Pure complète (inchangée)
+  //   Cas 2 : Sol + Sol Planner         → logique Sol (plans INI + presets.ini)
+  //   Cas 3 : Sol seul (sans Planner)   → météo Sol directe via race.ini
+  //   Cas 4 : Ni Pure ni Sol            → mode dégradé Kunos (force 3_clear)
+  const usePureLogic     = caps.hasPure;
+  const useSolPlanner    = !caps.hasPure && caps.hasSol && caps.hasSolPlanner;
+  const useSolWeather    = !caps.hasPure && caps.hasSol && !caps.hasSolPlanner;
   const useKunosFallback = !caps.hasPure && !caps.hasSol;
 
+  // --- Cas 2 : Sol + Sol Planner → plans INI dans presets.ini
+  if (useSolPlanner) {
+    console.log('[launch-game] Sol Planner détecté → gestion des plans Sol (INI)');
+    try {
+      let planName = 'QACRL_Plan';
+      let planData = null;
+
+      if (weatherMode === 'custom_plan') {
+        if (Array.isArray(sessionData.customPlanSteps) && sessionData.customPlanSteps.length > 0) {
+          planName = sessionData.customPlanName || 'MonPlan';
+          planData = solPlanner.buildSolPlanData(sessionData.customPlanSteps, {
+            sessionStartTime: sessionStartTime,
+            timeMult: timeMult,
+            timemode: 1,               // 1 = time span (mode "custom" Sol)
+            loop: planLoop,
+            playing: true,             // démarrage auto
+          });
+        }
+      } else if (weatherMode === 'existing_plan') {
+        if (sessionData.solPlan) {
+          const plansRoot = path.join(settings.acPath, 'apps', 'python', 'sol_planner', 'plans');
+          const filePath = path.join(plansRoot, sessionData.solPlan);
+          if (fs.existsSync(filePath)) {
+            planData = solPlanner.parseSolPlanFile(filePath);
+            planName = path.basename(sessionData.solPlan, '.ini');
+            // Surcharge des paramètres UI
+            planData.timemultiplier = timeMult;
+            if (planLoop !== undefined) planData.repeat = !!planLoop;
+            planData.playing = true;
+          } else {
+            console.warn('[launch-game] Plan Sol introuvable :', filePath);
+          }
+        }
+      } else {
+        // weatherMode === 'static' → mini-plan 1 étape sur 24h
+        const staticWeather = sessionData.weather || 'sol_01_clear';
+        planData = solPlanner.buildSolPlanData(
+          [{ weather: staticWeather, duration: 1440 }],
+          {
+            sessionStartTime: sessionStartTime,
+            timeMult: timeMult,
+            timemode: 0,               // 0 = day cycle
+            loop: true,
+            playing: true,
+          }
+        );
+        planName = 'Static_' + staticWeather.replace(/[^a-zA-Z0-9_\-]/g, '').substring(0, 30);
+      }
+
+      if (planData) {
+        const res = solPlanner.writeSolPlanFiles(settings.acPath, planName, planData);
+        console.log('[launch-game] Plan Sol écrit :', res.fileName, '→ slot', res.slotIndex);
+        sessionData.solPlanSlot = res.slotIndex;
+      } else {
+        console.warn('[launch-game] Aucun planData Sol généré — fallback race.ini');
+      }
+    } catch (err) {
+      console.error('[launch-game] Erreur plan Sol :', err);
+      // ⚠️ On ne bloque PAS le lancement : race.ini continuera de fonctionner
+      //    avec la météo Sol choisie (comportement du Cas 3).
+    }
+  }
+
+  // --- Cas 3 : Sol seul (sans Planner) → météo Sol directe via race.ini
   if (useSolWeather) {
-    console.log('[launch-game] Sol installé → météo Sol directe, skip PurePlanner');
+    console.log('[launch-game] Sol installé (sans Sol Planner) → météo Sol directe, skip PurePlanner');
     sessionData.weatherMode = 'static';
     if (!sessionData.weather || !/^sol_/i.test(sessionData.weather)) {
       console.warn('[launch-game] Météo non-Sol détectée, fallback sol_01_clear');

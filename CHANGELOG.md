@@ -12,7 +12,46 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ### À venir
 - Undo fin (par option, pas global)
 - Détection auto de conflits CSP
-- Polish UX (liste d'idées en cours)
+- Test install clean vers Pure (protocole)
+
+---
+
+## [1.4.0] - 2026-10-14
+
+### ✨ Ajouté
+- **Support des plans Sol Planner (INI)** — QACRL gère désormais les **deux** systèmes de plans météo :
+  - **Pure Planner** (JSON) : prioritaire si Pure est installé
+  - **Sol Planner** (INI) : utilisé si Sol est installé sans Pure
+  - Détection automatique via `hasSolPlanner` (app Python `sol_planner` présente)
+  - Scan des plans Sol dans `apps/python/sol_planner/plans/*.ini`
+  - Écriture dans `apps/python/sol_planner/presets/presets.ini` (slot dédié `QACRL`, sinon 1er slot vide, sinon fallback slot 0)
+  - Activation automatique via `loadWithStart` (camelCase exact attendu par Sol)
+  - Gestion des modes `static` / `existing_plan` / `custom_plan` routés vers le bon writer
+  - Nettoyage one-shot des `loadwithstart` (lowercase) résiduels
+- **Récap sidebar** — affichage du plan actif avec son moteur (`cloudy-rainy-nice (Sol)` / `MonPlan (Pure)`)
+- **Badge dynamique "SOL" / "PURE"** dans le titre de la section "Plans existants"
+- **IPC** : `scan-sol-plans`, `load-sol-plan`, `delete-sol-plan`, `save-custom-sol-plan`, `cleanup-sol-presets`
+
+### 🐛 Corrigé
+- Doublon de préfixe `QACRL_QACRL_` dans les noms de plans Sol
+- Casse `loadWithStart` vs `loadwithstart` (Sol utilise `optionxform = str`, sensible à la casse)
+- Suffixe "(CSP+Pure requis)" qui s'accumulait en boucle dans le dropdown Mode météo
+- Message d'état vide dans la liste "Plans existants" quand Sol est actif
+- Affichage `Météo : —` dans le récap sidebar quand un plan Sol était sélectionné
+
+### 🔧 Modifié
+- `src/solPlanner.js` : nouveau module (~650 lignes) — parseurs, writers, scanners Sol
+- `main.js` : IPC Sol + routing dans `launch-game` (priorité Pure préservée)
+- `preload.js` : 5 nouveaux IPC exposés
+- `public/src/session.js` : helpers `isSolAvailable()` + `getActivePlanner()`, routing UI
+- `public/src/content.js` : récap sidebar route vers le bon planner
+- `public/app.js` : `appData.solPlans` + capacités Sol
+- `package.json` : version 1.4.0
+
+### 📝 Notes
+- **Priorité Pure** : si Pure est installé, le flux Pure reste strictement inchangé. Sol est ignoré.
+- **Aucun risque** pour les fichiers Pure : les writers Sol ne touchent jamais à `PurePlanner/` ni `pureCtrl__settings.ini`.
+- **Backup auto** : `presets.ini.bak` avant chaque écriture de plan Sol.
 
 ---
 

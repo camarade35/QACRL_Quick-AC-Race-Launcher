@@ -479,11 +479,21 @@ function updateRecapSidebar() {
         recapWeather.innerText = `Météo : Plan perso (${customPlanSteps.length} étapes, ${total} min${loopStr})`;
       }
     } else if (mode === 'existing_plan') {
-      if (getChecked('pure-plan-random')) recapWeather.innerText = 'Météo : Plan Pure aléatoire';
-      else {
+      // ⭐ Route selon le planner actif (Pure prioritaire, sinon Sol)
+      const planner = getActivePlanner();
+      const plannerLabel = (planner === 'sol') ? 'Sol' : 'Pure';
+
+      if (getChecked('pure-plan-random')) {
+        recapWeather.innerText = `Météo : Plan ${plannerLabel} aléatoire`;
+      } else {
         const id = getValue('pure-plan-select');
-        const plan = appData.purePlans.find(p => p.id === id);
-        recapWeather.innerText = plan ? `Météo : ${plan.name}` : 'Météo : —';
+        const list = (planner === 'sol')
+          ? (appData.solPlans || [])
+          : (appData.purePlans || []);
+        const plan = list.find(p => p.id === id);
+        recapWeather.innerText = plan
+          ? `Météo : ${plan.name} (${plannerLabel})`
+          : 'Météo : —';
       }
     } else {
       const w = getValue('weather-select');

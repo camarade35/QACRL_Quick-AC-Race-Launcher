@@ -150,14 +150,14 @@
         "timeMult": "Multiplicateur de temps",
         "weatherMode": "Mode météo",
         "weather": "Météo",
-        "purePlan": "Plan Pure Planner",
+        "purePlan": "Plan (Sol/Pure)",
         "randomPick": "Sélection aléatoire à chaque lancement",
         "planName": "Nom du plan",
         "loop": "Boucler le plan"
       },
       "options": {
         "static": "Météo fixe",
-        "existingPlan": "Plan Pure existant",
+        "existingPlan": "Plan existant",
         "customPlan": "Plan personnalisé"
       },
       "btn": {
