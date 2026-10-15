@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // ⭐ Vérification des mises à jour GitHub
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 
   // ⭐ Installation archives CSP/Sol/Pure (remplace Content Manager)
   previewCspArchive: (filePath) => ipcRenderer.invoke('preview-csp-archive', filePath),
@@ -91,6 +92,15 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Fichiers INI (controls / video / audio)
   readIniFile: (filename) => ipcRenderer.invoke('read-ini-file', filename),
   writeIniFile: (filename, content) => ipcRenderer.invoke('write-ini-file', filename, content),
+
+  // ⭐ v1.5.0 — Contrôleurs & profils de contrôles
+  listAcControllerDevices: () => ipcRenderer.invoke('list-ac-controller-devices'),
+  listSavedControllerSetups: () => ipcRenderer.invoke('list-saved-controller-setups'),
+  readControllerSetup: (filename) => ipcRenderer.invoke('read-controller-setup', filename),
+  applyControllerSetup: (filename) => ipcRenderer.invoke('apply-controller-setup', filename),
+  saveCurrentAsSetup: (name) => ipcRenderer.invoke('save-current-as-setup', name),
+  deleteControllerSetup: (filename) => ipcRenderer.invoke('delete-controller-setup', filename),
+  setInputMethod: (method) => ipcRenderer.invoke('set-input-method', method),
 
   // ⭐ Filtres post-process (PP filters)
   listPpfilters: () => ipcRenderer.invoke('list-ppfilters'),

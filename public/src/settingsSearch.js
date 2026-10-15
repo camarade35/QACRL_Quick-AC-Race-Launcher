@@ -651,6 +651,22 @@
     return saveBannerEl;
   }
 
+  // ⭐ Cache le bandeau immédiatement (avec un délai pour le mode "saved")
+  let _hideBannerTimer = null;
+  function hideSaveBanner(immediate) {
+    const banner = ensureSaveBanner();
+    if (!banner) return;
+    if (_hideBannerTimer) { clearTimeout(_hideBannerTimer); _hideBannerTimer = null; }
+    if (immediate) {
+      banner.style.display = 'none';
+    } else {
+      _hideBannerTimer = setTimeout(() => {
+        banner.style.display = 'none';
+        _hideBannerTimer = null;
+      }, 3000);
+    }
+  }
+
   function renderSaveBanner() {
     const banner = ensureSaveBanner();
     if (!banner) return;
@@ -660,22 +676,27 @@
     const btnEl = banner.querySelector('[data-role="save-now"]');
 
     if (saveStatus.pendingCount === 0 && !saveStatus.isSaving) {
-      // ⭐ Rien en attente : on montre juste "Enregistré à HH:MM" pendant 3s
-      if (saveStatus.lastSavedAt && (Date.now() - saveStatus.lastSavedAt) < 3000) {
+      // ⭐ Rien en attente : on montre "Enregistré à HH:MM" pendant 3s
+      const recentlySaved = saveStatus.lastSavedAt && (Date.now() - saveStatus.lastSavedAt) < 3000;
+      if (recentlySaved) {
         banner.style.display = '';
         banner.classList.remove('is-pending');
         banner.classList.add('is-saved');
         const t = new Date(saveStatus.lastSavedAt).toLocaleTimeString();
         statusEl.textContent = (i18n ? i18n.t('app.settings.search.savedAt', '✅ Enregistré à {time}') : '✅ Enregistré à {time}').replace('{time}', t);
         btnEl.style.display = 'none';
-        setTimeout(() => { renderSaveBanner(); }, 3100);
+        // ⭐ Un seul timer de cache par "session saved" (évite les cascades)
+        if (!_hideBannerTimer) {
+          hideSaveBanner(false);
+        }
       } else {
-        banner.style.display = 'none';
+        hideSaveBanner(true);
       }
       return;
     }
 
-    // ⭐ En attente ou en cours
+    // ⭐ En attente ou en cours : le bandeau reste affiché
+    if (_hideBannerTimer) { clearTimeout(_hideBannerTimer); _hideBannerTimer = null; }
     banner.style.display = '';
     banner.classList.remove('is-saved');
     banner.classList.add('is-pending');
@@ -741,23 +762,32 @@
     saveStatus.pendingCount = 0;
     saveStatus.lastSavedAt = null;
 
+    // ⭐ Cache le bandeau immédiatement (pas de délai pour cancel)
+    hideSaveBanner(true);
+
     // Re-render les résultats pour reconstruire les widgets avec les vraies valeurs
     const els = getElements();
     if (els.input && els.input.value.trim()) {
       renderResults(els.input.value);
     }
-    renderSaveBanner();
   }
 
   async function forceSaveAll() {
-    // ⭐ En mode auto-save OFF, pendingSaves[key] est null mais pendingCount > 0
-    // On doit donc sauvegarder TOUS les fichiers qui ont été modifiés
-    const keys = Object.keys(pendingSaves);
-    for (const k of keys) {
+    // ⭐ v1.5.0 — Utilise dirtyFiles (Set) au lieu de Object.keys(pendingSaves)
+    //    car en mode Manual, pendingSaves est vide (pas de setTimeout programmé).
+    const keys = Array.from(dirtyFiles);
+    if (keys.length === 0) {
+      // Rien à sauvegarder → cache le bandeau immédiatement
+      saveStatus.pendingCount = 0;
+      hideSaveBanner();
+      return;
+    }
+
+    // Stoppe les timers pending éventuels (mode Auto)
+    for (const k of Object.keys(pendingSaves)) {
       if (pendingSaves[k]) clearTimeout(pendingSaves[k]);
       pendingSaves[k] = null;
     }
-    if (saveStatus.pendingCount === 0 && keys.length === 0) return;
 
     saveStatus.isSaving = true;
     renderSaveBanner();
@@ -821,6 +851,7 @@
     const siblingWidgets = {};
     const acControllers = getAcControllersList(ed);
 
+    let updateUndoRef = null;
     let ctrl;
     try {
       ctrl = window.IniControls.createIniControl({
@@ -837,6 +868,7 @@
         onChange: (newVal) => {
           window.SettingsIni.setValueInEditor(entry.filename, entry.sectionName, entry.key, newVal);
           scheduleSaveIni(entry.filename);
+          if (updateUndoRef) updateUndoRef();
         },
       });
     } catch (e) {
@@ -849,6 +881,30 @@
     if (entry.filename === 'controls.ini' && ed.gamepadMapper && typeof ctrl.startLive === 'function') {
       try { ctrl.startLive(); } catch (e) {}
     }
+
+    // ⭐ Bouton Undo par ligne (recherche globale INI)
+    const originalValue = getRawValue(sec, entry.key);
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.className = 'ini-undo-btn';
+    undoBtn.innerHTML = '↶';
+    undoBtn.title = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('Annuler cette modification') : 'Annuler cette modification';
+    undoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof ctrl.setValue === 'function') ctrl.setValue(originalValue);
+      window.SettingsIni.setValueInEditor(entry.filename, entry.sectionName, entry.key, originalValue);
+      scheduleSaveIni(entry.filename);
+      updateUndo();
+    });
+    row.appendChild(undoBtn);
+
+    const updateUndo = () => {
+      const currentVal = getRawValue(sec, entry.key);
+      const hasChanged = (originalValue !== undefined && currentVal !== originalValue);
+      undoBtn.classList.toggle('visible', hasChanged);
+    };
+    updateUndoRef = updateUndo;
+    updateUndo();
 
     return row;
   }
@@ -889,10 +945,35 @@
     labelEl.title = tooltipText;
     row.appendChild(labelEl);
 
+    // ⭐ Bouton Undo par ligne (recherche globale CSP)
+    const originalValue = realEntry.value;
+    const undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.className = 'csp-undo-btn';
+    undoBtn.innerHTML = '↶';
+    undoBtn.title = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('Annuler cette modification') : 'Annuler cette modification';
+    row.appendChild(undoBtn);
+
     const widget = window.SettingsCsp.createCspWidget(realEntry, () => {
       scheduleSaveCsp(entry.filename);
+      updateUndo();
     });
-    row.appendChild(widget);
+    row.insertBefore(widget, undoBtn);
+
+    const updateUndo = () => {
+      const hasChanged = (originalValue !== undefined && realEntry.value !== originalValue);
+      undoBtn.classList.toggle('visible', hasChanged);
+    };
+
+    undoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof widget.setValue === 'function') widget.setValue(originalValue);
+      else realEntry.value = originalValue;
+      scheduleSaveCsp(entry.filename);
+      updateUndo();
+    });
+
+    updateUndo();
 
     return row;
   }

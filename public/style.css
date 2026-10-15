@@ -2416,7 +2416,7 @@ select:disabled, input:disabled {
 
 .ini-row {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 200px 1fr 32px;   /* ⭐ 3ᵉ colonne = bouton Undo */
   align-items: center;
   gap: 18px;
   padding: 6px 16px;
@@ -3527,7 +3527,7 @@ select:disabled, input:disabled {
 
 .csp-opt-row {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 220px 1fr 32px;   /* ⭐ 3ᵉ colonne = bouton Undo */
   align-items: center;
   gap: 14px;
   padding: 6px 8px;
@@ -4986,4 +4986,641 @@ select:disabled, input:disabled {
   line-height: 1.5;
   padding-top: 8px;
   border-top: 1px dashed rgba(230, 163, 59, 0.3);
+}
+/* ============================================================
+   BOUTONS UNDO PAR LIGNE (INI + CSP + Recherche globale)
+   ------------------------------------------------------------
+   Toujours présents dans la 3ᵉ colonne de la grille,
+   invisibles tant que la valeur est identique à l'originale.
+   ============================================================ */
+.ini-undo-btn,
+.csp-undo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  background: rgba(230, 163, 59, 0.15);
+  border: 1px solid #e6a33b;
+  border-radius: 6px;
+  color: #e6a33b;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  visibility: hidden;      /* caché mais occupe sa place */
+  opacity: 0;
+  transition: background 0.15s, color 0.15s, transform 0.15s, opacity 0.15s;
+}
+
+.ini-undo-btn.visible,
+.csp-undo-btn.visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+.ini-undo-btn:hover,
+.csp-undo-btn:hover {
+  background: #e6a33b;
+  color: #0a0c12;
+  transform: scale(1.1);
+}
+
+.ini-undo-btn:active,
+.csp-undo-btn:active {
+  transform: scale(0.92);
+}
+/* ============================================================
+   ONGLET CSP — BANDEAU DE CONFLITS
+   ============================================================ */
+.csp-conflict-banner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 40px 12px 16px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  margin-bottom: 14px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  animation: cspConflictIn 0.25s ease;
+}
+
+@keyframes cspConflictIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.csp-conflict-banner-warn {
+  background: rgba(230, 163, 59, 0.10);
+  border-color: #e6a33b;
+  color: #e6a33b;
+}
+
+.csp-conflict-banner-info {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: var(--accent);
+  color: var(--text-secondary);
+}
+
+.csp-conflict-banner-header {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.csp-conflict-banner-warn .csp-conflict-banner-header { color: #e6a33b; }
+.csp-conflict-banner-info .csp-conflict-banner-header { color: var(--accent); }
+
+.csp-conflict-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.csp-conflict-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 2px solid rgba(230, 163, 59, 0.3);
+}
+
+.csp-conflict-msg {
+  color: var(--text-primary);
+  font-size: 0.82rem;
+}
+
+.csp-conflict-modules {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  opacity: 0.9;
+}
+
+.csp-conflict-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+  transition: all var(--t);
+}
+
+.csp-conflict-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Badge ⚠️ sur les modules concernés */
+.csp-module-warn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: help;
+  flex-shrink: 0;
+  animation: cspConflictPulse 2s ease-in-out infinite;
+}
+
+@keyframes cspConflictPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.08); }
+}
+/* ============================================================
+   WIDGET AXE — 4 colonnes (Bouton | Select | Reset | Reconfig)
+   ============================================================ */
+.ini-binding-wrap.ini-binding-wrap-4col {
+  grid-template-columns: 1fr 160px 36px 36px;
+}
+
+.ini-axis-select {
+  width: 100% !important;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--t);
+}
+
+.ini-axis-select:hover {
+  border-color: var(--border-strong);
+}
+
+.ini-axis-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.ini-axis-reset {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.ini-axis-reset:hover {
+  background: rgba(230, 163, 59, 0.12);
+  border-color: #e6a33b;
+  color: #e6a33b;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px rgba(230, 163, 59, 0.15);
+}
+
+.ini-axis-reset:active {
+  transform: scale(0.95);
+}
+/* ============================================================
+   PANNEAU "CONTRÔLEUR PRINCIPAL" — v1.5.0
+   Onglet Paramètres > Contrôles
+   ============================================================ */
+
+.qacrl-ctrl-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.qacrl-ctrl-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.qacrl-ctrl-empty {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+  font-style: italic;
+  padding: 4px 0;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   SECTION "MISES À JOUR" — version + bouton vérifier
+   ============================================================ */
+
+.update-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+}
+
+.update-version-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.update-version-info code {
+  background: var(--bg-panel);
+  padding: 2px 10px;
+  border-radius: var(--r-xs);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.3px;
+  border: 1px solid var(--border-subtle);
+}
+
+#btn-check-updates-now {
+  padding: 8px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all var(--t);
+}
+
+#btn-check-updates-now:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+
+#btn-check-updates-now.checking {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* État "à jour" (flash vert temporaire) */
+#btn-check-updates-now.updated {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: #4caf50;
+  color: #6fc98a;
+}
+
+/* ----- Section 1 : picker Volant/Manette/Clavier ----- */
+
+.qacrl-ctrl-method-picker {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.qacrl-ctrl-method-btn {
+  flex: 1 1 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--t);
+  min-height: 52px;
+}
+
+.qacrl-ctrl-method-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.qacrl-ctrl-method-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+
+.qacrl-ctrl-method-btn.active .qacrl-ctrl-method-icon {
+  filter: brightness(1.2);
+}
+
+.qacrl-ctrl-method-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.qacrl-ctrl-method-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.qacrl-ctrl-method-label {
+  white-space: nowrap;
+}
+
+.qacrl-ctrl-method-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-xs);
+  display: inline-block;
+  align-self: flex-start;
+}
+
+.qacrl-ctrl-method-hint code {
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.qacrl-ctrl-hint-dim {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  font-family: inherit;
+}
+
+.qacrl-ctrl-hint-warn {
+  color: #e6a33b;
+  font-weight: 600;
+}
+
+/* ----- Section 2 : devices AC ----- */
+
+.qacrl-ctrl-devices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qacrl-ctrl-device-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  transition: border-color var(--t), background var(--t);
+}
+
+.qacrl-ctrl-device-row:hover {
+  border-color: var(--border);
+  background: var(--bg-hover);
+}
+
+.qacrl-ctrl-device-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.qacrl-ctrl-device-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qacrl-ctrl-device-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qacrl-ctrl-device-meta {
+  font-size: 0.74rem;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qacrl-ctrl-device-meta code {
+  background: var(--bg-panel);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', monospace;
+  flex-shrink: 0;
+}
+
+.qacrl-ctrl-device-status-ok {
+  color: #6fc98a;
+  font-weight: 600;
+}
+
+.qacrl-ctrl-device-status-warn {
+  color: #e6a33b;
+  font-weight: 600;
+}
+
+/* ----- Section 3 : profils sauvegardés ----- */
+
+.qacrl-ctrl-setups-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.qacrl-ctrl-setup-select {
+  flex: 1 1 220px;
+  min-width: 180px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--t), box-shadow var(--t);
+}
+
+.qacrl-ctrl-setup-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.qacrl-ctrl-setup-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.qacrl-ctrl-setup-btn {
+  padding: 10px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--t);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qacrl-ctrl-setup-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.qacrl-ctrl-setup-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.qacrl-ctrl-setup-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.qacrl-ctrl-setup-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: #fff;
+  border-color: var(--accent-hover);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.qacrl-ctrl-setup-btn-danger:hover:not(:disabled) {
+  background: #a83a3a;
+  color: #fff;
+  border-color: #a83a3a;
+}
+
+/* ----- Theme clair (quelques ajustements) ----- */
+:root[data-theme="light"] .qacrl-ctrl-method-btn.active {
+  box-shadow: 0 4px 14px rgba(211, 47, 47, 0.25);
+}
+
+:root[data-theme="light"] .qacrl-ctrl-device-status-ok {
+  color: #2e7d4f;
+}
+
+:root[data-theme="light"] .qacrl-ctrl-device-status-warn {
+  color: #b8860b;
+}
+/* ----- Section pliable : header cliquable + chevron ----- */
+
+.qacrl-ctrl-section {
+  padding: 0;   /* le padding est géré par header + body */
+}
+
+.qacrl-ctrl-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--t);
+  border-radius: var(--r);
+}
+
+.qacrl-ctrl-section-header:hover {
+  background: var(--bg-hover);
+}
+
+.qacrl-ctrl-section-arrow {
+  display: inline-block;
+  width: 12px;
+  font-size: 0.9rem;
+  color: var(--accent);
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);  /* ▸ devient ▾ quand déplié */
+  flex-shrink: 0;
+}
+
+.qacrl-ctrl-section.collapsed .qacrl-ctrl-section-arrow {
+  transform: rotate(0deg);
+}
+
+.qacrl-ctrl-section-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  flex: 1;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.qacrl-ctrl-section-badge {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.qacrl-ctrl-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.qacrl-ctrl-section.collapsed .qacrl-ctrl-section-body {
+  display: none;
 }

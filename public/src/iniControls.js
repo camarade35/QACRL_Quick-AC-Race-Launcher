@@ -284,6 +284,25 @@
           let currentValue = rawValue;
           const btn = el('button', { type: 'button', class: 'ini-binding-btn ini-binding-axis' });
           let capturing = false;
+
+          // ⭐ Hint indicatif par index AC (DirectInput — purement informatif)
+          const AC_AXIS_HINTS = {
+            0: 'Volant / X',
+            1: 'Accélérateur / Y',
+            2: 'Z (direction alt.)',
+            3: 'Rx',
+            4: 'Ry',
+            5: 'Rz / Frein load cell',
+            6: 'Slider 0 / Embrayage',
+            7: 'Slider 1',
+          };
+          const getAcAxisLabel = (n) => {
+            if (n === -1) return '— ' + T('Non assigné') + ' —';
+            const base = T('Axe') + ' ' + n;
+            const hint = AC_AXIS_HINTS[n];
+            return hint ? base + ' — ' + T(hint) : base;
+          };
+
           let updateLabel = () => {
             const n = parseInt(currentValue, 10);
             const axisWord = T('Axe');
@@ -297,6 +316,7 @@
             }
           };
           updateLabel();
+
           const stopCapture = () => {
             capturing = false;
             btn.classList.remove('capturing');
@@ -342,7 +362,51 @@
           };
           btn.addEventListener('click', () => { capturing ? stopCapture() : startCapture(); });
 
-          const numInp = el('input', { type: 'number', class: 'ini-number', min: -1, max: 31, value: currentValue });
+          // ⭐ Menu déroulant AXE 0-31 (remplace l'ancien input number)
+          const sel = el('select', { class: 'ini-select ini-axis-select' });
+          const rebuildSelectOptions = () => {
+            sel.innerHTML = '';
+            const none = el('option', { value: '-1', text: getAcAxisLabel(-1) });
+            sel.appendChild(none);
+            for (let i = 0; i <= 31; i++) {
+              const opt = el('option', { value: String(i), text: getAcAxisLabel(i) });
+              sel.appendChild(opt);
+            }
+            // ⭐ Si la valeur actuelle est hors plage, on l'ajoute en option custom
+            const n = parseInt(currentValue, 10);
+            if (!isNaN(n) && (n < -1 || n > 31)) {
+              const custom = el('option', {
+                value: String(n),
+                text: T('Axe') + ' ' + n + ' (' + T('hors plage') + ')'
+              });
+              sel.appendChild(custom);
+            }
+            sel.value = String(n);
+          };
+          rebuildSelectOptions();
+
+          sel.addEventListener('change', () => {
+            currentValue = sel.value;
+            updateLabel();
+            if (opts.onChange) opts.onChange(currentValue);
+          });
+
+          // ⭐ Bouton "Reset axe" → AXLE = -1 en un clic
+          const resetBtn = el('button', {
+            type: 'button',
+            class: 'ini-axis-reset',
+            title: T('Réinitialiser cet axe (AXLE = -1)')
+          });
+          resetBtn.textContent = '🔄';
+          resetBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            currentValue = '-1';
+            sel.value = '-1';
+            updateLabel();
+            if (opts.onChange) opts.onChange('-1');
+          });
+
           // ⭐ Bouton "Reconfigurer cet axe" (mini-wizard)
           const reconfigBtn = el('button', {
             type: 'button',
@@ -360,20 +424,19 @@
             }
           });
 
-          numInp.addEventListener('input', () => {
-            currentValue = numInp.value;
-            updateLabel();
-            if (opts.onChange) opts.onChange(currentValue);
-          });
+          // ⭐ Sync final : garde le select aligné sur currentValue
           const _baseUpdateLabel = updateLabel;
-          updateLabel = () => { _baseUpdateLabel(); numInp.value = currentValue; };
+          updateLabel = () => {
+            _baseUpdateLabel();
+            sel.value = String(currentValue);
+          };
           updateLabel();
 
           // ⭐ Barre de prévisualisation live
           const liveFill = el('div', { class: 'ini-axis-live-fill' });
           const liveValue = el('div', { class: 'ini-axis-live-value', text: '—' });
           const liveBar = el('div', { class: 'ini-axis-live' }, [liveFill, liveValue]);
-          const wrapTop = el('div', { class: 'ini-binding-wrap ini-binding-wrap-3col' }, [btn, numInp, reconfigBtn]);
+          const wrapTop = el('div', { class: 'ini-binding-wrap ini-binding-wrap-4col' }, [btn, sel, resetBtn, reconfigBtn]);
           const fullWrap = el('div', { class: 'ini-axis-fullwrap' }, [wrapTop, liveBar]);
 
           let liveInterval = null;

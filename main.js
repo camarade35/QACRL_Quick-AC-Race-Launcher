@@ -1552,6 +1552,14 @@ ipcMain.handle('install-csp-archive', async (event, filePath) => {
   }
 });
 
+ipcMain.handle('get-app-version', () => {
+  try {
+    return { success: true, version: app.getVersion() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 ipcMain.handle('check-for-updates', async () => {
   try {
     const localVersion = app.getVersion();
@@ -3109,6 +3117,295 @@ ipcMain.handle('write-ini-file', async (event, filename, content) => {
     return { success: true, path: filePath };
   } catch (e) {
     return { success: false, error: e.message, path: filePath };
+  }
+});
+
+/* ============================================================
+   IPC — CONTRÔLEURS / PROFILS DE CONTRÔLES (v1.5.0)
+   ------------------------------------------------------------
+   Structure sur disque :
+     <Documents>/Assetto Corsa/cfg/controllers/
+       ├── <iguid>.ini              ← config par device (auto-généré par AC)
+       └── savedsetups/
+             ├── mon_profil.ini     ← profils complets sauvegardés
+             └── ...
+   ============================================================ */
+
+const CONTROLLER_INPUT_METHODS = ['WHEEL', 'GAMEPAD', 'KEYBOARD'];
+const CONTROLLER_SETUP_NAME_MAX = 80;
+
+function getControllersDir(documentsPath) {
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'controllers');
+}
+function getSavedSetupsDir(documentsPath) {
+  return path.join(getControllersDir(documentsPath), 'savedsetups');
+}
+function getControlsIniPath(documentsPath) {
+  return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'controls.ini');
+}
+
+// Sanitize d'un nom de profil : retire les caractères interdits Windows.
+// AC accepte les espaces, %, tirets, etc. (cf. "camarade35_ffb_60%_last.ini")
+function sanitizeSetupName(name) {
+  return String(name || '')
+    .replace(/[\\/:*?"<>|\r\n\t]/g, '_')
+    .replace(/^\.+/, '')
+    .trim()
+    .slice(0, CONTROLLER_SETUP_NAME_MAX);
+}
+
+// Parseur INI minimal pour les fichiers controllers (pas d'IniParser côté main)
+function parseControllerFile(content) {
+  const out = { name: '', product: '', mappings: {} };
+  let section = null;
+  const lines = String(content || '').split(/\r?\n/);
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith(';') || line.startsWith('#')) continue;
+    const secMatch = line.match(/^\[([^\]]+)\]\s*$/);
+    if (secMatch) { section = secMatch[1].trim(); continue; }
+    const kv = line.match(/^([^=]+?)\s*=\s*(.*)$/);
+    if (!kv) continue;
+    const key = kv[1].trim();
+    const val = kv[2].trim();
+    if (section === 'CONTROLLER') {
+      if (key === 'NAME') out.name = val;
+      else if (key === 'PRODUCT') out.product = val;
+    } else if (section) {
+      if (!out.mappings[section]) out.mappings[section] = {};
+      out.mappings[section][key] = val;
+    }
+  }
+  return out;
+}
+
+// Détermine le type de contrôleur d'après son PGUID (heuristique).
+// Sert à filtrer les devices par catégorie dans l'UI.
+function guessControllerType(name, product) {
+  const n = String(name || '').toLowerCase();
+  const p = String(product || '').toLowerCase();
+  // Manettes standard
+  if (/xbox|gamepad|manette|dualsense|dualshock|joy-?con|nintendo|switch|gpx/.test(n)) return 'gamepad';
+  if (/^028e|^045e|^054c|^057e|^0f0d/.test(p)) return 'gamepad';
+  // Volants / pédaliers / shifter
+  if (/wheel|volant|fanatec|logitech|thrustmaster|racing|shifter|pedal|clutch|csl|club.?sport|csw|g25|g27|g29|g920|t500|f430|csr/.test(n)) return 'wheel';
+  if (/^0eb7|^046d|^044f/.test(p)) return 'wheel';
+  return 'other';
+}
+
+// Liste les devices AC configurés (fichiers .ini directs dans controllers/)
+ipcMain.handle('list-ac-controller-devices', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const dir = getControllersDir(documentsPath);
+
+  if (!fs.existsSync(dir)) return { success: true, devices: [], path: dir };
+
+  const devices = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      if (!e.name.toLowerCase().endsWith('.ini')) continue;
+      const full = path.join(dir, e.name);
+      try {
+        const content = fs.readFileSync(full, 'utf8');
+        const parsed = parseControllerFile(content);
+        const iguid = e.name.replace(/\.ini$/i, '');
+        const sections = Object.keys(parsed.mappings || {});
+        devices.push({
+          iguid,
+          filename: e.name,
+          name: parsed.name || iguid,
+          product: parsed.product || '',
+          type: guessControllerType(parsed.name, parsed.product),
+          sections,
+          mappingCount: sections.length,
+        });
+      } catch (err) {
+        console.warn('[list-ac-controller-devices] lecture KO', full, err.message);
+      }
+    }
+  } catch (err) {
+    return { success: false, error: err.message, devices: [] };
+  }
+
+  // Tri : par type (wheel > gamepad > other), puis par nom
+  const order = { wheel: 0, gamepad: 1, other: 2 };
+  devices.sort((a, b) => {
+    const oa = order[a.type] ?? 9;
+    const ob = order[b.type] ?? 9;
+    if (oa !== ob) return oa - ob;
+    return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+  });
+
+  return { success: true, devices, path: dir };
+});
+
+// Liste les setups sauvegardés dans savedsetups/
+ipcMain.handle('list-saved-controller-setups', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const dir = getSavedSetupsDir(documentsPath);
+
+  if (!fs.existsSync(dir)) return { success: true, setups: [], path: dir };
+
+  const setups = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isFile()) continue;
+      if (!e.name.toLowerCase().endsWith('.ini')) continue;
+      const full = path.join(dir, e.name);
+      try {
+        const stat = fs.statSync(full);
+        setups.push({
+          filename: e.name,
+          name: e.name.replace(/\.ini$/i, ''),
+          size: stat.size,
+          mtime: stat.mtimeMs,
+        });
+      } catch (err) {}
+    }
+  } catch (err) {
+    return { success: false, error: err.message, setups: [] };
+  }
+
+  setups.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+  return { success: true, setups, path: dir };
+});
+
+// Lit le contenu d'un setup sauvegardé
+ipcMain.handle('read-controller-setup', async (event, filename) => {
+  if (!filename || typeof filename !== 'string') return { success: false, error: 'Nom manquant.' };
+  const safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const full = path.join(getSavedSetupsDir(documentsPath), safe);
+  if (!fs.existsSync(full)) return { success: false, error: 'Fichier introuvable.' };
+  try {
+    const content = fs.readFileSync(full, 'utf8');
+    return { success: true, filename: safe, content };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Applique un setup sauvegardé sur controls.ini (avec backup auto)
+ipcMain.handle('apply-controller-setup', async (event, filename) => {
+  if (!filename || typeof filename !== 'string') return { success: false, error: 'Nom manquant.' };
+  const safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const src = path.join(getSavedSetupsDir(documentsPath), safe);
+  const dst = getControlsIniPath(documentsPath);
+
+  if (!fs.existsSync(src)) return { success: false, error: 'Setup introuvable : ' + safe };
+
+  try {
+    const cfgDir = path.dirname(dst);
+    if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
+
+    // Backup auto avant écrasement
+    if (fs.existsSync(dst)) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      fs.copyFileSync(dst, dst + '.bak-' + stamp);
+    }
+
+    fs.copyFileSync(src, dst);
+    console.log('[apply-controller-setup] Appliqué', safe, '→', dst);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Sauvegarde l'état actuel de controls.ini en tant que nouveau setup
+ipcMain.handle('save-current-as-setup', async (event, name) => {
+  const cleanName = sanitizeSetupName(name);
+  if (!cleanName) return { success: false, error: 'Nom invalide.' };
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const src = getControlsIniPath(documentsPath);
+  const dir = getSavedSetupsDir(documentsPath);
+  const dst = path.join(dir, cleanName + '.ini');
+
+  if (!fs.existsSync(src)) return { success: false, error: 'controls.ini introuvable.' };
+  if (fs.existsSync(dst)) return { success: false, error: 'Un profil avec ce nom existe déjà.' };
+
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(src, dst);
+    console.log('[save-current-as-setup] Sauvegardé', cleanName);
+    return { success: true, filename: cleanName + '.ini' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Supprime un setup sauvegardé
+ipcMain.handle('delete-controller-setup', async (event, filename) => {
+  if (!filename || typeof filename !== 'string') return { success: false, error: 'Nom manquant.' };
+  const safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const full = path.join(getSavedSetupsDir(documentsPath), safe);
+  if (!fs.existsSync(full)) return { success: true, alreadyGone: true };
+  try {
+    fs.unlinkSync(full);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// Écrit INPUT_METHOD dans [HEADER] de controls.ini
+ipcMain.handle('set-input-method', async (event, method) => {
+  const m = String(method || '').toUpperCase();
+  if (!CONTROLLER_INPUT_METHODS.includes(m)) {
+    return { success: false, error: 'Méthode inconnue : ' + method };
+  }
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const file = getControlsIniPath(documentsPath);
+
+  try {
+    const cfgDir = path.dirname(file);
+    if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
+
+    let content = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+
+    if (!content) {
+      content = '[HEADER]' + eol + 'INPUT_METHOD=' + m + eol;
+    } else {
+      const lines = content.split(/\r?\n/);
+      let headerIdx = -1;
+      for (let i = 0; i < lines.length; i++) {
+        const secMatch = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
+        if (secMatch && secMatch[1].trim().toUpperCase() === 'HEADER') { headerIdx = i; break; }
+      }
+      if (headerIdx < 0) {
+        // Insère la section [HEADER] au tout début
+        lines.unshift('[HEADER]', 'INPUT_METHOD=' + m, '');
+      } else {
+        // Cherche INPUT_METHOD dans la section HEADER
+        let imIdx = -1;
+        for (let i = headerIdx + 1; i < lines.length; i++) {
+          if (/^\s*\[/.test(lines[i])) break;
+          if (/^\s*INPUT_METHOD\s*=/i.test(lines[i])) { imIdx = i; break; }
+        }
+        if (imIdx >= 0) lines[imIdx] = 'INPUT_METHOD=' + m;
+        else lines.splice(headerIdx + 1, 0, 'INPUT_METHOD=' + m);
+      }
+      content = lines.join(eol);
+    }
+
+    fs.writeFileSync(file, content, 'utf8');
+    console.log('[set-input-method] INPUT_METHOD =', m);
+    return { success: true, method: m };
+  } catch (e) {
+    return { success: false, error: e.message };
   }
 });
 

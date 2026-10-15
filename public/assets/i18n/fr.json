@@ -274,6 +274,14 @@
       "searchPlaceholder": "Rechercher une option...",
       "noResults": "Aucune option ne correspond à \"{query}\""
     },
+    "cspConflicts": {
+      "titleWarn": "Conflits détectés",
+      "titleInfo": "Combinaisons à surveiller",
+      "messages": {
+        "rainFxBetterWithParticles": "Rain FX fonctionne mieux avec Particles FX (éclaboussures, gouttes au sol).",
+        "tooManyHeavyModules": "{count} modules lourds activés simultanément — pense à désactiver ceux que tu n'utilises pas pour préserver les FPS."
+      }
+    },
     "online": {
       "groups": {
         "pasteLink": "🔗 Coller un lien de serveur",
@@ -469,6 +477,7 @@
         "cspTitle": "🌩️ Custom Shaders Patch — Modules"
       },
       "fields": {
+        "currentVersion": "Version actuelle :",
         "setupWizardHint": "Relancer la détection et l'assistant de premier lancement",
         "playerName": "Nom du pilote (solo)",
         "playerNamePlaceholder": "Driver",
@@ -488,7 +497,11 @@
         "relaunchSetup": "🔄 Relancer l'assistant",
         "detectSteam": "🔍 Détecter",
         "browse": "Parcourir...",
-        "refresh": "↶ Rafraîchir"
+        "refresh": "↶ Rafraîchir",
+        "checkNow": "🔄 Vérifier maintenant",
+        "checkingNow": "Vérification...",
+        "upToDate": "À jour",
+        "checkError": "Erreur"
       },
       "hints": {
         "identity": "💡 <strong>Nom en ligne</strong> : utilisé pour la section <code>[REMOTE] NAME=</code> de <code>race.ini</code> quand tu rejoins un serveur. Doit être <strong>unique</strong> sur le serveur.<br>💡 <strong>Steam ID</strong> : détecté automatiquement depuis Steam au démarrage. Sinon, clique sur \"Détecter\".",

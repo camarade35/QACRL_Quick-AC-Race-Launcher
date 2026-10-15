@@ -70,6 +70,42 @@
     { id: 'custom_rendering_modes',  label: 'Custom Rendering Modes', category: 'system', description: 'Modes de rendu alternatifs', disableable: false },
   ];
 
+  // ============================================================
+  // RÈGLES DE CONFLIT / DÉPENDANCE / PERFORMANCE
+  // ------------------------------------------------------------
+  // Types :
+  //   - 'conflict'    : deux modules qui font la même chose → warning
+  //   - 'requires'    : un module a besoin d'un autre pour fonctionner
+  //   - 'performance' : combinaison gourmande en ressources
+  //
+  // Chaque règle = { type, ids, severity, messageKey }
+  //   ids = liste d'IDs de modules concernés (pour badge)
+  //   messageKey = clé i18n dans app.cspConflicts.messages
+  // ============================================================
+  // ⚠️ IMPORTANT : ne référencer QUE des modules désactivables
+  //    (disableable !== false). Les modules non désactivables ne peuvent pas
+  //    être togglés par l'utilisateur, donc les signaler n'aide pas.
+  const CONFLICT_RULES = [
+    // ----- Dépendances (module X fonctionne mieux avec Y) -----
+    {
+      type: 'requires',
+      ids: ['rain_fx', 'particles_fx'],
+      severity: 'info',
+      messageKey: 'rainFxBetterWithParticles',
+    },
+
+    // ----- Performance (trop de modules lourds activés) -----
+    {
+      type: 'performance',
+      ids: ['extra_fx', 'rain_fx', 'smart_shadows', 'particles_fx', 'grass_fx', 'tyres_fx', 'windscreen_fx'],
+      severity: 'warning',
+      messageKey: 'tooManyHeavyModules',
+      threshold: 5, // si ≥ 5 activés → warning
+    },
+  ];
+
+  function getConflictRules() { return CONFLICT_RULES.slice(); }
+
   function getCategories() { return CATEGORIES.slice(); }
   function getModules()    { return MODULES.slice(); }
   function getModulesByCategory(catId) {
@@ -79,7 +115,11 @@
     return MODULES.find(m => m.id === id) || null;
   }
 
-  const API = { getCategories, getModules, getModulesByCategory, getModule, CATEGORIES, MODULES };
+  const API = {
+    getCategories, getModules, getModulesByCategory, getModule,
+    getConflictRules,
+    CATEGORIES, MODULES, CONFLICT_RULES,
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof global !== 'undefined') global.CspModules = API;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -795,53 +795,77 @@ async function launchGame() {
     return;
   }
 
-  // ⭐ v1.4.2 — Vérifie que l'ordre des gamepads Chromium correspond
-  //    à [CONTROLLERS] de controls.ini. Sinon avertit l'utilisateur.
+  // ⭐ v1.5.0 — Warning désync SEULEMENT si aucun INPUT_METHOD n'est défini.
+  //    Avec le panneau "Contrôleur principal" (Paramètres > Contrôles),
+  //    l'utilisateur choisit explicitement son device → plus besoin d'alerte.
+  //    Si le warning s'affiche quand même, on mémorise le "Lancer quand même"
+  //    pour éviter le spam pendant toute la session QACRL.
   try {
     const iniRes = await window.api.readIniFile('controls.ini');
     if (iniRes && iniRes.success && window.IniParser) {
       const sections = window.IniParser.parseIni(iniRes.content);
-      const ctrlSec = sections.find(s => s.name === 'CONTROLLERS');
-      const iniNames = [];
-      if (ctrlSec) {
-        for (const e of ctrlSec.entries) {
-          if (e.kind !== 'kv') continue;
-          const m = e.key.match(/^CON(\d+)$/);
-          if (m) {
-            iniNames[parseInt(m[1], 10)] = e.value;
+
+      // (1) Skip si INPUT_METHOD est défini dans [HEADER]
+      const headerSec = sections.find(s => s.name === 'HEADER');
+      const imEntry = headerSec && headerSec.entries.find(e => e.kind === 'kv' && e.key === 'INPUT_METHOD');
+      const hasExplicitMethod = !!(imEntry && imEntry.value && imEntry.value.trim());
+
+      // (2) Skip si l'utilisateur a déjà cliqué "Lancer quand même" cette session
+      let skipThisSession = false;
+      try { skipThisSession = (sessionStorage.getItem('qacrl_skip_desync_warn') === '1'); } catch (e) {}
+
+      if (hasExplicitMethod || skipThisSession) {
+        console.log('[launchGame] Sync check skip —',
+          hasExplicitMethod ? 'INPUT_METHOD=' + imEntry.value : 'déjà skippé cette session');
+      } else {
+        // (3) Comparaison par SET (au lieu d'index par index) — beaucoup plus robuste
+        //     face aux réordonnancements Chromium
+        const ctrlSec = sections.find(s => s.name === 'CONTROLLERS');
+        const iniSet = new Set();
+        if (ctrlSec) {
+          for (const e of ctrlSec.entries) {
+            if (e.kind !== 'kv') continue;
+            if (/^CON\d+$/.test(e.key) && e.value) iniSet.add(String(e.value).trim());
           }
         }
-      }
-      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-      const chromNames = [];
-      for (let i = 0; i < pads.length; i++) {
-        if (!pads[i]) continue;
-        const n = String(pads[i].id).replace(/\s*\(Vendor:.*$/i, '').trim();
-        chromNames[i] = n;
-      }
-      // Compare index par index
-      const maxLen = Math.max(iniNames.length, chromNames.length);
-      let desync = false;
-      for (let i = 0; i < maxLen; i++) {
-        if ((iniNames[i] || '') !== (chromNames[i] || '')) {
-          desync = true; break;
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const chromSet = new Set();
+        for (let i = 0; i < pads.length; i++) {
+          if (!pads[i]) continue;
+          const n = String(pads[i].id).replace(/\s*\(Vendor:.*$/i, '').trim();
+          if (n) chromSet.add(n);
         }
-      }
-            if (desync) {
-        const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
-        const msg =
-          T("L'ordre des périphériques a changé depuis la dernière calibration.") + "\n\n" +
-          T("⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, il est recommandé de RELANCER QACRL et de refaire la calibration (Paramètres → Contrôles → 🎯 Calibrer).") + "\n\n" +
-          T("Lancer quand même ?");
 
-        const ok = (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function')
-          ? await window.QacrlDialogs.confirm(msg, T('Périphériques modifiés'), { variant: 'warning', okLabel: T('Lancer quand même'), cancelLabel: T('Annuler') })
-          : confirm(msg);
+        // Désync seulement si un device présent d'un côté manque TOTALEMENT de l'autre
+        let desync = false;
+        for (const n of chromSet) {
+          if (!iniSet.has(n)) { desync = true; break; }
+        }
+        if (!desync) {
+          for (const n of iniSet) {
+            if (!chromSet.has(n)) { desync = true; break; }
+          }
+        }
 
-        if (!ok) {
-          const btn = document.getElementById('btn-launch-game');
-          btn.disabled = false; btn.innerText = "▶ Démarrer la course";
-          return;
+        if (desync) {
+          const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
+          const msg =
+            T("L'ordre des périphériques a changé depuis la dernière calibration.") + "\n\n" +
+            T("⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, il est recommandé de RELANCER QACRL et de refaire la calibration (Paramètres → Contrôles → 🎯 Calibrer).") + "\n\n" +
+            T("Lancer quand même ?");
+
+          const ok = (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function')
+            ? await window.QacrlDialogs.confirm(msg, T('Périphériques modifiés'), { variant: 'warning', okLabel: T('Lancer quand même'), cancelLabel: T('Annuler') })
+            : confirm(msg);
+
+          if (!ok) {
+            const btn = document.getElementById('btn-launch-game');
+            btn.disabled = false; btn.innerText = "▶ Démarrer la course";
+            return;
+          }
+
+          // ⭐ Mémorise pour ne plus spammer pendant cette session QACRL
+          try { sessionStorage.setItem('qacrl_skip_desync_warn', '1'); } catch (e) {}
         }
       }
     }

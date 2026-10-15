@@ -51,6 +51,18 @@
         ed.sections   = global.IniParser.parseIni(res.content);
         ed.loaded     = true;
         ed.dirty      = false;
+        // ⭐ Stocke les valeurs originales pour l'undo par ligne
+        ed.originalValues = {};
+        for (const sec of ed.sections) {
+          if (!sec.name) continue;
+          ed.originalValues[sec.name] = {};
+          for (const entry of sec.entries) {
+            if (entry.kind === 'kv') {
+              ed.originalValues[sec.name][entry.key] = entry.value;
+              entry._originalValue = entry.value;
+            }
+          }
+        }
         try {
           ed.serializedAtLoad = global.IniParser.serializeIni(ed.sections);
         } catch (e) {
@@ -365,7 +377,11 @@
           siblingWidgets: siblingWidgets,
           gamepadMapper:  ed.gamepadMapper || null,
           sectionContext: { controllers: acControllersForUI },
-          onChange: (newVal) => { entry.value = newVal; markDirty(ed); }
+          onChange: (newVal) => {
+            entry.value = newVal;
+            markDirty(ed);
+            if (typeof updateUndoVisibility === 'function') updateUndoVisibility();
+          }
         });
       } catch (e) {
         console.error('[settingsIni] widget KO', sec.name, entry.key, e);
@@ -375,7 +391,31 @@
         ctrl.element.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
       }
       siblingWidgets[entry.key] = ctrl;
-      sectionDiv.appendChild(ctrl.element);
+
+      // ⭐ Bouton Undo par ligne (créé une seule fois, caché si inutile)
+      const row = ctrl.element;
+      const originalValue = entry._originalValue;
+      const undoBtn = document.createElement('button');
+      undoBtn.type = 'button';
+      undoBtn.className = 'ini-undo-btn';
+      undoBtn.innerHTML = '↶';
+      undoBtn.title = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('Annuler cette modification') : 'Annuler cette modification';
+      undoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        entry.value = originalValue;
+        ctrl.setValue(originalValue);
+        updateUndoVisibility();
+        checkDirty(ed);
+      });
+      row.appendChild(undoBtn);
+
+      function updateUndoVisibility() {
+        const hasChanged = (originalValue !== undefined && entry.value !== originalValue);
+        undoBtn.classList.toggle('visible', hasChanged);
+      }
+      updateUndoVisibility();
+
+      sectionDiv.appendChild(row);
 
       // (le badge "non assigné" est géré directement par le label du bouton AXE)
     }
@@ -476,7 +516,11 @@
             siblingWidgets: siblingWidgets,
             gamepadMapper:  ed.gamepadMapper || null,
             sectionContext: { controllers: acControllersForUI },
-            onChange: (newVal) => { entry.value = newVal; markDirty(ed); }
+            onChange: (newVal) => {
+              entry.value = newVal;
+              markDirty(ed);
+              if (typeof updateUndoVisibility === 'function') updateUndoVisibility();
+            }
           });
         } catch (e) {
           console.error('[settingsIni] widget KO (pair)', sec.name, entry.key, e);
@@ -486,7 +530,31 @@
           ctrl.element.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
         }
         siblingWidgets[entry.key] = ctrl;
-        col.appendChild(ctrl.element);
+
+        // ⭐ Bouton Undo par ligne (créé une seule fois, caché si inutile)
+        const row = ctrl.element;
+        const originalValue = entry._originalValue;
+        const undoBtn = document.createElement('button');
+        undoBtn.type = 'button';
+        undoBtn.className = 'ini-undo-btn';
+        undoBtn.innerHTML = '↶';
+        undoBtn.title = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('Annuler cette modification') : 'Annuler cette modification';
+        undoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          entry.value = originalValue;
+          ctrl.setValue(originalValue);
+          updateUndoVisibility();
+          checkDirty(ed);
+        });
+        row.appendChild(undoBtn);
+
+        function updateUndoVisibility() {
+          const hasChanged = (originalValue !== undefined && entry.value !== originalValue);
+          undoBtn.classList.toggle('visible', hasChanged);
+        }
+        updateUndoVisibility();
+
+        col.appendChild(row);
       }
 
       // ⭐ Démarre les barres live
@@ -570,6 +638,27 @@
     setStatus(ed, '', '');
     const btn = ed.container.querySelector('[data-role="save"]');
     if (btn) btn.classList.add('dirty');
+  }
+
+  // ⭐ Vérifie si TOUTES les valeurs sont revenues à l'originale.
+  //    Si oui → retire l'état dirty (le bouton Enregistrer repasse en vert).
+  function checkDirty(ed) {
+    if (!ed || !ed.sections) return;
+    let hasChanges = false;
+    for (const sec of ed.sections) {
+      for (const entry of sec.entries) {
+        if (entry.kind !== 'kv') continue;
+        if (entry._originalValue !== undefined && entry.value !== entry._originalValue) {
+          hasChanges = true;
+          break;
+        }
+      }
+      if (hasChanges) break;
+    }
+    ed.dirty = hasChanges;
+    const btn = ed.container.querySelector('[data-role="save"]');
+    if (btn) btn.classList.toggle('dirty', hasChanges);
+    if (!hasChanges) setStatus(ed, '', '');
   }
 
   function setMode(ed, mode) {

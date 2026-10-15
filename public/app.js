@@ -158,6 +158,69 @@ async function checkForUpdatesOnStartup() {
   }
 }
 
+// ⭐ v1.5.0 — Affiche la version actuelle + wire le bouton "Vérifier maintenant"
+async function setupUpdateVersionDisplay() {
+  const codeEl = document.getElementById('app-current-version');
+  const btn = document.getElementById('btn-check-updates-now');
+  if (!codeEl && !btn) return;
+
+  // Charge la version
+  try {
+    const res = await window.api.getAppVersion();
+    if (res && res.success && res.version && codeEl) {
+      codeEl.textContent = 'v' + res.version;
+    }
+  } catch (e) {
+    console.warn('[update] getAppVersion KO', e);
+  }
+
+  // Wire le bouton "Vérifier maintenant"
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      const i18n = window.I18n;
+      const T = (k, fb) => (i18n && i18n.t) ? i18n.t(k, fb) : fb;
+
+      btn.disabled = true;
+      btn.classList.add('checking');
+      btn.classList.remove('updated');
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<span>⏳ ' + T('app.settings.btn.checkingNow', 'Vérification...') + '</span>';
+
+      try {
+        const res = await window.api.checkForUpdates();
+        if (res && res.success && res.hasUpdate) {
+          openUpdateModal(res);
+        } else if (res && res.success) {
+          // À jour → flash vert 2.5s
+          btn.classList.remove('checking');
+          btn.classList.add('updated');
+          btn.innerHTML = '<span>✅ ' + T('app.settings.btn.upToDate', 'À jour') + '</span>';
+          setTimeout(() => {
+            btn.classList.remove('updated');
+            btn.innerHTML = orig;
+          }, 2500);
+          btn.disabled = false;
+          return;
+        } else {
+          btn.innerHTML = '<span>❌ ' + T('app.settings.btn.checkError', 'Erreur') + '</span>';
+          setTimeout(() => { btn.innerHTML = orig; }, 2500);
+        }
+      } catch (e) {
+        console.warn('[update] check manual KO', e);
+        btn.innerHTML = '<span>❌ ' + T('app.settings.btn.checkError', 'Erreur') + '</span>';
+        setTimeout(() => { btn.innerHTML = orig; }, 2500);
+      } finally {
+        btn.classList.remove('checking');
+        btn.disabled = false;
+        if (btn.innerHTML.includes('Erreur') || btn.innerHTML.includes('Error')) {
+          setTimeout(() => { btn.innerHTML = orig; }, 2500);
+        }
+      }
+    });
+  }
+}
+
 /* ============================================================
    ÉTAT GLOBAL
    ============================================================ */
@@ -373,6 +436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ⭐ Vérification des mises à jour (non bloquant)
   setupUpdateModalHandlers();
+  setupUpdateVersionDisplay();
   checkForUpdatesOnStartup();
 
   // ⭐ Guide d'installation CSP/Sol/Pure
@@ -427,6 +491,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.SettingsIni.init();
   }
 
+  // ⭐ v1.5.0 — Init du bandeau "Contrôleur principal"
+  if (window.ControllerPresets && typeof window.ControllerPresets.init === 'function') {
+    window.ControllerPresets.init();
+  }
+
   // ⭐ Init du sélecteur Weather FX
   if (window.WeatherFx && typeof window.WeatherFx.init === 'function') {
     window.WeatherFx.init();
@@ -472,12 +541,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   //    3) Grâce de 30s au démarrage (au lieu de 8s) pour laisser Chromium
   //       "réveiller" tous les périphériques par un mouvement utilisateur.
   const _appStartTime = Date.now();
-  const _appGracePeriodMs = 30000;   // 30s
+  const _appGracePeriodMs = 60000;   // ⭐ v1.5.0 — 60s (au lieu de 30s)
   const _debounceMs = 3000;          // 3s : évite les rafales Windows
+  const _gamepadConfirmMs = 5000;    // ⭐ v1.5.0 — le changement doit persister 5s
   let _gamepadDebounceTimer = null;
   let _gamepadLastKeys = null;       // Set<string> de vendor:product
   let _gamepadBaselineSet = false;   // true dès qu'on a figé le seed initial
   let _gamepadModalOpen = false;     // true tant que la modale est affichée
+  // ⭐ v1.5.0 — Confirmation différée : Chromium peut endormir/réveiller
+  //    des devices sans intervention utilisateur → on exige que le set
+  //    reste différent pendant _gamepadConfirmMs avant de prévenir.
+  let _gamepadPendingKeys = null;
+  let _gamepadPendingSince = 0;
 
   function _getGamepadKeys() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -539,29 +614,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     _gamepadDebounceTimer = setTimeout(doRelaunch, _debounceMs);
   }
 
-  // Poll principal : compare le SET de vendor:product uniques
+  // ⭐ Poll principal : compare le SET de vendor:product uniques.
+  //    v1.5.0 — Le changement doit PERSISTER pendant _gamepadConfirmMs
+  //    avant de déclencher la modale. Évite les faux positifs quand
+  //    Chromium "endort" / "réveille" un device sans intervention.
   setInterval(() => {
     if (!navigator.getGamepads) return;
     const current = _getGamepadKeys();
 
     // Pas encore figé le seed : on attend la fin de la grâce
     if (!_gamepadBaselineSet) {
-      if (Date.now() - _appStartTime < _appGracePeriodMs) return;
+      const pastGrace = (Date.now() - _appStartTime) >= _appGracePeriodMs;
+
+      // ⭐ v1.5.0 — Ne JAMAIS figer un baseline vide.
+      // Chromium n'expose les gamepads qu'après interaction utilisateur
+      // (mouvement d'axe / appui bouton). Si on fige vide, le premier
+      // "réveil" des devices sera vu comme un AJOUT → fausse alerte.
+      if (current.size === 0) {
+        return;   // on continue d'attendre, peu importe la grâce
+      }
+
+      // On a au moins 1 device : on peut figer (si grâce terminée)
+      if (!pastGrace) return;
       _gamepadLastKeys = current;
       _gamepadBaselineSet = true;
-      console.log('[Gamepad] set initial figé :', Array.from(current).join(', ') || '(aucun)');
+      console.log('[Gamepad] set initial figé :', Array.from(current).join(', '));
       return;
     }
 
-    if (!_setsEqual(_gamepadLastKeys, current)) {
+    // Retour à la normale → annule tout pending en cours
+    if (_setsEqual(_gamepadLastKeys, current)) {
+      _gamepadPendingKeys = null;
+      _gamepadPendingSince = 0;
+      return;
+    }
+
+    // Changement détecté : on attend une confirmation stable
+    if (!_gamepadPendingKeys || !_setsEqual(_gamepadPendingKeys, current)) {
+      // Première détection OU le set a encore bougé → on repart à zéro
+      if (!_gamepadPendingKeys) {
+        console.log('[Gamepad] changement détecté, attente de confirmation…');
+      }
+      _gamepadPendingKeys = current;
+      _gamepadPendingSince = Date.now();
+      return;
+    }
+
+    // Le même set se maintient → vérifie la durée
+    if (Date.now() - _gamepadPendingSince >= _gamepadConfirmMs) {
       const added   = Array.from(current).filter(k => !_gamepadLastKeys.has(k));
       const removed = Array.from(_gamepadLastKeys).filter(k => !current.has(k));
-      console.log('[Gamepad] set changé — ajout:', added.join(',') || '—',
+      console.log('[Gamepad] changement confirmé — ajout:', added.join(',') || '—',
                   '| retrait:', removed.join(',') || '—');
       _gamepadLastKeys = current;
-      _showGamepadWarning('set change');
+      _gamepadPendingKeys = null;
+      _gamepadPendingSince = 0;
+      _showGamepadWarning('set change confirmed');
     }
   }, 1500);
+
+  // ⭐ v1.5.0 — Écoute aussi les events natifs (signal fiable).
+  //    Si Chromium les déclenche, on confirme direct sans attendre 5s.
+  function _onNativeGamepadChange(kind) {
+    setTimeout(() => {
+      const current = _getGamepadKeys();
+
+      // ⭐ v1.5.0 — Découverte initiale : si le baseline n'est pas encore figé
+      //    et qu'on voit ENFIN des devices, on l'accepte silencieusement.
+      //    C'est le tout premier "réveil" par Chromium, pas un vrai changement.
+      if (!_gamepadBaselineSet) {
+        if (current.size > 0) {
+          _gamepadLastKeys = current;
+          _gamepadBaselineSet = true;
+          console.log('[Gamepad] baseline figé (natif ' + kind + ') :', Array.from(current).join(', '));
+        }
+        return;
+      }
+
+      if (!_setsEqual(_gamepadLastKeys, current)) {
+        console.log('[Gamepad] event natif (' + kind + ') — set:', Array.from(current).join(', ') || '(aucun)');
+        _gamepadLastKeys = current;
+        _gamepadPendingKeys = null;
+        _gamepadPendingSince = 0;
+        _showGamepadWarning('native ' + kind);
+      }
+    }, 1000);
+  }
+  window.addEventListener('gamepadconnected',    () => _onNativeGamepadChange('connected'));
+  window.addEventListener('gamepaddisconnected', () => _onNativeGamepadChange('disconnected'));
 });
 
 /* ============================================================

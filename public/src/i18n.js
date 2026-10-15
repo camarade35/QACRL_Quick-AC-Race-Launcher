@@ -148,14 +148,18 @@
   function applyToDom(root) {
     const scope = root || document;
 
+    // ⭐ v1.5.0 — Helper : si la clé n'existe pas dans le dictionnaire,
+    //    t() retourne la clé brute (ex: "app.settings.fields.currentVersion").
+    //    Dans ce cas on garde le texte d'origine plutôt que d'afficher le
+    //    chemin technique à l'utilisateur.
+    const isMiss = (val, key) => (val == null || val === key);
+
     // Text content
     scope.querySelectorAll('[data-i18n]').forEach(el => {
       const key = el.getAttribute('data-i18n');
       if (!key) return;
       const val = t(key, null);
-      if (val == null) return;
-      // Si l'élément a des enfants HTML, on remplace tout le contenu texte
-      // (mais on garde les <span>, <i>, etc. dans data-i18n-html si fourni)
+      if (isMiss(val, key)) return;   // ⭐ fallback : garde le texte d'origine
       el.textContent = val;
     });
 
@@ -164,7 +168,7 @@
       const key = el.getAttribute('data-i18n-html');
       if (!key) return;
       const val = t(key, null);
-      if (val == null) return;
+      if (isMiss(val, key)) return;
       el.innerHTML = val;
     });
 
@@ -173,7 +177,8 @@
       const key = el.getAttribute('data-i18n-placeholder');
       if (!key) return;
       const val = t(key, null);
-      if (val != null) el.placeholder = val;
+      if (isMiss(val, key)) return;
+      el.placeholder = val;
     });
 
     // Title (tooltip)
@@ -181,7 +186,8 @@
       const key = el.getAttribute('data-i18n-title');
       if (!key) return;
       const val = t(key, null);
-      if (val != null) el.title = val;
+      if (isMiss(val, key)) return;
+      el.title = val;
     });
   }
 

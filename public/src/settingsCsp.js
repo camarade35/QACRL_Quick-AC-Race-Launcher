@@ -33,6 +33,162 @@
   }
 
   // ---------------------------------------------------------------------------
+  // ⭐ Détection automatique des conflits entre modules CSP activés
+  // Retourne : { hasConflicts: bool, conflicts: [{severity, messageKey, ids}] }
+  // ---------------------------------------------------------------------------
+  function detectConflicts() {
+    const result = { hasConflicts: false, conflicts: [] };
+    if (!global.CspModules || typeof global.CspModules.getConflictRules !== 'function') {
+      return result;
+    }
+
+    const rules = global.CspModules.getConflictRules();
+
+    for (const rule of rules) {
+      // Filtre les modules concernés par la règle : on ne garde que ceux qui existent
+      const existing = rule.ids.filter(id => modulesData[id] && modulesData[id].exists);
+      if (existing.length < 2) continue;
+
+      const enabledCount = existing.filter(id => modulesData[id].enabled).length;
+
+      // ----- Cas "requires" : besoin que TOUS soient activés (ou l'inverse)
+      if (rule.type === 'requires') {
+        const [main, needed] = rule.ids;
+        if (!modulesData[main] || !modulesData[needed]) continue;
+        // Si le module principal est actif mais pas la dépendance → conflit
+        if (modulesData[main].enabled && !modulesData[needed].enabled) {
+          result.conflicts.push({
+            severity: rule.severity,
+            messageKey: rule.messageKey,
+            ids: [main, needed],
+            detail: { main, needed },
+          });
+        }
+        continue;
+      }
+
+      // ----- Cas "conflict" : les 2 modules actifs en même temps = redondance
+      if (rule.type === 'conflict') {
+        if (enabledCount === existing.length) {
+          result.conflicts.push({
+            severity: rule.severity,
+            messageKey: rule.messageKey,
+            ids: existing,
+          });
+        }
+        continue;
+      }
+
+      // ----- Cas "performance" : trop de modules lourds activés
+      if (rule.type === 'performance') {
+        const threshold = rule.threshold || existing.length;
+        if (enabledCount >= threshold) {
+          const enabledIds = existing.filter(id => modulesData[id].enabled);
+          result.conflicts.push({
+            severity: rule.severity,
+            messageKey: rule.messageKey,
+            ids: enabledIds,
+            detail: { count: enabledCount },
+          });
+        }
+        continue;
+      }
+    }
+
+    result.hasConflicts = result.conflicts.length > 0;
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // ⭐ Rendu du bandeau d'avertissement en haut de l'onglet CSP
+  // ---------------------------------------------------------------------------
+  function renderConflictBanner(conflictResult) {
+    const container = document.getElementById('csp-container');
+    if (!container) return;
+
+    // Retire un éventuel bandeau précédent
+    const prev = document.getElementById('csp-conflict-banner');
+    if (prev) prev.remove();
+
+    if (!conflictResult || !conflictResult.hasConflicts) return;
+
+    const i18n = window.I18n;
+    const banner = document.createElement('div');
+    banner.id = 'csp-conflict-banner';
+    banner.className = 'csp-conflict-banner';
+
+    // Tri : warning en premier, puis info
+    const sorted = conflictResult.conflicts.slice().sort((a, b) => {
+      const order = { warning: 0, info: 1 };
+      return (order[a.severity] ?? 2) - (order[b.severity] ?? 2);
+    });
+
+    const hasWarn = sorted.some(c => c.severity === 'warning');
+    banner.classList.add(hasWarn ? 'csp-conflict-banner-warn' : 'csp-conflict-banner-info');
+
+    const header = document.createElement('div');
+    header.className = 'csp-conflict-banner-header';
+    const icon = hasWarn ? '⚠️' : 'ℹ️';
+    const titleText = i18n
+      ? i18n.t(hasWarn ? 'app.cspConflicts.titleWarn' : 'app.cspConflicts.titleInfo',
+               hasWarn ? 'Conflits détectés' : 'Combinaisons à surveiller')
+      : (hasWarn ? 'Conflits détectés' : 'Combinaisons à surveiller');
+    header.innerHTML = icon + ' <strong>' + titleText + '</strong>';
+    banner.appendChild(header);
+
+    const list = document.createElement('ul');
+    list.className = 'csp-conflict-list';
+
+    for (const conf of sorted) {
+      const li = document.createElement('li');
+      const msgTpl = i18n
+        ? i18n.t('app.cspConflicts.messages.' + conf.messageKey, conf.messageKey)
+        : conf.messageKey;
+
+      // Remplace {count} si présent
+      const detail = conf.detail || {};
+      const msg = String(msgTpl).replace('{count}', detail.count != null ? detail.count : '');
+
+      // Ajoute les noms des modules concernés en petits badges
+      const names = conf.ids
+        .map(id => {
+          const mod = global.CspModules.getModule(id);
+          return mod ? mod.label : id;
+        })
+        .join(' + ');
+
+      li.innerHTML = '<span class="csp-conflict-msg">' + msg + '</span>'
+                   + '<span class="csp-conflict-modules">' + names + '</span>';
+      list.appendChild(li);
+    }
+
+    banner.appendChild(list);
+
+    // Bouton fermer (juste pour cette session visuelle)
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'csp-conflict-close';
+    closeBtn.innerHTML = '×';
+    closeBtn.title = 'Masquer';
+    closeBtn.addEventListener('click', () => banner.remove());
+    banner.appendChild(closeBtn);
+
+    container.insertBefore(banner, container.firstChild);
+  }
+
+  // ---------------------------------------------------------------------------
+  // ⭐ Retourne un Set d'IDs de modules en conflit (pour badge)
+  // ---------------------------------------------------------------------------
+  function getConflictIds(conflictResult) {
+    const ids = new Set();
+    if (!conflictResult || !conflictResult.hasConflicts) return ids;
+    for (const c of conflictResult.conflicts) {
+      for (const id of c.ids) ids.add(id);
+    }
+    return ids;
+  }
+
+  // ---------------------------------------------------------------------------
   // Chargement initial
   // ---------------------------------------------------------------------------
   async function load() {
@@ -141,9 +297,38 @@
           })
       );
       render();
+      // ⭐ Détection des conflits après le rendu
+      const conflictResult = detectConflicts();
+      renderConflictBanner(conflictResult);
+      applyConflictBadges(getConflictIds(conflictResult));
     } catch (e) {
       container.innerHTML = '<div class="servers-empty">⚠️ ' + e.message + '</div>';
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // ⭐ Ajoute un badge ⚠️ sur les modules concernés par un conflit
+  // ---------------------------------------------------------------------------
+  function applyConflictBadges(conflictIds) {
+    // Retire tous les anciens badges
+    document.querySelectorAll('.csp-module-row .csp-module-warn-badge').forEach(b => b.remove());
+    if (!conflictIds || conflictIds.size === 0) return;
+
+    // Marque les lignes concernées
+    document.querySelectorAll('.csp-module-row').forEach(row => {
+      const labelEl = row.querySelector('.csp-module-name');
+      if (!labelEl) return;
+      const name = labelEl.textContent;
+      // On retrouve l'id à partir du label
+      const mod = global.CspModules.getModules().find(m => m.label === name);
+      if (!mod || !conflictIds.has(mod.id)) return;
+      if (row.querySelector('.csp-module-warn-badge')) return;
+      const badge = document.createElement('span');
+      badge.className = 'csp-module-warn-badge';
+      badge.title = 'Ce module est concerné par un conflit détecté';
+      badge.textContent = '⚠️';
+      labelEl.parentElement.insertBefore(badge, labelEl.nextSibling);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -192,6 +377,11 @@
               if (r && r.success) {
                 modulesData[m.id].enabled = newVal;
                 setStatus('✅ ' + m.label + ' ' + (newVal ? 'activé' : 'désactivé'), '#4caf50');
+
+                // ⭐ Ré-analyse les conflits en direct
+                const conflictResult = detectConflicts();
+                renderConflictBanner(conflictResult);
+                applyConflictBadges(getConflictIds(conflictResult));
               } else {
                 alert('Erreur : ' + ((r && r.error) || 'inconnue'));
                 cb.checked = !newVal;
@@ -362,6 +552,12 @@
       modalState.sections = finalSections;
       modalState.savedContent = userRes.content;
       modalState.dirty = false;
+      // ⭐ Stocke les valeurs originales pour l'undo par ligne
+      for (const sec of finalSections) {
+        for (const entry of sec.entries) {
+          entry._originalValue = entry.value;
+        }
+      }
       renderModuleModal();
     } catch (e) {
       body.innerHTML = '<div class="servers-empty">⚠️ ' + e.message + '</div>';
@@ -566,12 +762,39 @@
           title: tooltipText,
         }));
 
+        // ⭐ Bouton Undo par ligne (créé une seule fois, caché si inutile)
+        const undoBtn = document.createElement('button');
+        undoBtn.type = 'button';
+        undoBtn.className = 'csp-undo-btn';
+        undoBtn.innerHTML = '↶';
+        undoBtn.title = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('Annuler cette modification') : 'Annuler cette modification';
+        row.appendChild(undoBtn);   // toujours dans la 3ᵉ colonne
+
         // ⭐ Change callback : marque dirty ET rafraîchit la visibilité conditionnelle
         const ctrl = createCspWidget(entry, () => {
           modalState.dirty = true;
           refreshConditionalVisibility();
+          updateUndoVisibility();
         });
-        row.appendChild(ctrl);
+
+        // On insère le widget dans la 2ᵉ colonne (avant le bouton undo)
+        row.insertBefore(ctrl, undoBtn);
+
+        undoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const orig = entry._originalValue;
+          if (typeof ctrl.setValue === 'function') ctrl.setValue(orig);
+          else entry.value = orig;
+          updateUndoVisibility();
+          checkCspDirty();
+          refreshConditionalVisibility();
+        });
+
+        function updateUndoVisibility() {
+          const hasChanged = (entry._originalValue !== undefined && entry.value !== entry._originalValue);
+          undoBtn.classList.toggle('visible', hasChanged);
+        }
+        updateUndoVisibility();
 
         secEl.appendChild(row);
         rowEls.push(row);
@@ -606,6 +829,22 @@
   // Stocke l'état conditionnel sur chaque ref (ref._condVisible) puis
   // délègue le display final à applySearchFilter().
   // ---------------------------------------------------------------------------
+  // ⭐ Vérifie si toutes les valeurs de la modale sont revenues à l'originale
+  function checkCspDirty() {
+    if (!modalState || !modalState.sections) return;
+    let hasChanges = false;
+    for (const sec of modalState.sections) {
+      for (const entry of sec.entries) {
+        if (entry._originalValue !== undefined && entry.value !== entry._originalValue) {
+          hasChanges = true;
+          break;
+        }
+      }
+      if (hasChanges) break;
+    }
+    modalState.dirty = hasChanges;
+  }
+
   function refreshConditionalVisibility() {
     if (!modalState || !modalState.sections || !modalState.domRefs) return;
 
@@ -705,6 +944,10 @@
         onChange();
       });
       wrap.appendChild(cb);
+      wrap.setValue = (v) => {
+        entry.value = v;
+        cb.checked = (v === '1' || v === 'true');
+      };
     } else if (entry.type === 'int' || entry.type === 'float') {
       const step = entry.step != null ? entry.step : (entry.type === 'int' ? 1 : 0.01);
       const min = entry.min != null ? entry.min : 0;
@@ -729,6 +972,11 @@
       });
       wrap.appendChild(range);
       wrap.appendChild(num);
+      wrap.setValue = (v) => {
+        entry.value = v;
+        range.value = v;
+        num.value = v;
+      };
     } else if (entry.type === 'enum' && Array.isArray(entry.options) && entry.options.length > 0) {
       const sel = el('select', { class: 'ini-select' });
       let matched = false;
@@ -749,6 +997,10 @@
         onChange();
       });
       wrap.appendChild(sel);
+      wrap.setValue = (v) => {
+        entry.value = v;
+        sel.value = v;
+      };
     } else {
       const inp = el('input', { type: 'text', class: 'ini-text', value: entry.value });
       inp.addEventListener('input', () => {
@@ -756,6 +1008,10 @@
         onChange();
       });
       wrap.appendChild(inp);
+      wrap.setValue = (v) => {
+        entry.value = v;
+        inp.value = v;
+      };
     }
 
     return wrap;

@@ -274,6 +274,14 @@
       "searchPlaceholder": "Search for an option...",
       "noResults": "No option matches \"{query}\""
     },
+    "cspConflicts": {
+      "titleWarn": "Conflicts detected",
+      "titleInfo": "Combinations to watch",
+      "messages": {
+        "rainFxBetterWithParticles": "Rain FX works better with Particles FX (splashes, ground drops).",
+        "tooManyHeavyModules": "{count} heavy modules enabled simultaneously — consider disabling unused ones to preserve FPS."
+      }
+    },
     "online": {
       "groups": {
         "pasteLink": "🔗 Paste a server link",
@@ -667,7 +675,39 @@
       "L'ordre des périphériques a changé depuis la dernière calibration.": "Device order has changed since last calibration.",
       "⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, il est recommandé de RELANCER QACRL et de refaire la calibration (Paramètres → Contrôles → 🎯 Calibrer).": "⚠️ To avoid axes or buttons not responding, it's recommended to RESTART QACRL and redo calibration (Settings → Controls → 🎯 Calibrate).",
       "Lancer quand même ?": "Launch anyway?",
-      "Lancer quand même": "Launch anyway"
+      "Lancer quand même": "Launch anyway",
+
+      "Réinitialiser cet axe (AXLE = -1)": "Reset this axis (AXLE = -1)",
+      "Annuler cette modification": "Undo this change",
+      "hors plage": "out of range",
+
+      "Volant": "Wheel",
+      "Manette": "Gamepad",
+      "Clavier": "Keyboard",
+      "Contrôleur principal": "Main controller",
+      "(écrit dans controls.ini)": "(written to controls.ini)",
+      "Aucun INPUT_METHOD défini dans controls.ini": "No INPUT_METHOD defined in controls.ini",
+      "Devices détectés par Assetto Corsa": "Devices detected by Assetto Corsa",
+      "Aucun device configuré dans AC. Lance AC au moins une fois avec ton volant branché.": "No device configured in AC. Launch AC at least once with your wheel plugged in.",
+      "section(s) mappée(s)": "mapped section(s)",
+      "non mappé": "not mapped",
+      "Mes profils sauvegardés": "My saved profiles",
+      "Aucun profil sauvegardé dans savedsetups/.": "No profile saved in savedsetups/.",
+      "Aucun profil": "No profile",
+      "Charger le profil \"{name}\" ? Un backup de ta configuration actuelle sera créé automatiquement.": "Load profile \"{name}\"? A backup of your current configuration will be created automatically.",
+      "Supprimer définitivement le profil \"{name}\" ?": "Permanently delete profile \"{name}\"?",
+      "Nom du nouveau profil :": "New profile name:",
+      "Sauvegarder le profil": "Save profile",
+      "Profil \"{name}\" chargé.": "Profile \"{name}\" loaded.",
+
+      "Volant / X": "Wheel / X",
+      "Accélérateur / Y": "Throttle / Y",
+      "Z (direction alt.)": "Z (alternate steering)",
+      "Rx": "Rx",
+      "Ry": "Ry",
+      "Rz / Frein load cell": "Rz / Brake load cell",
+      "Slider 0 / Embrayage": "Slider 0 / Clutch",
+      "Slider 1": "Slider 1"
     },
     "setup": {
       "steps": {
@@ -819,6 +859,7 @@
         "cspTitle": "🌩️ Custom Shaders Patch — Modules"
       },
       "fields": {
+        "currentVersion": "Current version:",
         "setupWizardHint": "Relaunch detection and first-launch wizard",
         "playerName": "Driver name (solo)",
         "playerNamePlaceholder": "Driver",
@@ -838,7 +879,11 @@
         "relaunchSetup": "🔄 Relaunch wizard",
         "detectSteam": "🔍 Detect",
         "browse": "Browse...",
-        "refresh": "↶ Refresh"
+        "refresh": "↶ Refresh",
+        "checkNow": "🔄 Check now",
+        "checkingNow": "Checking...",
+        "upToDate": "Up to date",
+        "checkError": "Error"
       },
       "hints": {
         "identity": "💡 <strong>Online name</strong>: used for the <code>[REMOTE] NAME=</code> section in <code>race.ini</code> when joining a server. Must be <strong>unique</strong> on the server.<br>💡 <strong>Steam ID</strong>: auto-detected from Steam on startup. Otherwise, click \"Detect\".",

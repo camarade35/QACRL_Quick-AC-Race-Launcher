@@ -10,10 +10,96 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### À venir
-- Undo fin (par option, pas global)
-- Détection auto de conflits CSP
-- Améliorations UX wizard volant (bouton reset axe, dropdown AC manuel)
-- Test in-game post-wizard
+- Documentation utilisateur intégrée (onglet Aide)
+- Mapping noms PP filters non-Sol
+- Affichage live inversé pédales Fanatec
+- Gestion `__IGUID` : vrais GUIDs Windows
+- Message d'erreur si controls.ini non créable (permissions)
+
+---
+
+## [1.5.0] - 2026-10-15
+
+### ✨ Ajouté
+
+#### 🎮 Panneau "Contrôleur principal" (Paramètres > Contrôles)
+- **Nouveau panneau en haut de l'onglet Contrôles** — avec 3 sections pliables
+  - 🎮 **Choix du contrôleur principal** : Volant / Manette / Clavier
+    - Écrit `INPUT_METHOD` dans `[HEADER]` de `controls.ini`
+    - Le mode actif est surligné en accent, badge à droite du titre
+  - 📡 **Devices détectés par Assetto Corsa** (lecture seule)
+    - Scan de `cfg/controllers/*.ini` (dédupliqué par PGUID)
+    - Icône par type (🏎️ volant / 🎮 manette / 🔌 autre)
+    - Statut `✅ N sections mappées` ou `⚠️ non mappé`
+  - 💾 **Mes profils sauvegardés** (`cfg/controllers/savedsetups/`)
+    - Dropdown trié par date de modification
+    - 📥 Charger (avec backup auto de `controls.ini`)
+    - 💾 Sauver comme... (prompt pour le nom)
+    - 🗑️ Supprimer (avec confirmation)
+- **Persistance du repli** des sections en `localStorage`
+- **Backend** : 6 nouveaux IPC (`list-ac-controller-devices`, `list-saved-controller-setups`, `read-controller-setup`, `apply-controller-setup`, `save-current-as-setup`, `delete-controller-setup`, `set-input-method`)
+
+#### ↶ Undo fin par option (INI + CSP + Recherche globale)
+- **Bouton `↶` par ligne modifiée** dans tous les éditeurs
+  - Sections simples, groupes paires, modale CSP, recherche globale
+  - Colonne dédiée (32px) → **aucun décalage** de mise en page
+  - Style orange harmonisé avec hover/active
+- **Le bouton Enregistrer repasse en vert** dès que toutes les valeurs sont revenues à l'origine
+- **Fonction `checkDirty()`** qui reparcourt toutes les valeurs à chaque modification
+
+#### ⚠️ Détection auto de conflits CSP
+- **Table `CONFLICT_RULES`** extensible (types `conflict`, `requires`, `performance`)
+- **Bandeau en haut de l'onglet CSP** : orange (warning) ou bleu (info), avec liste détaillée des modules concernés
+- **Badges ⚠️ pulsants** sur les modules concernés
+- **Rafraîchissement live** au toggle d'un module
+- Règles filtrées sur les modules **réellement désactivables** (pas de faux positifs sur `smart_mirror`, `reflections_fx`…)
+
+#### 🎯 Améliorations wizard volant
+- **Bouton 🔄 Reset axe** : met `AXLE=-1` en 1 clic (plus besoin d'effacer à la main)
+- **Dropdown AC 0-31** avec libellés indicatifs (`Volant / X`, `Accélérateur / Y`, `Rz / Frein load cell`…)
+- Layout 4 colonnes : `[Bouton | Select | 🔄 | 🎯]` + barre de preview live sous le widget
+
+### 🐛 Corrigé
+- **Bandeau "Save now" qui restait bloqué** après sauvegarde en mode `Manuel` :
+  - `forceSaveAll()` utilisait `Object.keys(pendingSaves)` (vide en mode manuel)
+  - Utilise désormais `dirtyFiles` (Set) et cache le bandeau après 3s
+  - Les modifications sont maintenant **réellement persistées** après "Save now" en mode manuel
+- **Modale "Périphériques modifiés" en boucle** au démarrage :
+  - Chromium n'expose les gamepads qu'après interaction → un baseline vide était figé
+  - Baseline vide n'est **jamais figé** désormais, on attend au moins 1 device
+  - Confirmation différée 5s avant d'afficher la modale (évite les faux positifs)
+  - Écoute aussi les events natifs `gamepadconnected` / `gamepaddisconnected`
+  - Grâce initiale portée de 30s → 60s
+- **Warning désync au lancement de course** en boucle :
+  - Skip si `INPUT_METHOD` défini dans `controls.ini` (choix explicite = pas d'alerte)
+  - Mémorisation du "Lancer quand même" en `sessionStorage` (fin du spam)
+  - Comparaison par **SET** au lieu d'index par index
+- **Modale "Impossible de charger la langue"** :
+  - `en.json` avait une accolade orpheline qui cassait le JSON
+  - Clés `Volant / X`, `Accélérateur / Y`, etc. replacées à l'intérieur de `iniLabels`
+- **Tooltips undo** hardcodés en français → i18n complet (`I18n.tFr`)
+- **Désync `[CONTROLLERS]`** : le message d'erreur "Device non identifié" du wizard volant s'affiche si l'utilisateur bouge une manette avant son volant (à améliorer en v1.6)
+
+### 🔧 Modifié
+- `main.js` : nouvelle section IPC "Contrôleurs & profils"
+- `preload.js` : 7 nouvelles méthodes exposées
+- `public/src/settingsIni.js` : `checkDirty()`, undo par ligne, CSS propre
+- `public/src/settingsCsp.js` : `detectConflicts()`, `renderConflictBanner()`, `applyConflictBadges()`, `checkCspDirty()`
+- `public/src/settingsSearch.js` : undo par ligne, fix `forceSaveAll()`, `hideSaveBanner()`
+- `public/src/session.js` : skip warning désync si `INPUT_METHOD` défini
+- `public/src/iniControls.js` : widget AXE avec bouton Reset + dropdown AC
+- `public/src/cspModules.js` : table `CONFLICT_RULES` + `getConflictRules()`
+- `public/src/controllerPresets.js` : **nouveau module** (panneau Contrôleur)
+- `public/app.js` : init du ControllerPresets + fix détection gamepad
+- `public/index.html` : script `controllerPresets.js`
+- `public/style.css` : styles panneau Contrôleur + undo + conflits CSP + sections pliables
+- `public/assets/i18n/fr.json` : fix parse JSON (accolade)
+- `public/assets/i18n/en.json` : ~40 nouvelles clés (`app.controls.*`, `app.cspConflicts.*`, `app.settings.*`)
+
+### 📝 Notes
+- Le **bouton Charger** d'un profil `savedsetups` crée un **backup horodaté** dans `controls.ini.bak-YYYY-MM-DDTHH-MM-SS` avant écrasement.
+- Le choix **Volant / Manette / Clavier** ne modifie QUE `INPUT_METHOD` — il ne touche pas aux autres sections.
+- Les **profils QACRL embarqués** ont été retirés du plan : AC génère lui-même les fichiers `<iguid>.ini` par device.
 
 ---
 
