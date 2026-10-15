@@ -791,6 +791,59 @@ async function launchGame() {
     alert("Sélectionne une voiture et un circuit.");
     return;
   }
+
+  // ⭐ v1.4.2 — Vérifie que l'ordre des gamepads Chromium correspond
+  //    à [CONTROLLERS] de controls.ini. Sinon avertit l'utilisateur.
+  try {
+    const iniRes = await window.api.readIniFile('controls.ini');
+    if (iniRes && iniRes.success && window.IniParser) {
+      const sections = window.IniParser.parseIni(iniRes.content);
+      const ctrlSec = sections.find(s => s.name === 'CONTROLLERS');
+      const iniNames = [];
+      if (ctrlSec) {
+        for (const e of ctrlSec.entries) {
+          if (e.kind !== 'kv') continue;
+          const m = e.key.match(/^CON(\d+)$/);
+          if (m) {
+            iniNames[parseInt(m[1], 10)] = e.value;
+          }
+        }
+      }
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const chromNames = [];
+      for (let i = 0; i < pads.length; i++) {
+        if (!pads[i]) continue;
+        const n = String(pads[i].id).replace(/\s*\(Vendor:.*$/i, '').trim();
+        chromNames[i] = n;
+      }
+      // Compare index par index
+      const maxLen = Math.max(iniNames.length, chromNames.length);
+      let desync = false;
+      for (let i = 0; i < maxLen; i++) {
+        if ((iniNames[i] || '') !== (chromNames[i] || '')) {
+          desync = true; break;
+        }
+      }
+            if (desync) {
+        const msg =
+          "L'ordre des périphériques a changé depuis la dernière calibration.\n\n" +
+          "⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, " +
+          "il est recommandé de RELANCER QACRL et de refaire la calibration " +
+          "(Paramètres → Contrôles → 🎯 Calibrer).\n\n" +
+          "Lancer quand même ?";
+
+        const ok = (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function')
+          ? await window.QacrlDialogs.confirm(msg, 'Périphériques modifiés', { variant: 'warning', okLabel: 'Lancer quand même', cancelLabel: 'Annuler' })
+          : confirm(msg);
+
+        if (!ok) {
+          const btn = document.getElementById('btn-launch-game');
+          btn.disabled = false; btn.innerText = "▶ Démarrer la course";
+          return;
+        }
+      }
+    }
+  } catch (e) { console.warn('[launchGame] check sync KO', e); }
   const weatherMode = getValue('weather-mode');
   if (weatherMode === 'custom_plan' && customPlanSteps.length === 0) {
     alert("Plan personnalisé vide.");

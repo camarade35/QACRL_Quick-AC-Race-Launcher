@@ -133,6 +133,7 @@ contextBridge.exposeInMainWorld('api', {
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  relaunchApp: () => ipcRenderer.invoke('relaunch-app'),
   onWindowMaximizedChange: (callback) => {
     const subscription = (_event, isMax) => callback(isMax);
     ipcRenderer.on('window-maximized', subscription);

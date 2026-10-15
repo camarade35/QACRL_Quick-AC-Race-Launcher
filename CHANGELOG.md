@@ -17,6 +17,31 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.4.2] - 2026-10-15
+
+### ✨ Ajouté
+- **Détection live des périphériques** : listeners `gamepadconnected` / `gamepaddisconnected` + poll de secours (1.5s). Chromium ne déclenche pas toujours les events selon la fenêtre active.
+- **Modale "Périphériques modifiés"** : si un device est branché/débranché, une modale stylée QACRL propose de **relancer l'app** ou de reporter.
+- **Bouton 🔄 Relancer QACRL** : IPC `relaunch-app` qui redémarre l'application proprement.
+- **Warning de désynchronisation** au lancement d'une course si l'ordre des gamepads a changé depuis la dernière calibration (utilise `QacrlDialogs.confirm`).
+
+### 🐛 Corrigé
+- **Doublon de devices** : certains drivers (Fanatec en mode compatibilité + natif) exposent le MÊME device sur 2 index Chromium → dédupliqué par `vendor:product` dans le wizard.
+- **Faux positifs de la modale** : grâce de 30s au démarrage + comparaison par **set de `vendor:product`** (au lieu d'index) + debounce 3s. Un appui sur une pédale ou un mouvement de volant ne déclenche plus d'alerte.
+
+### 🔧 Modifié
+- `main.js` : IPC `relaunch-app` ; `reconcileControlsIni` **désactivé** (l'approche "réécriture au lancement" cassait les JOY=n quand un device était éteint).
+- `preload.js` : `relaunchApp` exposé.
+- `public/app.js` : détection gamepad refondue (set unique, grâce, debounce, modale action).
+- `public/src/session.js` : warning désync au lancement de course.
+- `public/src/wheelCalibration.js` : `buildAcControllersFromChromium` déduplique par `vendor:product`.
+
+### 📝 Notes
+- **Comportement attendu** : si un device est débranché/rebranché pendant que QACRL tourne, une modale propose de relancer l'app. Si l'utilisateur choisit "Plus tard" et que les axes ne répondent plus → il relance QACRL manuellement.
+- **Cas limite connu** : double rebranchement rapide peut ne pas déclencher la 2ᵉ modale (protection anti-spam). Acceptable vu la rareté.
+
+---
+
 ## [1.4.1] - 2026-10-15
 
 ### 🐛 Corrigé (critique)

@@ -333,6 +333,17 @@ ipcMain.handle('window-is-maximized', () => {
   return mainWindow ? mainWindow.isMaximized() : false;
 });
 
+// ⭐ v1.4.2 — Relance complète de QACRL (reboot app)
+ipcMain.handle('relaunch-app', () => {
+  try {
+    app.relaunch();
+    app.exit(0);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 /* ============================================================
    IPC — ÉTAT & SETTINGS
    ============================================================ */
@@ -1895,6 +1906,111 @@ function resolveDocumentsPath(settings) {
   return { path: path.join(home, 'Documents'), source: 'fallback' };
 }
 
+/* ============================================================
+   ⭐ v1.4.2 — RÉCONCILIATION controls.ini AVANT LANCEMENT
+   Réécrit [CONTROLLERS] et les JOY=n selon les gamepads réellement
+   branchés. Résout le problème : l'index Chromium change si on
+   allume/éteint un device → JOY=n pointe dans le vide.
+   ============================================================ */
+function makeIguidForDevice(vendor, product, index) {
+  // ⚠️ On préserve l'ancien __IGUID si présent, sinon on génère
+  // le format observé dans controls.ini : XXXX-NNNN-NNNN-800X-444553540000
+  const a = ((0x5251B780 + index * 0x1A2B3C) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const b = '7DD1';
+  const c = '11F1';
+  const d = (0x8001 + index).toString(16).toUpperCase().padStart(4, '0');
+  return a + '-' + b + '-' + c + '-' + d + '-444553540000';
+}
+
+function makePguidFromDevice(vendor, product) {
+  // PGUID AC = "PPPPVVVV-0000-0000-0000-504944564944" (Product puis Vendor)
+  return (product || '').toUpperCase() + (vendor || '').toUpperCase() + '-0000-0000-0000-504944564944';
+}
+
+function reconcileControlsIni(documentsPath, gamepads) {
+  if (!documentsPath || !Array.isArray(gamepads)) return;
+
+  const controlsPath = path.join(documentsPath, 'Assetto Corsa', 'cfg', 'controls.ini');
+  if (!fs.existsSync(controlsPath)) {
+    console.log('[reconcileControlsIni] controls.ini absent, skip');
+    return;
+  }
+
+  try {
+    let content = fs.readFileSync(controlsPath, 'utf8');
+
+    // 1) Construire map { PGUID → newIndex } depuis les gamepads présents
+    const pguidToNewIndex = {};
+    const orderedGamepads = gamepads.slice().sort((a, b) => a.chromiumIndex - b.chromiumIndex);
+    for (const pad of orderedGamepads) {
+      const pg = makePguidFromDevice(pad.vendor, pad.product);
+      pguidToNewIndex[pg] = pad.chromiumIndex;
+    }
+
+    // 2) Extraire l'ancien [CONTROLLERS] : map { oldIndex → PGUID }
+    const ctrlMatch = content.match(/\[CONTROLLERS\]([\s\S]*?)(?=\r?\n\[|$)/);
+    const oldIndexToPg = {};
+    if (ctrlMatch) {
+      const lines = ctrlMatch[1].split(/\r?\n/);
+      for (const line of lines) {
+        const m = line.match(/^PGUID(\d+)\s*=\s*(.+)$/);
+        if (m) oldIndexToPg[parseInt(m[1], 10)] = m[2].trim().toUpperCase();
+      }
+    }
+
+    // 3) Map de traduction { oldIndex → newIndex }
+    const oldToNew = {};
+    for (const oldIdxStr of Object.keys(oldIndexToPg)) {
+      const oldIdx = parseInt(oldIdxStr, 10);
+      const pg = oldIndexToPg[oldIdx];
+      if (pguidToNewIndex[pg] !== undefined) {
+        oldToNew[oldIdx] = pguidToNewIndex[pg];
+      }
+    }
+    console.log('[reconcileControlsIni] traduction index :',
+      Object.entries(oldToNew).map(([o, n]) => o + '→' + n).join(', ') || '(aucune)');
+
+    // 4) Réécrire [CONTROLLERS] avec les devices présents dans leur ordre actuel
+    const newCtrlLines = ['[CONTROLLERS]'];
+    for (const pad of orderedGamepads) {
+      const pg = makePguidFromDevice(pad.vendor, pad.product);
+      const iguid = makeIguidForDevice(pad.vendor, pad.product, pad.chromiumIndex);
+      newCtrlLines.push('CON' + pad.chromiumIndex + '=' + pad.name);
+      newCtrlLines.push('__IGUID' + pad.chromiumIndex + '=' + iguid);
+      newCtrlLines.push('PGUID' + pad.chromiumIndex + '=' + pg);
+    }
+    const newCtrlBlock = newCtrlLines.join('\n');
+    content = content.replace(/\[CONTROLLERS\][\s\S]*?(?=\r?\n\[|$)/, newCtrlBlock);
+
+    // 5) Réécrire tous les JOY=n (sauf dans [CONTROLLERS])
+    //    On utilise la traduction oldToNew. Si un JOY=n ne peut pas être
+    //    traduit (device absent), on met -1.
+    const sections = content.split(/(?=\r?\n\[)/);
+    const output = sections.map(sec => {
+      if (/^\s*\[CONTROLLERS\]/.test(sec)) return sec; // déjà réécrit
+      return sec.replace(/^JOY\s*=\s*(-?\d+)\s*$/gm, (match, oldVal) => {
+        const oldIdx = parseInt(oldVal, 10);
+        if (oldIdx < 0) return match; // -1 reste -1
+        if (oldToNew[oldIdx] !== undefined) {
+          return 'JOY=' + oldToNew[oldIdx];
+        }
+        // Device absent → on met -1 pour éviter de pointer dans le vide
+        console.warn('[reconcileControlsIni] JOY=' + oldIdx + ' → -1 (device absent)');
+        return 'JOY=-1';
+      });
+    });
+    content = output.join('');
+
+    // Backup + écriture
+    fs.copyFileSync(controlsPath, controlsPath + '.bak-reconcile');
+    fs.writeFileSync(controlsPath, content, 'utf8');
+    console.log('[reconcileControlsIni] controls.ini réconcilié (' +
+      orderedGamepads.length + ' device(s) présents)');
+  } catch (e) {
+    console.warn('[reconcileControlsIni] KO :', e.message);
+  }
+}
+
 ipcMain.handle('launch-game', async (event, sessionData) => {
   const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
   const content = loadContentInternal();
@@ -1927,6 +2043,14 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
   //   Cas 2 : Sol + Sol Planner         → logique Sol (plans INI + presets.ini)
   //   Cas 3 : Sol seul (sans Planner)   → météo Sol directe via race.ini
   //   Cas 4 : Ni Pure ni Sol            → mode dégradé Kunos (force 3_clear)
+  // ⚠️ v1.4.2 DÉSACTIVÉ — l'approche "réécrire [CONTROLLERS] au lancement" est cassée :
+  //    - si un device est éteint, il disparaît de la liste
+  //    - les JOY=n pointent alors vers des index qui n'existent plus
+  //    On désactive en attendant une meilleure architecture (profils par device actif).
+  // if (Array.isArray(sessionData.connectedGamepads) && sessionData.connectedGamepads.length > 0) {
+  //   reconcileControlsIni(documentsPath, sessionData.connectedGamepads);
+  // }
+
   const usePureLogic     = caps.hasPure;
   const useSolPlanner    = !caps.hasPure && caps.hasSol && caps.hasSolPlanner;
   const useSolWeather    = !caps.hasPure && caps.hasSol && !caps.hasSolPlanner;

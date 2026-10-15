@@ -569,13 +569,22 @@
     const out = [];
     if (!global.GamepadMapper || !global.GamepadMapper.getChromiumGamepads) return out;
     const pads = global.GamepadMapper.getChromiumGamepads();
+    // ⚠️ v1.4.2 — Certains drivers (Fanatec) exposent le MÊME device
+    //    sur 2 index Chromium (mode compat + natif). On déduplique par vendor:product.
+    const seen = new Set();
     for (let i = 0; i < pads.length; i++) {
       const p = pads[i];
       if (!p || !p.vendor || !p.product) continue;
+      const key = p.vendor + ':' + p.product;
+      if (seen.has(key)) {
+        console.log('[Wizard] Doublon ignoré :', key, '(index', i + ')');
+        continue;
+      }
+      seen.add(key);
       out.push({
-        acIndex: i,
-        name: extractDeviceName(p.id) || ('Device ' + i),
-        iguid: makeIguid(i),
+        acIndex: out.length,   // ⭐ index renuméroté séquentiellement
+        name: extractDeviceName(p.id) || ('Device ' + out.length),
+        iguid: makeIguid(out.length),
         pguid: p.product.toUpperCase() + p.vendor.toUpperCase() + '-0000-0000-0000-504944564944',
         chromiumIndex: p.chromiumIndex,
         vendor: p.vendor,
@@ -622,39 +631,45 @@
       const step = state.steps.find(s => s.id === r.id);
       if (!step) continue;
 
-      // ⭐ AXLE=-1 = "non assigné" → on tente d'abord la conversion
-      //    Chromium → AC via la table du device, PUIS les défauts AC.
+      // ⭐ v1.4.2 — Le wizard est un outil de RE-DÉTECTION par définition.
+      //    → Si la table hardcodée connaît ce device/axe, elle gagne TOUJOURS
+      //      (même si AXLE était déjà assigné dans controls.ini).
+      //    → Évite à l'utilisateur de devoir mettre AXLE=-1 à la main avant
+      //      chaque re-détection.
       const isAssigned = (r.acAxis != null && r.acAxis >= 0);
+
+      // 1) Toujours tenter la conversion via la table (source de vérité)
+      let converted = null;
+      if (global.GamepadMapper && global.GamepadMapper.getAxisMapping
+          && state.device && state.device.vendor && state.device.product) {
+        converted = global.GamepadMapper.getAxisMapping(
+          state.device.vendor,
+          state.device.product,
+          r.chromiumAxis,
+          { ignoreLearned: true }   // ⭐ v1.4.2 — ignore profil appris corrompu
+        );
+      }
+
       let targetAcAxis;
-
-      if (isAssigned) {
+      if (converted !== null && converted !== undefined) {
+        // La table connaît → elle écrase tout (même une valeur fichier existante)
+        targetAcAxis = converted;
+        const replaced = isAssigned && r.acAxis !== converted;
+        console.log('[Wizard] ' + step.section +
+          ' : conversion Chromium ' + r.chromiumAxis + ' → AC ' + converted +
+          ' (table device' + (replaced ? ', remplace fichier ' + r.acAxis : '') + ')');
+      } else if (isAssigned) {
+        // Device inconnu → respecter la valeur fichier (config manuelle)
         targetAcAxis = r.acAxis;
+        console.log('[Wizard] ' + step.section +
+          ' : valeur fichier AC ' + targetAcAxis + ' (device non répertorié)');
+      } else if (DEFAULT_AC_AXIS[step.section] !== undefined) {
+        // Device inconnu + pas assigné → défaut AC
+        targetAcAxis = DEFAULT_AC_AXIS[step.section];
+        console.log('[Wizard] ' + step.section +
+          ' : défaut AC ' + targetAcAxis + ' (device non répertorié)');
       } else {
-        // 1) Conversion via table hardcodée / profil appris
-        let converted = null;
-        if (global.GamepadMapper && global.GamepadMapper.getAxisMapping
-            && state.device && state.device.vendor && state.device.product) {
-          converted = global.GamepadMapper.getAxisMapping(
-            state.device.vendor,
-            state.device.product,
-            r.chromiumAxis
-          );
-        }
-
-        if (converted !== null && converted !== undefined) {
-          targetAcAxis = converted;
-          console.log('[Wizard] ' + step.section +
-            ' : conversion Chromium ' + r.chromiumAxis + ' → AC ' + converted +
-            ' (table device)');
-        } else if (DEFAULT_AC_AXIS[step.section] !== undefined) {
-          // 2) Fallback défaut AC (manette standard)
-          targetAcAxis = DEFAULT_AC_AXIS[step.section];
-          console.log('[Wizard] ' + step.section +
-            ' : défaut AC ' + targetAcAxis + ' (device non répertorié)');
-        } else {
-          // 3) Dernier recours : index inchangé
-          targetAcAxis = r.chromiumAxis;
-        }
+        targetAcAxis = r.chromiumAxis;
       }
 
       axes[String(r.chromiumAxis)] = targetAcAxis;

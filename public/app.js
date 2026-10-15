@@ -458,6 +458,110 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.WheelCalibration && typeof window.WheelCalibration.init === 'function') {
     window.WheelCalibration.init();
   }
+
+  // ⭐ v1.4.2 — Détection live des gamepads (Chromium/Electron)
+  //    Sans ça, un device branché APRÈS le lancement n'est jamais vu
+  //    (Chromium n'émet pas 'gamepadconnected' sans interaction).
+    // ⭐ v1.4.2 — Détection changement gamepads (approche par set unique)
+  //    Problèmes résolus :
+  //    1) Chromium "réveille" un pad seulement quand on le bouge → un appui
+  //       sur une pédale après la grâce était vu comme un nouveau device.
+  //       → on compare un SET de "vendor:product" UNIQUES, pas les index.
+  //    2) La modale ne réapparaissait pas au rallumage car le flag restait true.
+  //       → on autorise une nouvelle alerte 30s après la dernière.
+  //    3) Grâce de 30s au démarrage (au lieu de 8s) pour laisser Chromium
+  //       "réveiller" tous les périphériques par un mouvement utilisateur.
+  const _appStartTime = Date.now();
+  const _appGracePeriodMs = 30000;   // 30s
+  const _debounceMs = 3000;          // 3s : évite les rafales Windows
+  let _gamepadDebounceTimer = null;
+  let _gamepadLastKeys = null;       // Set<string> de vendor:product
+  let _gamepadBaselineSet = false;   // true dès qu'on a figé le seed initial
+  let _gamepadModalOpen = false;     // true tant que la modale est affichée
+
+  function _getGamepadKeys() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const keys = new Set();
+    for (let i = 0; i < pads.length; i++) {
+      const p = pads[i];
+      if (!p) continue;
+      const vp = (window.GamepadMapper && window.GamepadMapper.parseChromiumGamepadId)
+        ? window.GamepadMapper.parseChromiumGamepadId(p.id)
+        : null;
+      keys.add(vp ? (vp.vendor + ':' + vp.product) : String(p.id));
+    }
+    return keys;
+  }
+
+  function _setsEqual(a, b) {
+    if (!a || !b) return false;
+    if (a.size !== b.size) return false;
+    for (const k of a) if (!b.has(k)) return false;
+    return true;
+  }
+
+  function _showGamepadWarning(reason) {
+    // Si une modale est déjà en cours, on n'en ouvre pas une 2ème
+    if (_gamepadModalOpen) {
+      console.log('[Gamepad] changement détecté (' + reason + ') → modale déjà ouverte, skip');
+      return;
+    }
+    console.log('[Gamepad] modale relance (' + reason + ')');
+
+    const msg =
+      "Un ou plusieurs périphériques ont été branchés/débranchés.\n\n" +
+      "⚠️ Pour éviter tout problème de configuration (axes ou boutons qui ne répondent plus), " +
+      "il est recommandé de relancer QACRL.\n\n" +
+      "Tant que QACRL n'est pas relancé, l'UI Contrôles peut être désynchronisée.";
+
+    const doRelaunch = () => {
+      _gamepadModalOpen = true;
+      const closeModal = () => { _gamepadModalOpen = false; };
+
+      if (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function') {
+        window.QacrlDialogs.confirm(msg, 'Périphériques modifiés', {
+          variant: 'warning',
+          okLabel: '🔄 Relancer QACRL',
+          cancelLabel: 'Plus tard'
+        }).then(async (ok) => {
+          closeModal();
+          if (ok) { try { await window.api.relaunchApp(); } catch (e) {} }
+        }).catch(closeModal);
+      } else {
+        const ok = confirm(msg + '\n\nRelancer QACRL maintenant ?');
+        closeModal();
+        if (ok) { try { window.api.relaunchApp(); } catch (e) {} }
+      }
+    };
+
+    // Debounce : laisse le temps à Windows d'envoyer tous ses events en rafale
+    if (_gamepadDebounceTimer) clearTimeout(_gamepadDebounceTimer);
+    _gamepadDebounceTimer = setTimeout(doRelaunch, _debounceMs);
+  }
+
+  // Poll principal : compare le SET de vendor:product uniques
+  setInterval(() => {
+    if (!navigator.getGamepads) return;
+    const current = _getGamepadKeys();
+
+    // Pas encore figé le seed : on attend la fin de la grâce
+    if (!_gamepadBaselineSet) {
+      if (Date.now() - _appStartTime < _appGracePeriodMs) return;
+      _gamepadLastKeys = current;
+      _gamepadBaselineSet = true;
+      console.log('[Gamepad] set initial figé :', Array.from(current).join(', ') || '(aucun)');
+      return;
+    }
+
+    if (!_setsEqual(_gamepadLastKeys, current)) {
+      const added   = Array.from(current).filter(k => !_gamepadLastKeys.has(k));
+      const removed = Array.from(_gamepadLastKeys).filter(k => !current.has(k));
+      console.log('[Gamepad] set changé — ajout:', added.join(',') || '—',
+                  '| retrait:', removed.join(',') || '—');
+      _gamepadLastKeys = current;
+      _showGamepadWarning('set change');
+    }
+  }, 1500);
 });
 
 /* ============================================================
