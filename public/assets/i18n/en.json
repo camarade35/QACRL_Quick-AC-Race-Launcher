@@ -646,7 +646,28 @@
       "Lancer": "Start",
       "Recharger la config et lancer la course": "Reload config and start race",
       "Charger la config sans lancer": "Load config without starting",
-      "Supprimer cette entrée": "Delete this entry"
+      "Supprimer cette entrée": "Delete this entry",
+
+      "Créé par QACRL": "Created by QACRL",
+      "Fichier Sol :": "Sol file:",
+      "Aucun plan Sol trouvé dans apps/python/sol_planner/plans/.": "No Sol plan found in apps/python/sol_planner/plans/.",
+      "Aucun plan Pure trouvé dans extension/config-ext/PurePlanner/Plans/.": "No Pure plan found in extension/config-ext/PurePlanner/Plans/.",
+      "Aucun système de plans disponible (CSP + Pure ou Sol requis).": "No plan system available (CSP + Pure or Sol required).",
+      "(CSP+Pure ou Sol requis)": "(CSP+Pure or Sol required)",
+      "Plan Sol aléatoire": "Random Sol plan",
+      "Plan Pure aléatoire": "Random Pure plan",
+
+      "Périphériques modifiés": "Devices changed",
+      "Un ou plusieurs périphériques ont été branchés/débranchés.": "One or more devices were connected/disconnected.",
+      "⚠️ Pour éviter tout problème de configuration (axes ou boutons qui ne répondent plus), il est recommandé de RELANCER QACRL.": "⚠️ To avoid configuration issues (axes or buttons not responding), it's recommended to RESTART QACRL.",
+      "Tant que QACRL n'est pas relancé, l'UI Contrôles peut être désynchronisée.": "As long as QACRL is not restarted, the Controls UI may be out of sync.",
+      "🔄 Relancer QACRL": "🔄 Restart QACRL",
+      "Plus tard": "Later",
+
+      "L'ordre des périphériques a changé depuis la dernière calibration.": "Device order has changed since last calibration.",
+      "⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, il est recommandé de RELANCER QACRL et de refaire la calibration (Paramètres → Contrôles → 🎯 Calibrer).": "⚠️ To avoid axes or buttons not responding, it's recommended to RESTART QACRL and redo calibration (Settings → Controls → 🎯 Calibrate).",
+      "Lancer quand même ?": "Launch anyway?",
+      "Lancer quand même": "Launch anyway"
     },
     "setup": {
       "steps": {

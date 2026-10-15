@@ -92,7 +92,8 @@ function updateWeatherUI() {
           .replace(/^⛔\s*/, '')
           .replace(/(\s*\((?:CSP\+)?(?:Pure|Sol) requis\))+/gi, '')
           .trim();
-        opt.textContent = '⛔ ' + baseTxt + ' (CSP+Pure ou Sol requis)';
+        const suffix = (window.I18n && window.I18n.tFr) ? window.I18n.tFr('(CSP+Pure ou Sol requis)') : '(CSP+Pure ou Sol requis)';
+        opt.textContent = '⛔ ' + baseTxt + ' ' + suffix;
       } else {
         opt.textContent = opt.textContent
           .replace(/^⛔\s*/, '')
@@ -295,12 +296,13 @@ function renderExistingPlans() {
   if (plans.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'plans-empty';
+    const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
     if (planner === 'sol') {
-      empty.innerText = 'Aucun plan Sol trouvé dans apps/python/sol_planner/plans/.';
+      empty.innerText = T('Aucun plan Sol trouvé dans apps/python/sol_planner/plans/.');
     } else if (planner === 'pure') {
-      empty.innerText = 'Aucun plan Pure trouvé dans extension/config-ext/PurePlanner/Plans/.';
+      empty.innerText = T('Aucun plan Pure trouvé dans extension/config-ext/PurePlanner/Plans/.');
     } else {
-      empty.innerText = 'Aucun système de plans disponible (CSP + Pure ou Sol requis).';
+      empty.innerText = T('Aucun système de plans disponible (CSP + Pure ou Sol requis).');
     }
     container.appendChild(empty);
     return;
@@ -311,10 +313,11 @@ function renderExistingPlans() {
     row.className = 'plan-row';
 
     // ⭐ Meta adapté selon la source
+    const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
     const metaHtml = (planner === 'sol')
       ? (plan.isQacrl
-          ? '<span style="color: var(--accent);">Créé par QACRL</span>'
-          : 'Fichier Sol : <code>' + (plan.id || '') + '</code>')
+          ? '<span style="color: var(--accent);">' + T('Créé par QACRL') + '</span>'
+          : T('Fichier Sol :') + ' <code>' + (plan.id || '') + '</code>')
       : 'Dossier : <code>' + (plan.folder || '(racine)') + '</code>';
 
     // ⭐ Édition désactivée pour les plans Sol (pas d'équivalent applyPlanToEditor)
@@ -825,15 +828,14 @@ async function launchGame() {
         }
       }
             if (desync) {
+        const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
         const msg =
-          "L'ordre des périphériques a changé depuis la dernière calibration.\n\n" +
-          "⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, " +
-          "il est recommandé de RELANCER QACRL et de refaire la calibration " +
-          "(Paramètres → Contrôles → 🎯 Calibrer).\n\n" +
-          "Lancer quand même ?";
+          T("L'ordre des périphériques a changé depuis la dernière calibration.") + "\n\n" +
+          T("⚠️ Pour éviter tout problème d'axes ou de boutons qui ne répondent plus, il est recommandé de RELANCER QACRL et de refaire la calibration (Paramètres → Contrôles → 🎯 Calibrer).") + "\n\n" +
+          T("Lancer quand même ?");
 
         const ok = (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function')
-          ? await window.QacrlDialogs.confirm(msg, 'Périphériques modifiés', { variant: 'warning', okLabel: 'Lancer quand même', cancelLabel: 'Annuler' })
+          ? await window.QacrlDialogs.confirm(msg, T('Périphériques modifiés'), { variant: 'warning', okLabel: T('Lancer quand même'), cancelLabel: T('Annuler') })
           : confirm(msg);
 
         if (!ok) {

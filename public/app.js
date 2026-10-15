@@ -508,27 +508,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     console.log('[Gamepad] modale relance (' + reason + ')');
 
+    const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
     const msg =
-      "Un ou plusieurs périphériques ont été branchés/débranchés.\n\n" +
-      "⚠️ Pour éviter tout problème de configuration (axes ou boutons qui ne répondent plus), " +
-      "il est recommandé de relancer QACRL.\n\n" +
-      "Tant que QACRL n'est pas relancé, l'UI Contrôles peut être désynchronisée.";
+      T("Un ou plusieurs périphériques ont été branchés/débranchés.") + "\n\n" +
+      T("⚠️ Pour éviter tout problème de configuration (axes ou boutons qui ne répondent plus), il est recommandé de RELANCER QACRL.") + "\n\n" +
+      T("Tant que QACRL n'est pas relancé, l'UI Contrôles peut être désynchronisée.");
 
     const doRelaunch = () => {
       _gamepadModalOpen = true;
       const closeModal = () => { _gamepadModalOpen = false; };
 
       if (window.QacrlDialogs && typeof window.QacrlDialogs.confirm === 'function') {
-        window.QacrlDialogs.confirm(msg, 'Périphériques modifiés', {
+        window.QacrlDialogs.confirm(msg, T('Périphériques modifiés'), {
           variant: 'warning',
-          okLabel: '🔄 Relancer QACRL',
-          cancelLabel: 'Plus tard'
+          okLabel: T('🔄 Relancer QACRL'),
+          cancelLabel: T('Plus tard')
         }).then(async (ok) => {
           closeModal();
           if (ok) { try { await window.api.relaunchApp(); } catch (e) {} }
         }).catch(closeModal);
       } else {
-        const ok = confirm(msg + '\n\nRelancer QACRL maintenant ?');
+        const ok = confirm(msg + '\n\n' + T('🔄 Relancer QACRL') + ' ?');
         closeModal();
         if (ok) { try { window.api.relaunchApp(); } catch (e) {} }
       }

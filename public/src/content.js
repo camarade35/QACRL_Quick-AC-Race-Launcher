@@ -482,9 +482,11 @@ function updateRecapSidebar() {
       // ⭐ Route selon le planner actif (Pure prioritaire, sinon Sol)
       const planner = getActivePlanner();
       const plannerLabel = (planner === 'sol') ? 'Sol' : 'Pure';
+      const T = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
 
       if (getChecked('pure-plan-random')) {
-        recapWeather.innerText = `Météo : Plan ${plannerLabel} aléatoire`;
+        const key = (planner === 'sol') ? 'Plan Sol aléatoire' : 'Plan Pure aléatoire';
+        recapWeather.innerText = 'Météo : ' + T(key);
       } else {
         const id = getValue('pure-plan-select');
         const list = (planner === 'sol')

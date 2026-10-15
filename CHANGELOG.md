@@ -17,6 +17,27 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [1.4.3] - 2026-10-15
+
+### ✨ Ajouté
+- **Internationalisation complète des nouveautés v1.4.x** : toutes les chaînes hardcodées en français sont désormais traduites via `I18n.tFr()` (fallback automatique).
+  - **Plans** : "Créé par QACRL", "Fichier Sol", messages "Aucun plan trouvé", "(CSP+Pure ou Sol requis)"
+  - **Récap sidebar** : "Plan Sol aléatoire" / "Plan Pure aléatoire"
+  - **Modale gamepad** : titre, message, boutons "🔄 Relancer QACRL" / "Plus tard"
+  - **Warning désync** : tout le message au lancement d'une course
+
+### 🔧 Modifié
+- `public/assets/i18n/en.json` : ~20 nouvelles clés dans `app.iniLabels`
+- `public/src/session.js` : strings `renderExistingPlans`, `updateWeatherUI`, `launchGame` passées par `I18n.tFr`
+- `public/src/content.js` : `updateRecapSidebar` idem
+- `public/app.js` : `_showGamepadWarning` idem
+
+### 📝 Notes
+- Le fichier `fr.json` reste inchangé : `I18n.tFr()` retourne le texte d'origine en mode FR.
+- Bascule FR ↔ EN live testée (les modales, récap, plans basculent instantanément).
+
+---
+
 ## [1.4.2] - 2026-10-15
 
 ### ✨ Ajouté
