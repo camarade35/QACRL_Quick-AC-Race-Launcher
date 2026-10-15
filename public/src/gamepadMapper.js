@@ -302,6 +302,47 @@
     return -1;
   }
 
+  /**
+   * ⭐ Retourne le mapping AC pour un axe Chromium donné,
+   *    ou null si le device/axe n'est pas connu.
+   *    Différent de chromiumAxisToAcAxis qui retourne l'index inchangé en fallback.
+   *
+   *    ORDRE DE PRIORITÉ (v1.4.1) :
+   *      1. Table hardcodée (fiable, testée manuellement par des users)
+   *      2. Profil appris (uniquement pour devices/axes NON répertoriés)
+   *      3. null (l'appelant décidera du fallback)
+   *
+   *    ⚠️ Avant v1.4.1, l'ordre était : learned > table.
+   *    Conséquence : un vieux profil appris corrompu pouvait écraser la table
+   *    à jamais. Maintenant la table est prioritaire.
+   *
+   *    Options :
+   *      - ignoreTable  : ignore la table (utile pour tests/diagnostics)
+   *      - ignoreLearned: ignore le profil appris (utile pour wizard)
+   */
+  function getAxisMapping(vendor, product, chromiumAxisIndex, options) {
+    if (vendor == null || product == null) return null;
+    const opts = options || {};
+    const key = (vendor + ':' + product).toLowerCase();
+    const map = AXIS_MAP_BY_DEVICE[key];
+
+    // ⭐ PRIORITÉ 1 : table hardcodée (source de vérité pour devices connus)
+    if (!opts.ignoreTable && map && map[chromiumAxisIndex] !== undefined) {
+      return map[chromiumAxisIndex];
+    }
+
+    // ⭐ PRIORITÉ 2 : profil appris (uniquement axes non répertoriés par la table)
+    if (!opts.ignoreLearned) {
+      if (_learnedProfiles && _learnedProfiles[key] && _learnedProfiles[key].axes) {
+        const learned = _learnedProfiles[key].axes[String(chromiumAxisIndex)];
+        if (learned !== undefined) return learned;
+      }
+    }
+
+    // ⭐ PRIORITÉ 3 : non connu
+    return null;
+  }
+
   function create(controlsIniSections) {
     const acControllers = parseAcControllers(controlsIniSections);
     return {
@@ -324,6 +365,7 @@
     matchAll,
     chromiumAxisToAcAxis,
     acAxisToChromiumAxis,
+    getAxisMapping,          // ⭐ nouveau
     isAxisBlocked,
     loadLearnedProfiles,
     refreshLearnedProfiles,

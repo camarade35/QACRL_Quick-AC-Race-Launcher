@@ -12,7 +12,23 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ### À venir
 - Undo fin (par option, pas global)
 - Détection auto de conflits CSP
-- Test install clean vers Pure (protocole)
+- Améliorations UX wizard volant (bouton reset axe, dropdown AC manuel)
+- Test in-game post-wizard
+
+---
+
+## [1.4.1] - 2026-10-15
+
+### 🐛 Corrigé (critique)
+- **Wizard volant — priorité table > profil appris** : la table hardcodée des devices (`AXIS_MAP_BY_DEVICE`) est maintenant prioritaire sur le profil appris. Avant ce fix, un profil appris corrompu pouvait écraser la table à jamais (cas typique : un premier wizard raté apprenait une mauvaise conversion, et tous les wizards suivants réutilisaient cette erreur). Impact concret : sur Fanatec CSL / ClubSport, le frein était systématiquement configuré sur `AXLE=2` (défaut AC manette) au lieu de `AXLE=5` (valeur réelle DirectInput).
+
+### 🔧 Modifié
+- `public/src/gamepadMapper.js` — `getAxisMapping()` réécrite avec options `ignoreTable` / `ignoreLearned`. La table gagne désormais sur le profil appris.
+- `public/src/wheelCalibration.js` — utilise `GamepadMapper.getAxisMapping()` pour convertir Chromium → AC avant de tomber sur les défauts AC.
+
+### 📝 Notes
+- Les profils appris corrompus existants sont automatiquement ignorés pour les devices connus de la table. Aucune action utilisateur requise.
+- Le profil appris reste utilisé pour les devices **non répertoriés** par la table.
 
 ---
 

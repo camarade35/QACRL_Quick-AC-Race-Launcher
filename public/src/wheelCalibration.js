@@ -622,13 +622,40 @@
       const step = state.steps.find(s => s.id === r.id);
       if (!step) continue;
 
-      // ⭐ AXLE=-1 = "non assigné" → on utilise la valeur par défaut
+      // ⭐ AXLE=-1 = "non assigné" → on tente d'abord la conversion
+      //    Chromium → AC via la table du device, PUIS les défauts AC.
       const isAssigned = (r.acAxis != null && r.acAxis >= 0);
-      const targetAcAxis = isAssigned
-        ? r.acAxis
-        : (DEFAULT_AC_AXIS[step.section] !== undefined
-            ? DEFAULT_AC_AXIS[step.section]
-            : r.chromiumAxis);
+      let targetAcAxis;
+
+      if (isAssigned) {
+        targetAcAxis = r.acAxis;
+      } else {
+        // 1) Conversion via table hardcodée / profil appris
+        let converted = null;
+        if (global.GamepadMapper && global.GamepadMapper.getAxisMapping
+            && state.device && state.device.vendor && state.device.product) {
+          converted = global.GamepadMapper.getAxisMapping(
+            state.device.vendor,
+            state.device.product,
+            r.chromiumAxis
+          );
+        }
+
+        if (converted !== null && converted !== undefined) {
+          targetAcAxis = converted;
+          console.log('[Wizard] ' + step.section +
+            ' : conversion Chromium ' + r.chromiumAxis + ' → AC ' + converted +
+            ' (table device)');
+        } else if (DEFAULT_AC_AXIS[step.section] !== undefined) {
+          // 2) Fallback défaut AC (manette standard)
+          targetAcAxis = DEFAULT_AC_AXIS[step.section];
+          console.log('[Wizard] ' + step.section +
+            ' : défaut AC ' + targetAcAxis + ' (device non répertorié)');
+        } else {
+          // 3) Dernier recours : index inchangé
+          targetAcAxis = r.chromiumAxis;
+        }
+      }
 
       axes[String(r.chromiumAxis)] = targetAcAxis;
       updates.push({
