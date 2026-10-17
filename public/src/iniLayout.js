@@ -412,8 +412,267 @@
     }
   };
 
+  // =========================================================================
+  // ⭐ v1.6.0 — Layouts ALTERNATIFS selon INPUT_METHOD
   // -------------------------------------------------------------------------
-  function getLayout(filename) { return LAYOUT[filename] || null; }
+  // Le layout principal (LAYOUT ci-dessus) reste celui de WHEEL, INCHANGÉ.
+  //
+  // Notes issues des fichiers de référence AC :
+  //   - X360Default.ini → mode manette. AXE sur [THROTTLE]/[BRAKES], XBOXBUTTON
+  //     sur les actions (boîte, caméra...). PAS de XBOXBUTTON dans les pédales.
+  //   - Default.ini → mode clavier. KEY=0xXX sur les sections boutons +
+  //     [KEYBOARD] pour les touches de conduite.
+  //
+  // ⭐ v1.6.0-4A — Enrichissement complet :
+  //   - X360 : 7 catégories (Direction / Périphériques / Pédales / Boîte /
+  //            Caméras / Signalisation & Énergie / Système)
+  //   - KEYBOARD : 5 catégories (Conduite / Souris / Boîte / Caméras /
+  //                Signalisation / Système)
+  // =========================================================================
+  const ALT_LAYOUTS = {
+    'controls.ini': {
+
+      // ---------------------------------------------------------------------
+      // 🎮 MODE MANETTE (X360)
+      // ---------------------------------------------------------------------
+      'X360': {
+        defaultTab: 'gamepad',
+        tabs: [
+          {
+            id: 'gamepad',
+            label: '🎮 Configuration Manette',
+            groups: [
+
+              // --- 1. Direction (joystick) ---
+              {
+                type: 'category',
+                label: '🎮 Direction (Joystick)',
+                hint: 'Joystick gauche ou droit, sensibilité et zone morte',
+                groups: [
+                  { type: 'single', section: 'X360', label: 'Réglages de l\'axe direction' }
+                ]
+              },
+
+              // --- 2. Périphériques (info + tête) ---
+              {
+                type: 'category',
+                label: '📡 Périphériques & Mode',
+                hint: 'Méthode de commande + devices AC',
+                groups: [
+                  { type: 'single', section: 'HEADER',      label: 'Méthode de commande' },
+                  { type: 'single', section: 'CONTROLLERS', label: 'Devices AC' }
+                ]
+              },
+
+              // --- 3. Pédales (axes analogiques RT/LT) ---
+              {
+                type: 'category',
+                label: '🕹️ Accélération & Freinage',
+                hint: 'Assigne RT/LT sur chaque axe (bouton 🎯 pour la capture)',
+                groups: [
+                  { type: 'pair', label: 'Accélérateur & Frein',
+                    sections: [
+                      { section: 'THROTTLE', label: 'Accélérateur (RT)' },
+                      { section: 'BRAKES',   label: 'Frein (LT)' }
+                    ]
+                  },
+                  { type: 'single', section: 'CLUTCH',    label: 'Embrayage' },
+                  { type: 'single', section: 'HANDBRAKE', label: 'Frein à main' }
+                ]
+              },
+
+              // --- 4. Boîte & réglages en course ---
+              {
+                type: 'category',
+                label: '⚙️ Boîte & Réglages en course',
+                groups: [
+                  { type: 'pair', label: 'Passage de vitesse',
+                    sections: [
+                      { section: 'GEARUP', label: '↑ Monter' },
+                      { section: 'GEARDN', label: '↓ Descendre' }
+                    ]
+                  },
+                  { type: 'single', section: 'REV',          label: 'Marche arrière' },
+                  { type: 'single', section: 'AUTO_SHIFTER', label: 'Boîte automatique' },
+                  { type: 'single', section: 'SHIFTER',      label: 'Levier de vitesses (H-shifter)' },
+                  { type: 'pair', label: 'Répartition du freinage',
+                    sections: [
+                      { section: 'BALANCEUP', label: '↑ Avant' },
+                      { section: 'BALANCEDN', label: '↓ Arrière' }
+                    ]
+                  },
+                  { type: 'pair', label: 'Contrôle de traction (TC)',
+                    sections: [
+                      { section: 'TCUP', label: '↑ Augmenter' },
+                      { section: 'TCDN', label: '↓ Diminuer' }
+                    ]
+                  },
+                  { type: 'single', section: 'ABS', label: 'ABS (activer / désactiver)' }
+                ]
+              },
+
+              // --- 5. Caméras & Vues ---
+              {
+                type: 'category',
+                label: '📷 Caméras & Vues',
+                groups: [
+                  { type: 'single', section: 'ACTION_CHANGE_CAMERA', label: 'Changer de caméra' },
+                  { type: 'pair', label: 'Regarder autour',
+                    sections: [
+                      { section: 'GLANCELEFT',  label: '← Gauche' },
+                      { section: 'GLANCERIGHT', label: '→ Droite' }
+                    ]
+                  },
+                  { type: 'single', section: 'GLANCEBACK', label: 'Regarder derrière' }
+                ]
+              },
+
+              // --- 6. Signalisation & Énergie ---
+              {
+                type: 'category',
+                label: '💡 Signalisation & Énergie',
+                groups: [
+                  { type: 'single', section: 'ACTION_HORN',       label: 'Klaxon' },
+                  { type: 'single', section: 'ACTION_HEADLIGHTS', label: 'Phares' },
+                  { type: 'single', section: 'KERS',              label: 'KERS' },
+                  { type: 'single', section: 'DRS',               label: 'DRS' }
+                ]
+              }
+            ]
+          },
+          {
+            id: 'advanced-x360',
+            label: '⚙️ Système',
+            isFallback: true,
+            groups: [
+              {
+                type: 'category',
+                label: '🔧 Options système',
+                groups: [
+                  { type: 'single', section: 'ADVANCED', label: 'Options avancées' }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+
+      // ---------------------------------------------------------------------
+      // ⌨️ MODE CLAVIER (KEYBOARD)
+      // ---------------------------------------------------------------------
+      'KEYBOARD': {
+        defaultTab: 'keyboard',
+        tabs: [
+          {
+            id: 'keyboard',
+            label: '⌨️ Configuration Clavier',
+            groups: [
+
+              // --- 1. Conduite (essentiels) ---
+              {
+                type: 'category',
+                label: '⌨️ Conduite',
+                hint: 'Les 4 touches essentielles + réglages de direction',
+                groups: [
+                  { type: 'single', section: 'KEYBOARD', label: 'Touches & direction' }
+                ]
+              },
+
+              // --- 2. Périphériques (info) ---
+              {
+                type: 'category',
+                label: '📡 Périphériques & Mode',
+                groups: [
+                  { type: 'single', section: 'HEADER',      label: 'Méthode de commande' },
+                  { type: 'single', section: 'CONTROLLERS', label: 'Devices AC' }
+                ]
+              },
+
+              // --- 3. Boîte & Actions ---
+              {
+                type: 'category',
+                label: '⚙️ Boîte & Actions',
+                groups: [
+                  { type: 'pair', label: 'Passage de vitesse',
+                    sections: [
+                      { section: 'GEARUP', label: '↑ Monter' },
+                      { section: 'GEARDN', label: '↓ Descendre' }
+                    ]
+                  },
+                  { type: 'single', section: 'REV',          label: 'Marche arrière' },
+                  { type: 'single', section: 'HANDBRAKE',    label: 'Frein à main' },
+                  { type: 'single', section: 'AUTO_SHIFTER', label: 'Boîte automatique' },
+                  { type: 'single', section: 'ABS',          label: 'ABS' }
+                ]
+              },
+
+              // --- 4. Caméras & Vues ---
+              {
+                type: 'category',
+                label: '📷 Caméras & Vues',
+                groups: [
+                  { type: 'single', section: 'ACTION_CHANGE_CAMERA', label: 'Changer de caméra' },
+                  { type: 'pair', label: 'Regarder autour',
+                    sections: [
+                      { section: 'GLANCELEFT',  label: '← Gauche' },
+                      { section: 'GLANCERIGHT', label: '→ Droite' }
+                    ]
+                  },
+                  { type: 'single', section: 'GLANCEBACK', label: 'Regarder derrière' }
+                ]
+              },
+
+              // --- 5. Signalisation ---
+              {
+                type: 'category',
+                label: '💡 Signalisation',
+                groups: [
+                  { type: 'single', section: 'ACTION_HORN',       label: 'Klaxon' },
+                  { type: 'single', section: 'ACTION_HEADLIGHTS', label: 'Phares' }
+                ]
+              }
+            ]
+          },
+          {
+            id: 'advanced-kb',
+            label: '⚙️ Système',
+            isFallback: true,
+            groups: [
+              {
+                type: 'category',
+                label: '🔧 Options système',
+                groups: [
+                  { type: 'single', section: 'ADVANCED', label: 'Options avancées' }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // ⭐ v1.6.0 — getLayout() accepte maintenant un 2e paramètre `options`
+  //    avec `options.inputMethod` ∈ { 'WHEEL', 'X360', 'KEYBOARD' }.
+  //
+  //    - WHEEL (ou absent) → LAYOUT principal (comportement v1.5.0 inchangé)
+  //    - X360 / KEYBOARD    → ALT_LAYOUTS si dispo pour ce fichier,
+  //                            sinon fallback sur LAYOUT principal
+  // -------------------------------------------------------------------------
+  function getLayout(filename, options) {
+    const method = (options && options.inputMethod)
+      ? String(options.inputMethod).toUpperCase()
+      : 'WHEEL';
+
+    // Mode non-WHEEL → cherche d'abord dans les layouts alternatifs
+    if (method !== 'WHEEL' && ALT_LAYOUTS[filename] && ALT_LAYOUTS[filename][method]) {
+      return ALT_LAYOUTS[filename][method];
+    }
+
+    // Fallback : layout principal (WHEEL ou autre fichier non concerné)
+    return LAYOUT[filename] || null;
+  }
 
   function getTabForSection(filename, sectionName) {
     const layout = LAYOUT[filename];
@@ -452,7 +711,73 @@
     return list.indexOf(sectionName) !== -1;
   }
 
-  function isKeyExcluded(filename, sectionName, keyName) {
+  // ⭐ v1.6.0 — Filtrage des clés de binding selon le mode
+  //    En X360 → seul XBOXBUTTON a du sens (les JOY/BUTTON/KEY sont des
+  //    bindings parallèles pour d'autres périphériques).
+  //    En KEYBOARD → seul KEY a du sens.
+  //    En WHEEL → pas de XBOXBUTTON (c'est un volant).
+  //
+  //    ⚠️ EXCEPTIONS : les sections analogiques (THROTTLE, BRAKES, CLUTCH,
+  //    HANDBRAKE) gardent AXLE/MIN/MAX/GAMMA même en X360 (les gâchettes
+  //    analogiques sont bindées sur des axes).
+  const HIDE_KEYS_BY_METHOD = {
+    'controls.ini': {
+      'X360': {
+        // En manette, on cache tout ce qui concerne volant/clavier
+        'global': ['JOY', 'JOY_MODIFICATOR', 'BUTTON', 'BUTTON_MODIFICATOR',
+                   'KEY', 'KEY_MODIFICATOR'],
+        // Sauf dans ces sections où AXLE/MIN/MAX/GAMMA restent utiles
+        'keepAxesIn': ['STEER', 'THROTTLE', 'BRAKES', 'CLUTCH', 'HANDBRAKE'],
+      },
+      'KEYBOARD': {
+        // En clavier, on cache tout sauf KEY
+        'global': ['JOY', 'JOY_MODIFICATOR', 'BUTTON', 'BUTTON_MODIFICATOR',
+                   'XBOXBUTTON', 'AXLE'],
+      },
+      'WHEEL': {
+        // En volant, on cache XBOXBUTTON (peu pertinent pour un volant)
+        'global': ['XBOXBUTTON'],
+      },
+    },
+  };
+
+  function isKeyExcludedByMethod(filename, sectionName, keyName, inputMethod) {
+    if (!inputMethod) return false;
+    const byFile = HIDE_KEYS_BY_METHOD[filename];
+    if (!byFile) return false;
+    const byMethod = byFile[String(inputMethod).toUpperCase()];
+    if (!byMethod) return false;
+
+    // Exception : les sections "axes" gardent AXLE/MIN/MAX/GAMMA même en X360
+    if (byMethod.keepAxesIn && byMethod.keepAxesIn.indexOf(sectionName) !== -1) {
+      const axisKeys = ['AXLE', 'MIN', 'MAX', 'GAMMA', 'SCALE', 'LOCK',
+                        'STEER_GAMMA', 'STEER_FILTER', 'SPEED_SENSITIVITY',
+                        'DEBOUNCING_MS', 'FF_GAIN', 'FILTER_FF'];
+      if (axisKeys.indexOf(keyName) !== -1) return false;
+      // ⭐ v1.6.0 — Les gâchettes RT/LT sont des AXES, pas des boutons
+      //    nommés. On cache XBOXBUTTON dans les sections pédales même en X360.
+      if (keyName === 'XBOXBUTTON') return true;
+    }
+
+    return (byMethod.global || []).indexOf(keyName) !== -1;
+  }
+
+  function isKeyExcluded(filename, sectionName, keyName, inputMethod) {
+    // ⭐ v1.6.1 — Masquer le JOY pour TOUS les boutons/actions.
+    //    Le JOY n'est utile QUE pour les axes analogiques (volant, pédales, shifter).
+    //    Pour les boutons, c'est la capture (🎯) qui définit le périphérique automatiquement.
+    if (filename === 'controls.ini' && keyName === 'JOY') {
+      const axisSections = ['STEER', 'THROTTLE', 'BRAKES', 'CLUTCH', 'HANDBRAKE', 'SHIFTER'];
+      if (!axisSections.includes(sectionName)) {
+        return true; // On cache le dropdown JOY pour ACTION_HEADLIGHTS, GEARUP, etc.
+      }
+    }
+
+    // ⭐ v1.6.0 — Check du mode courant
+    if (inputMethod && isKeyExcludedByMethod(filename, sectionName, keyName, inputMethod)) {
+      return true;
+    }
+
     const byFile = EXCLUDED_KEYS[filename];
     if (!byFile) return false;
     const list = byFile[sectionName];
@@ -464,8 +789,9 @@
    * ⭐ Retourne un Set de TOUTES les sections référencées dans le layout
    *    (peu importe l'onglet). Utilisé pour le fallback "Autres sections".
    */
-  function getAllUsedSections(filename) {
-    const layout = LAYOUT[filename];
+  function getAllUsedSections(filename, options) {
+    // ⭐ v1.6.0 — Utilise getLayout pour respecter inputMethod
+    const layout = getLayout(filename, options);
     const used = new Set();
     if (!layout) return used;
     for (const tab of layout.tabs) {
@@ -505,7 +831,11 @@
     return false;
   }
 
-  const API = { getLayout, getTabForSection, getAllUsedSections, isKeyExcluded, isSectionExcluded, LAYOUT };
+  const API = {
+    getLayout, getTabForSection, getAllUsedSections, isKeyExcluded, isSectionExcluded,
+    LAYOUT,
+    ALT_LAYOUTS,        // ⭐ v1.6.0 — pour debug / tests
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof global !== 'undefined') global.IniLayout = API;
 })(typeof window !== 'undefined' ? window : globalThis);

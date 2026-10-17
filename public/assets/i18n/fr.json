@@ -326,7 +326,31 @@
         "pasteLink": "💡 Colle un lien copié depuis un site (ex : <code>acstuff.club</code>), un raccourci <code>acmanager://</code>, ou une simple adresse <code>IP:PORT</code>. Le launcher trouve automatiquement le port de jeu."
       }
     },
-    "iniLabels": {},
+    "iniLabels": {
+      "Croix ↑": "Croix ↑",
+      "Croix ↓": "Croix ↓",
+      "Croix ←": "Croix ←",
+      "Croix →": "Croix →",
+      "Croix directionnelle": "Croix directionnelle",
+      "Cliquer pour assigner": "Cliquer pour assigner",
+      "Appuie sur un bouton de la manette": "Appuie sur un bouton de la manette",
+      "Appuie sur un bouton…": "Appuie sur un bouton…",
+      "Module de capture non disponible.": "Module de capture non disponible.",
+      "Gâchette haute G (LB)": "Gâchette haute G (LB)",
+      "Gâchette haute D (RB)": "Gâchette haute D (RB)",
+      "Clic stick G": "Clic stick G",
+      "Clic stick D": "Clic stick D",
+      "Gâchette": "Gâchette",
+      "Cliquer pour capturer un mouvement de gâchette": "Cliquer pour capturer un mouvement de gâchette",
+      "Cliquer pour capturer": "Cliquer pour capturer",
+      "Inverser la course de la gâchette (swap MIN/MAX)": "Inverser la course de la gâchette (swap MIN/MAX)",
+      "Reconfigurer avec le wizard guidé": "Reconfigurer avec le wizard guidé",
+      "Le wizard de calibration n'est pas disponible.": "Le wizard de calibration n'est pas disponible.",
+      "Volants + accessoires (mode Volant)": "Volants + accessoires (mode Volant)",
+      "Manettes + accessoires (mode Manette)": "Manettes + accessoires (mode Manette)",
+      "Wizard indisponible pour les accessoires (handbrake, shifter, pédalier custom). Chromium ne les expose pas — utilise le menu déroulant AXE.": "Wizard indisponible pour les accessoires (handbrake, shifter, pédalier custom). Chromium ne les expose pas — utilise le menu déroulant AXE.",
+      "Cet accessoire (handbrake, shifter, pédalier custom) n'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur.": "Cet accessoire (handbrake, shifter, pédalier custom) n'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur."
+    },
     "setup": {
       "steps": {
         "welcome": "Bienvenue",

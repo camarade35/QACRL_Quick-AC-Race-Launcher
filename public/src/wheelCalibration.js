@@ -13,6 +13,24 @@
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+  // ⭐ v1.6.0 — Wrapper i18n pour les nouvelles chaînes du wizard
+  function T(s) {
+    if (!s) return '';
+    return (global.I18n && global.I18n.tFr) ? global.I18n.tFr(s) : s;
+  }
+
+  // ⭐ v1.6.0 — Détecte si un ID Chromium ressemble à une manette (pas un volant)
+  //    Les manettes XInput n'exposent pas Vendor/Product → pattern fallback.
+  function looksLikeGamepad(chromiumId) {
+    if (!chromiumId) return false;
+    const s = String(chromiumId).toLowerCase();
+    // Marqueurs typiques des manettes dans les IDs Chromium
+    if (/xbox|xinput|gamepad|dualsense|dualshock|joy-?con|nintendo|switch/.test(s)) return true;
+    // IDs sans Vendor/Product : les manettes XInput n'en exposent pas
+    if (!/vendor:/.test(s) && !/product:/.test(s)) return true;
+    return false;
+  }
+
   function snapshotAll() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     return pads.map(p => p ? p.axes.slice() : null);
@@ -123,7 +141,7 @@
         if (!resolved) {
           resolved = true;
           global.GamepadCapture.stop();
-          reject(new Error('Aucun mouvement détecté (15s). Bouge un peu le volant ou appuie sur une pédale.'));
+          reject(new Error(T('Aucun mouvement détecté (15s). Bouge un peu le volant ou appuie sur une pédale.')));
         }
       }, 15000);
 
@@ -139,15 +157,40 @@
 
           const pads = navigator.getGamepads();
           const pad = pads[r.chromiumIndex];
-          if (!pad) return reject(new Error('Pad introuvable'));
+          if (!pad) return reject(new Error(T('Périphérique introuvable (index Chromium invalide).')));
+
           const vp = global.GamepadMapper.parseChromiumGamepadId(pad.id);
-          if (!vp) return reject(new Error('Device non identifié (Vendor/Product absents).'));
+
+          // ⭐ v1.6.0 — Message clair si c'est une manette, pas un volant
+          if (!vp) {
+            const padId = pad.id || '(ID inconnu)';
+
+            if (looksLikeGamepad(padId)) {
+              // Manette détectée → on guide l'utilisateur vers la bonne section
+              return reject(new Error(
+                T('🎮 Aucun volant détecté.') + '\n\n' +
+                T('Le périphérique identifié est une manette :') + '\n' +
+                '« ' + padId + ' »\n\n' +
+                T('Ce wizard est réservé aux volants Fanatec / Logitech / Thrustmaster / etc.') + '\n\n' +
+                T('👉 Pour configurer ta manette, utilise la section « Configuration Manette » dans Paramètres → Contrôles.')
+              ));
+            }
+
+            // Device vraiment inconnu (ni volant ni manette identifiable)
+            return reject(new Error(
+              T('❓ Périphérique non identifié.') + '\n\n' +
+              'ID Chromium : « ' + padId + ' »\n\n' +
+              T('Ce wizard nécessite un volant dont l\'ID Vendor/Product est exposé par Chromium.') + '\n\n' +
+              T('👉 Si tu utilises une manette, va dans Paramètres → Contrôles → Configuration Manette.')
+            ));
+          }
+
           resolve({ vendor: vp.vendor, product: vp.product, chromiumIndex: r.chromiumIndex, padId: pad.id });
         },
         onCancel: () => {
           if (resolved) return;
           resolved = true; clearTimeout(timeout);
-          reject(new Error('Détection annulée'));
+          reject(new Error(T('Détection annulée')));
         }
       });
     });
@@ -846,16 +889,55 @@
   // ---------------------------------------------------------------------------
   function renderError(message) {
     stopLive();
+
+    // ⭐ v1.6.0 — Convertit les retours à la ligne en <br> pour un affichage propre
+    //    et échappe le HTML basique (anti-injection accidentelle).
+    const safeHtml = String(message || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>');
+
+    // ⭐ v1.6.0 — Détecte les erreurs "manette" pour adapter l'UI
+    const isGamepadError = /manette|gamepad|configuration manette/i.test(message);
+
     elements.content.innerHTML =
       '<div class="wheel-calib-step">' +
-        '<div class="wheel-calib-icon">⚠️</div>' +
-        '<h3>Oups</h3><p>' + message + '</p>' +
+        '<div class="wheel-calib-icon">' + (isGamepadError ? '🎮' : '⚠️') + '</div>' +
+        '<h3>' + (isGamepadError ? T('Ce wizard est réservé aux volants') : 'Oups') + '</h3>' +
+        '<p style="white-space:pre-line;text-align:left;max-width:520px;">' + safeHtml + '</p>' +
       '</div>';
-    elements.footer.innerHTML =
-      '<button class="filter-btn" id="wheel-calib-retry">↶ Réessayer</button>' +
-      '<button class="filter-btn" id="wheel-calib-close-err">Fermer</button>';
-    document.getElementById('wheel-calib-retry').addEventListener('click', () => start());
-    document.getElementById('wheel-calib-close-err').addEventListener('click', close);
+
+    // ⭐ Boutons adaptés : si manette → propose d'aller aux Contrôles
+    let footerHtml = '';
+    if (isGamepadError) {
+      footerHtml += '<button class="filter-btn" id="wheel-calib-close-err">Fermer</button>';
+      footerHtml += '<button class="filter-btn ini-btn-save" id="wheel-calib-goto-controls">🎮 Aller aux Contrôles</button>';
+    } else {
+      footerHtml += '<button class="filter-btn" id="wheel-calib-retry">↶ Réessayer</button>';
+      footerHtml += '<button class="filter-btn" id="wheel-calib-close-err">Fermer</button>';
+    }
+    elements.footer.innerHTML = footerHtml;
+
+    if (isGamepadError) {
+      const gotoBtn = document.getElementById('wheel-calib-goto-controls');
+      if (gotoBtn) gotoBtn.addEventListener('click', () => {
+        close();
+        // Bascule sur l'onglet Paramètres > Contrôles
+        const settingsBtn = document.querySelector('.tab-btn[onclick*="tab-settings"]');
+        if (settingsBtn) settingsBtn.click();
+        setTimeout(() => {
+          const controlsBtn = document.querySelector('.subtab-btn[onclick*="subtab-settings-controls"]');
+          if (controlsBtn) controlsBtn.click();
+        }, 100);
+      });
+    } else {
+      const retryBtn = document.getElementById('wheel-calib-retry');
+      if (retryBtn) retryBtn.addEventListener('click', () => start());
+    }
+
+    const closeBtn = document.getElementById('wheel-calib-close-err');
+    if (closeBtn) closeBtn.addEventListener('click', close);
   }
 
   // ---------------------------------------------------------------------------

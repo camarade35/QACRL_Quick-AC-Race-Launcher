@@ -156,26 +156,99 @@
       }
 
       case 'binding': {
-        // JOY / JOY_MODIFICATOR : menu déroulant
+        // JOY / JOY_MODIFICATOR : menu déroulant (⭐ v1.6.0-UX : filtré par mode)
         if ((opts.key === 'JOY' || opts.key === 'JOY_MODIFICATOR') && opts.sectionContext) {
-          const controllers = opts.sectionContext.controllers || [];
+          const allControllers = opts.sectionContext.controllers || [];
+          const inputMethod = String(opts.currentInputMethod || '').toUpperCase();
+
+          // Filtre selon le mode courant :
+          //   - WHEEL → wheels d'abord, puis accessoires (other)
+          //   - X360  → gamepads d'abord, puis accessoires (other)
+          //   - autres → tout
+          //
+          // ⭐ v1.6.0-fix-other — Les devices "other" (frein à main ODDOR,
+          //    shifter DIY, pédaliers custom…) sont désormais INCLUS dans la
+          //    liste, sinon impossible de les assigner en mode X360/WHEEL
+          //    (ex : frein à main ODDOR classé "other" disparaissait du
+          //    dropdown JOY → utilisateur bloqué, JOY=0 pointait sur Xbox
+          //    au lieu d'ODDOR sans que l'utilisateur puisse corriger).
+          let filtered = allControllers;
+          let filterLabel = null;
+          if (inputMethod === 'WHEEL') {
+            const primary     = allControllers.filter(c => c.type === 'wheel');
+            const accessories = allControllers.filter(c => c.type === 'other');
+            filtered = primary.concat(accessories);
+            filterLabel = T('Volants + accessoires (mode Volant)');
+          } else if (inputMethod === 'X360') {
+            const primary     = allControllers.filter(c => c.type === 'gamepad');
+            const accessories = allControllers.filter(c => c.type === 'other');
+            filtered = primary.concat(accessories);
+            filterLabel = T('Manettes + accessoires (mode Manette)');
+          }
+
           const sel = el('select', { class: 'ini-select' });
           const none = el('option', { value: '-1', text: '— ' + T('Aucun') + ' —' });
           if (rawValue === '-1') none.selected = true;
           sel.appendChild(none);
+
           let matched = false;
-          for (const c of controllers) {
-            const labelTxt = 'JOY=' + c.index + ' — ' + c.name;
+
+          // Options filtrées
+          for (const c of filtered) {
+            // ⭐ v1.6.0-fix-other — Préfixe visuel pour les accessoires
+            //    (handbrake, shifter, pédalier custom… classés "other")
+            const prefix = (c.type === 'other' && inputMethod && inputMethod !== 'KEYBOARD')
+              ? '🔧 '
+              : '';
+            const labelTxt = prefix + 'JOY=' + c.index + ' — ' + c.name;
             const opt = el('option', { value: String(c.index), text: labelTxt });
             if (String(c.index) === String(rawValue)) { opt.selected = true; matched = true; }
             sel.appendChild(opt);
           }
+
+          // ⭐ Si la valeur actuelle n'est PAS dans la liste filtrée → ajoute-la
+          //    en haut avec un warning, pour que l'utilisateur voie l'incohérence
           if (!matched && rawValue && rawValue !== '-1') {
-            const opt = el('option', { value: rawValue, text: 'JOY=' + rawValue + ' (' + T('inconnu') + ')' });
-            opt.selected = true;
-            sel.appendChild(opt);
+            const current = allControllers.find(c => String(c.index) === String(rawValue));
+            if (current) {
+              const typeLabel = current.type === 'wheel' ? T('volant')
+                              : current.type === 'gamepad' ? T('manette')
+                              : T('inconnu');
+              const opt = el('option', {
+                value: rawValue,
+                text: '⚠️ JOY=' + rawValue + ' — ' + current.name + ' (' + typeLabel + ')',
+              });
+              opt.selected = true;
+              opt.style.color = '#e6a33b';
+              sel.insertBefore(opt, none.nextSibling);
+            } else {
+              const opt = el('option', {
+                value: rawValue,
+                text: 'JOY=' + rawValue + ' (' + T('non détecté') + ')',
+              });
+              opt.selected = true;
+              opt.style.color = '#e6a33b';
+              sel.insertBefore(opt, none.nextSibling);
+            }
           }
+
+          // Hint si aucun device du bon type n'existe
+          if (filtered.length === 0 && inputMethod) {
+            const emptyOpt = el('option', {
+              value: '',
+              text: '⚠️ ' + T('Aucun device détecté pour ce mode'),
+            });
+            emptyOpt.disabled = true;
+            sel.appendChild(emptyOpt);
+          }
+
           sel.addEventListener('change', () => { if (opts.onChange) opts.onChange(sel.value); });
+
+          // ⭐ v1.6.0-UX — Ajoute un petit hint au-dessus si filtré
+          if (filterLabel && filtered.length > 0) {
+            sel.title = filterLabel;
+          }
+
           controlEl = sel;
           getValue = () => sel.value;
           break;
@@ -234,21 +307,53 @@
           let currentValue = rawValue;
           const btn = el('button', { type: 'button', class: 'ini-binding-btn ini-binding-pad' });
           let capturing = false;
+
           const updateLabel = () => {
             const n = parseInt(currentValue, 10);
-            btn.textContent = (!isNaN(n) && n >= 0) ? '🎮 ' + T('Bouton') + ' ' + n : '🎮 (' + T('aucun') + ')';
+            let deviceName = '';
+            if (opts.sectionHelpers) {
+              const joyStr = opts.sectionHelpers.getValue('JOY');
+              const joyIndex = parseInt(joyStr, 10);
+              if (!isNaN(joyIndex) && joyIndex >= 0) {
+                const ctrlList = (opts.sectionContext && opts.sectionContext.controllers) || [];
+                const c = ctrlList.find(x => String(x.index) === String(joyIndex));
+                if (c) deviceName = ' (' + c.name + ')';
+              }
+            }
+            btn.textContent = (!isNaN(n) && n >= 0) ? '🎮 ' + T('Bouton') + ' ' + n + deviceName : '🎮 (' + T('aucun') + ')';
           };
           updateLabel();
+
           const stopCapture = () => {
             capturing = false;
             btn.classList.remove('capturing');
             if (global.GamepadCapture.isCapturing()) global.GamepadCapture.stop();
             updateLabel();
           };
+
           const startCapture = () => {
             capturing = true;
             btn.classList.add('capturing');
             btn.textContent = T('🎮 Appuyez sur un bouton du pad… (Échap annule, Suppr efface)');
+
+            let captured = false;
+            const onButtonCaptured = (buttonIndex, acIndex) => {
+              if (captured) return;
+              captured = true;
+              currentValue = String(buttonIndex);
+              
+              if (acIndex != null && opts.sectionHelpers) {
+                opts.sectionHelpers.setValue('JOY', String(acIndex));
+              }
+
+              updateLabel();
+              if (opts.onChange) opts.onChange(currentValue);
+              if (global.GamepadCapture.isCapturing()) global.GamepadCapture.stop();
+              if (global.GamepadHidCapture) global.GamepadHidCapture.stop();
+              stopCapture();
+            };
+
+            // 1. Capture standard Chromium
             global.GamepadCapture.start({
               axesThreshold: 0, timeoutMs: 10000,
               resolveAcIndex: (chromiumIndex) => {
@@ -258,21 +363,42 @@
               },
               onCapture: (r) => {
                 if (r.kind !== 'button') return;
-                currentValue = String(r.buttonIndex);
-                updateLabel();
-                if (opts.onChange) opts.onChange(currentValue);
+                onButtonCaptured(r.buttonIndex, r.acIndex);
               },
-              onCancel: () => stopCapture()
+              onCancel: () => {
+                // On ne fait rien si c'est l'autre capture qui a réussi
+                if (!captured) stopCapture();
+              }
             });
+
+            // 2. Capture WebHID (pour SparkFun et DIY)
+            if (global.GamepadHidCapture) {
+              global.GamepadHidCapture.start({
+                timeoutMs: 10000,
+                onCapture: (r) => {
+                  let acIndex = null;
+                  const ctrlList = (opts.sectionContext && opts.sectionContext.controllers) || [];
+                  const devName = r.device.productName || '';
+                  const match = ctrlList.find(c => c.name === devName || c.name.includes(devName) || devName.includes(c.name));
+                  if (match) acIndex = match.index;
+                  
+                  onButtonCaptured(r.buttonIndex, acIndex);
+                },
+                onCancel: () => {}
+              }).catch(() => {});
+            }
+
             const escHandler = (e) => {
               if (e.key === 'Escape' && capturing) {
                 e.preventDefault(); e.stopPropagation();
                 document.removeEventListener('keydown', escHandler, true);
+                if (global.GamepadHidCapture) global.GamepadHidCapture.stop();
                 stopCapture();
               }
             };
             document.addEventListener('keydown', escHandler, true);
           };
+
           btn.addEventListener('click', () => { capturing ? stopCapture() : startCapture(); });
           controlEl = btn;
           getValue = () => currentValue;
@@ -281,6 +407,39 @@
 
         // AXE analogique
         if (isAxis && global.GamepadCapture && opts.gamepadMapper && opts.sectionHelpers) {
+
+          // ⭐ v1.6.0-W4C — Widget AxisCapture dédié aux sections pédales en mode X360
+          // ⭐ v1.6.0-final — CORRECTION : en mode X360, AC utilise les gâchettes
+          //    XInput NATIVES (LT/RT hardcodées au moteur). Les AXLE du fichier
+          //    sont des artefacts ignorés. On affiche donc un badge READ-ONLY.
+          const isPedalSection = ['THROTTLE', 'BRAKES', 'CLUTCH', 'HANDBRAKE'].indexOf(opts.section) !== -1;
+          const isX360Mode = String(opts.currentInputMethod || '').toUpperCase() === 'X360';
+
+          if (isPedalSection && isX360Mode) {
+            // Badge read-only : informatif uniquement
+            const nativeLabel = (opts.section === 'THROTTLE') ? 'RT'
+                              : (opts.section === 'BRAKES')   ? 'LT'
+                              : (opts.section === 'CLUTCH')   ? 'LT (partagé)'
+                              : (opts.section === 'HANDBRAKE') ? 'Bouton B'
+                              : 'natif';
+
+            const badge = el('div', {
+              class: 'ini-readonly-badge',
+              title: T('En mode Manette, AC utilise les gâchettes XInput natives (RT/LT). Ces valeurs sont ignorées en jeu.'),
+            });
+            badge.innerHTML = '🎮 <strong>' + nativeLabel + '</strong> — ' +
+                              T('Gâchette native XInput (mappage fixe)');
+
+            const wrap = el('div', { class: 'ini-axis-x360-wrap' }, [badge]);
+
+            // ⚠️ On stocke la valeur pour compat mais elle ne sera jamais modifiée
+            controlEl = wrap;
+            getValue = () => rawValue;
+            break;
+          }
+
+
+          // ─── Widget AXLE standard (comportement historique) ───
           let currentValue = rawValue;
           const btn = el('button', { type: 'button', class: 'ini-binding-btn ini-binding-axis' });
           let capturing = false;
@@ -408,21 +567,50 @@
           });
 
           // ⭐ Bouton "Reconfigurer cet axe" (mini-wizard)
+          // ⭐ v1.6.0-fix-other — Le wizard est DÉSACTIVÉ pour les devices "other"
+          //    (handbrake, shifter DIY, pédaliers custom…). Ces périphériques
+          //    n'apparaissent PAS dans navigator.getGamepads() → Chromium ne
+          //    les voit pas → le wizard capturerait un axe d'un AUTRE device
+          //    (ex: embrayage du Fanatec) et écraserait le bon axe.
           const reconfigBtn = el('button', {
             type: 'button',
             class: 'ini-axis-reconfig',
             title: T('Reconfigurer cet axe avec le wizard guidé')
           });
           reconfigBtn.textContent = '🎯';
-          reconfigBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (global.WheelCalibration && typeof global.WheelCalibration.startSingleStep === 'function') {
-              global.WheelCalibration.startSingleStep(opts.section);
-            } else {
-              alert(T('Le wizard de calibration n\'est pas disponible.'));
-            }
-          });
+
+          // Détermine si le device JOY courant est un "other" (accessoire)
+          // ⭐ FIX : opts.sectionHelpers (pas sectionHelpers)
+          const currentJoyStr = opts.sectionHelpers
+            ? opts.sectionHelpers.getValue('JOY')
+            : null;
+          const currentCtl = (opts.sectionContext && Array.isArray(opts.sectionContext.controllers))
+            ? opts.sectionContext.controllers.find(c => String(c.index) === String(currentJoyStr))
+            : null;
+          const isOtherDevice = currentCtl && currentCtl.type === 'other';
+
+          if (isOtherDevice) {
+            // Bouton grisé + tooltip explicatif
+            reconfigBtn.disabled = true;
+            reconfigBtn.style.opacity = '0.35';
+            reconfigBtn.style.cursor = 'not-allowed';
+            reconfigBtn.title = T('Wizard indisponible pour les accessoires (handbrake, shifter, pédalier custom). Chromium ne les expose pas — utilise le menu déroulant AXE.');
+            reconfigBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              alert(T('Cet accessoire (handbrake, shifter, pédalier custom) n\'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d\'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur.'));
+            });
+          } else {
+            reconfigBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (global.WheelCalibration && typeof global.WheelCalibration.startSingleStep === 'function') {
+                global.WheelCalibration.startSingleStep(opts.section);
+              } else {
+                alert(T('Le wizard de calibration n\'est pas disponible.'));
+              }
+            });
+          }
 
           // ⭐ Sync final : garde le select aligné sur currentValue
           const _baseUpdateLabel = updateLabel;
@@ -514,25 +702,233 @@
           break;
         }
 
-        // XBOXBUTTON
+        // ⭐ v1.6.0-W2 — XBOXBUTTON : widget visuel avec capture automatique
+        // ⭐ v1.6.0-W2b — Variante DpadPicker : grille croisée pour les sections
+        //    de navigation (GLANCE*, ACTION_CHANGE_CAMERA).
         if (opts.key === 'XBOXBUTTON') {
+          // Sections qui bénéficient d'une grille croisée
+          const DPAD_SECTIONS = ['GLANCELEFT', 'GLANCERIGHT', 'GLANCEBACK', 'ACTION_CHANGE_CAMERA'];
+          const isDpadFriendly = DPAD_SECTIONS.indexOf(opts.section) !== -1;
+
+          let currentValue = rawValue || '-1';
+
+          // Métadonnées visuelles par bouton AC
+          const BTN_META = {
+            '-1':         { icon: '⭕', label: T('Aucun') },
+            'A':          { icon: '🅰️', label: 'A' },
+            'B':          { icon: '🅱️', label: 'B' },
+            'X':          { icon: '❎', label: 'X' },
+            'Y':          { icon: '🟡', label: 'Y' },
+            'LSHOULDER':  { icon: '🔼', label: T('Gâchette haute G (LB)') },
+            'RSHOULDER':  { icon: '🔼', label: T('Gâchette haute D (RB)') },
+            'LTHUMB':     { icon: '🕹️', label: T('Clic stick G') },
+            'RTHUMB':     { icon: '🕹️', label: T('Clic stick D') },
+            'BACK':       { icon: '⏪', label: 'Back' },
+            'START':      { icon: '⏩', label: 'Start' },
+            'DPAD_UP':    { icon: '⬆️', label: T('Croix ↑') },
+            'DPAD_DOWN':  { icon: '⬇️', label: T('Croix ↓') },
+            'DPAD_LEFT':  { icon: '⬅️', label: T('Croix ←') },
+            'DPAD_RIGHT': { icon: '➡️', label: T('Croix →') },
+          };
+          const getMeta = (v) => BTN_META[v] || { icon: '❔', label: v || '?' };
+
+          // ─── Afficheur (commun aux 2 variantes) ───
+          const display = el('div', { class: 'ini-xbox-display' });
+          const displayIcon = el('span', { class: 'ini-xbox-display-icon' });
+          const displayLabel = el('span', { class: 'ini-xbox-display-label' });
+          display.appendChild(displayIcon);
+          display.appendChild(displayLabel);
+
+          // Callback de highlight (assigné par la variante grille)
+          let updateGridHighlight = null;
+
+          const updateDisplay = () => {
+            const meta = getMeta(currentValue);
+            displayIcon.textContent = meta.icon;
+            displayLabel.textContent = meta.label;
+            display.classList.toggle('empty', currentValue === '-1' || !currentValue);
+            if (typeof updateGridHighlight === 'function') updateGridHighlight();
+          };
+
+          // ─── Bouton "Capter" (commun aux 2 variantes) ───
+          const captureBtn = el('button', {
+            type: 'button',
+            class: 'ini-xbox-capture-btn',
+            title: T('Appuie sur un bouton de la manette'),
+          });
+          captureBtn.textContent = '🎯 ' + T('Capter');
+
+          // ⚠️ Déclaré ici pour être accessible depuis la capture (variante dropdown)
+          let selDropdown = null;
+
+          let capturing = false;
+          const stopCapture = () => {
+            capturing = false;
+            captureBtn.classList.remove('capturing');
+            captureBtn.textContent = '🎯 ' + T('Capter');
+            if (global.GamepadCapture && global.GamepadCapture.isCapturing()) {
+              global.GamepadCapture.stop();
+            }
+          };
+
+                    const startCapture = () => {
+            if (!global.GamepadCapture) {
+              alert(T('Module de capture non disponible.'));
+              return;
+            }
+            capturing = true;
+            captureBtn.classList.add('capturing');
+            captureBtn.textContent = '● ' + T('Appuie sur un bouton…');
+            global.GamepadCapture.start({
+              axesThreshold: 0,
+              timeoutMs: 10000,
+              resolveAcIndex: () => null,
+              onCapture: (r) => {
+                if (r.kind !== 'button') return;
+                let acValue = null;
+                if (global.GamepadMapper && global.GamepadMapper.chromiumButtonToXboxButton) {
+                  acValue = global.GamepadMapper.chromiumButtonToXboxButton(r.buttonIndex);
+                }
+                if (!acValue) {
+                  console.warn('[XboxButtonPicker] bouton Chromium non mappé :', r.buttonIndex);
+                  alert(T('Ce bouton n\'est pas reconnu (gâchette analogique ?). Utilise le menu déroulant.'));
+                  stopCapture();
+                  return;
+                }
+                currentValue = acValue;
+                if (r.acIndex != null && opts.sectionHelpers) {
+                  opts.sectionHelpers.setValue('JOY', String(r.acIndex));
+                }
+                if (selDropdown) selDropdown.value = acValue;
+                updateDisplay();
+                if (opts.onChange) opts.onChange(currentValue);
+                stopCapture();
+              },
+              onCancel: () => stopCapture(),
+            });
+
+            const escHandler = (e) => {
+              if (e.key === 'Escape' && capturing) {
+                e.preventDefault();
+                e.stopPropagation();
+                document.removeEventListener('keydown', escHandler, true);
+                stopCapture();
+              }
+            };
+            document.addEventListener('keydown', escHandler, true);
+          };
+
+          captureBtn.addEventListener('click', () => {
+            capturing ? stopCapture() : startCapture();
+          });
+
+          // ═════════════════════════════════════════════════════════════
+          // Variante A : GRILLE CROISÉE (sections de navigation)
+          // ═════════════════════════════════════════════════════════════
+          if (isDpadFriendly) {
+            const grid = el('div', { class: 'ini-dpad-grid' });
+
+            // Cellules 3×3 : tl, up, tr, left, center, right, bl, down, br
+            const cellDefs = [
+              { type: 'empty' },
+              { type: 'btn', value: 'DPAD_UP',    label: '⬆' },
+              { type: 'empty' },
+              { type: 'btn', value: 'DPAD_LEFT',  label: '⬅' },
+              { type: 'center' },
+              { type: 'btn', value: 'DPAD_RIGHT', label: '➡' },
+              { type: 'empty' },
+              { type: 'btn', value: 'DPAD_DOWN',  label: '⬇' },
+              { type: 'empty' },
+            ];
+
+            const btnByValue = {};
+
+            for (const c of cellDefs) {
+              if (c.type === 'empty') {
+                grid.appendChild(el('div', { class: 'ini-dpad-empty' }));
+              } else if (c.type === 'center') {
+                const center = el('div', {
+                  class: 'ini-dpad-center',
+                  title: T('Croix directionnelle'),
+                });
+                center.textContent = '◉';
+                grid.appendChild(center);
+              } else {
+                const btn = el('button', {
+                  type: 'button',
+                  class: 'ini-dpad-btn',
+                  'data-dir': c.value,
+                  title: T('Cliquer pour assigner') + ' — ' + getMeta(c.value).label,
+                });
+                btn.textContent = c.label;
+                btn.addEventListener('click', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Toggle : re-clic sur la flèche active → désassigne
+                  if (currentValue === c.value) {
+                    currentValue = '-1';
+                  } else {
+                    currentValue = c.value;
+                  }
+                  if (selDropdown) selDropdown.value = currentValue;
+                  updateDisplay();
+                  if (opts.onChange) opts.onChange(currentValue);
+                });
+                btnByValue[c.value] = btn;
+                grid.appendChild(btn);
+              }
+            }
+
+            // Highlight de la flèche active
+            updateGridHighlight = () => {
+              for (const v of Object.keys(btnByValue)) {
+                btnByValue[v].classList.toggle('active', v === currentValue);
+              }
+            };
+
+            // Colonne droite : badge + bouton Capter
+            const rightCol = el('div', { class: 'ini-dpad-right' }, [display, captureBtn]);
+
+            // Layout : [grille] [colonne droite]
+            const wrap = el('div', { class: 'ini-dpad-wrap' }, [grid, rightCol]);
+
+            updateDisplay();
+
+            controlEl = wrap;
+            getValue = () => currentValue;
+            break;
+          }
+
+          // ═════════════════════════════════════════════════════════════
+          // Variante B : DROPDOWN (comportement historique — sections action)
+          // ═════════════════════════════════════════════════════════════
+          selDropdown = el('select', { class: 'ini-select ini-xbox-select' });
           const values = ['-1','A','B','X','Y','LSHOULDER','RSHOULDER','BACK','START',
                           'DPAD_UP','DPAD_DOWN','DPAD_LEFT','DPAD_RIGHT','LTHUMB','RTHUMB'];
-          const sel = el('select', { class: 'ini-select' });
-          let matched = false;
           for (const v of values) {
-            const opt = el('option', { value: v, text: v === '-1' ? '(' + T('aucun') + ')' : v });
-            if (v === rawValue) { opt.selected = true; matched = true; }
-            sel.appendChild(opt);
+            const meta = getMeta(v);
+            const opt = el('option', { value: v, text: meta.icon + '  ' + meta.label });
+            if (v === currentValue) opt.selected = true;
+            selDropdown.appendChild(opt);
           }
-          if (!matched && rawValue) {
-            const opt = el('option', { value: rawValue, text: rawValue });
+          if (!values.includes(currentValue)) {
+            const opt = el('option', { value: currentValue, text: currentValue });
             opt.selected = true;
-            sel.appendChild(opt);
+            selDropdown.appendChild(opt);
           }
-          sel.addEventListener('change', () => { if (opts.onChange) opts.onChange(sel.value); });
-          controlEl = sel;
-          getValue = () => sel.value;
+          selDropdown.addEventListener('change', () => {
+            currentValue = selDropdown.value;
+            updateDisplay();
+            if (opts.onChange) opts.onChange(currentValue);
+          });
+
+          updateDisplay();
+
+          // Layout : [Display] [Capter] [Dropdown]
+          const wrap = el('div', { class: 'ini-xbox-wrap' }, [display, captureBtn, selDropdown]);
+
+          controlEl = wrap;
+          getValue = () => currentValue;
           break;
         }
 

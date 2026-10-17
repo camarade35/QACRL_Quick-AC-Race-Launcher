@@ -2300,7 +2300,7 @@ select:disabled, input:disabled {
 
 .ini-toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
+  gap: 10px; flex-wrap: wrap;         /* ⭐ wrap activé pour petites largeurs */
   padding: 10px 14px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -2311,6 +2311,17 @@ select:disabled, input:disabled {
   top: 56px; /* hauteur approximative des subtabs */
   z-index: 50;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ⭐ v1.6.0 — Le groupe de tabs ne se fait plus écraser */
+.ini-toolbar .ini-tabs {
+  flex: 1 1 200px;        /* min 200px, peut grandir */
+  min-width: 0;
+}
+
+.ini-toolbar .ini-toolbar-actions {
+  flex: 0 0 auto;         /* ne se comprime pas */
+  flex-wrap: wrap;        /* wrap si trop étroit */
 }
 :root[data-theme="light"] .ini-toolbar {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -2366,6 +2377,34 @@ select:disabled, input:disabled {
 
 .ini-status {
   min-width: auto;  /* était 180px, on libère l'espace */
+}
+
+/* ⭐ v1.6.0 — Badge "Profil actif" dans la toolbar */
+.ini-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-family: inherit;
+  white-space: nowrap;
+  max-width: 130px;         /* ⭐ réduit pour ne plus pousser les tabs */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all var(--t);
+  cursor: help;
+  flex-shrink: 0;           /* ⭐ ne se comprime jamais */
+}
+
+/* ⭐ v1.6.0 — Header de section non-cliquable (toujours ouverte) */
+.qacrl-ctrl-section-header-static {
+  cursor: default !important;
+}
+.qacrl-ctrl-section-header-static:hover {
+  background: transparent !important;
 }
 
 .ini-form { display: flex; flex-direction: column; gap: 14px; }
@@ -2595,11 +2634,153 @@ select:disabled, input:disabled {
   min-width: 0;
   box-sizing: border-box;
 }
-.ini-binding-wrap > .ini-number {
-  width: 80px !important;
-  min-width: 80px;
-  text-align: right;
-  box-sizing: border-box;
+/* ============================================================
+   ⭐ v1.6.0-W4C — Widget AxisCapture (gâchettes RT/LT Xbox)
+   ------------------------------------------------------------
+   Utilisé dans les sections THROTTLE / BRAKES / CLUTCH / HANDBRAKE
+   en mode X360. Remplace le combo AXLE + select + reset par un
+   widget dédié compact : badge + capture + barre live.
+   ============================================================ */
+
+.ini-axis-x360-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ini-axis-x360-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ini-axis-x360-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #c58aff;
+  min-height: 38px;
+  cursor: pointer;
+  transition: all var(--t);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ini-axis-x360-badge:hover {
+  border-color: #c58aff;
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(197, 138, 255, 0.2);
+}
+
+.ini-axis-x360-badge.empty {
+  color: #e6a33b;
+  border-color: rgba(230, 163, 59, 0.5);
+  background: rgba(230, 163, 59, 0.08);
+}
+
+.ini-axis-x360-badge.empty:hover {
+  border-color: #e6a33b;
+  box-shadow: 0 4px 12px rgba(230, 163, 59, 0.2);
+}
+
+.ini-axis-x360-badge.capturing {
+  /* ⚠️ État STATIQUE (pas d'animation pulse) — l'effet pulsant était
+     perçu comme un clignotement permanent, notamment sur les écrans 60Hz+. */
+  background: #e6a33b;
+  border-color: #e6a33b;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(230, 163, 59, 0.25);
+}
+
+.ini-axis-x360-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.ini-axis-x360-action-btn {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t);
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.ini-axis-x360-action-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.ini-axis-x360-action-btn.invert:hover {
+  background: rgba(230, 163, 59, 0.12);
+  border-color: #e6a33b;
+  color: #e6a33b;
+}
+
+.ini-axis-x360-action-btn:active {
+  transform: translateY(0);
+}
+
+.ini-axis-x360-bar {
+  position: relative;
+  height: 26px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.ini-axis-x360-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg,
+    rgba(197, 138, 255, 0.25) 0%,
+    rgba(197, 138, 255, 0.65) 100%);
+  transition: width 0.06s linear;
+  pointer-events: none;
+}
+
+.ini-axis-x360-value {
+  position: relative;
+  z-index: 1;
+  margin-left: auto;
+  padding: 0 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.5px;
+  line-height: 1;
 }
 /* ============================================================
    ONGLETS SECONDAIRES DU FORMULAIRE INI (Axes / Boutons / etc.)
@@ -3114,6 +3295,226 @@ select:disabled, input:disabled {
 .ini-binding-axis-empty:hover {
   background: rgba(230, 163, 59, 0.15) !important;
   color: #ffd17a !important;
+}
+
+/* ============================================================
+   ⭐ v1.6.0-W3 — Widget XboxButtonPicker
+   ============================================================ */
+
+.ini-xbox-wrap {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) auto 1fr;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Badge affichant le bouton assigné */
+.ini-xbox-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-height: 36px;
+  transition: all var(--t);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ini-xbox-display.empty {
+  color: #e6a33b;
+  border-color: rgba(230, 163, 59, 0.5);
+  background: rgba(230, 163, 59, 0.08);
+}
+
+.ini-xbox-display-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ini-xbox-display-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bouton "Capter" */
+.ini-xbox-capture-btn {
+  padding: 8px 16px;
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--t);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 36px;
+}
+
+.ini-xbox-capture-btn:hover {
+  background: rgba(var(--accent-rgb), 0.15);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.ini-xbox-capture-btn.capturing {
+  /* ⚠️ État STATIQUE — suppression de l'animation pulse (perçue comme
+     un clignotement permanent). */
+  background: #e6a33b;
+  color: #fff;
+  border-color: #e6a33b;
+  box-shadow: 0 0 0 4px rgba(230, 163, 59, 0.25);
+}
+
+@keyframes ini-xbox-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-muted); }
+  50%      { box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.05); }
+}
+
+/* Dropdown fallback */
+.ini-xbox-select {
+  min-width: 0;
+  width: 100% !important;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* ⭐ v1.6.0-UX — Option "hors liste" du JOY (warning inline) */
+.ini-select option[style*="e6a33b"] {
+  color: #e6a33b !important;
+  background: rgba(230, 163, 59, 0.08) !important;
+}
+
+/* Responsive : passage en colonnes sur petits écrans */
+@media (max-width: 900px) {
+  .ini-xbox-wrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   ⭐ v1.6.0-W2b — Widget DpadPicker (grille croisée)
+   ============================================================ */
+
+.ini-dpad-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ini-dpad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows: repeat(3, 40px);
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 8px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+.ini-dpad-empty {
+  /* cellule vide — placeholder */
+}
+
+.ini-dpad-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--t);
+  font-family: inherit;
+  line-height: 1;
+}
+
+.ini-dpad-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
+.ini-dpad-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 10px var(--accent-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.ini-dpad-btn.active:hover {
+  background: var(--accent-hover);
+  color: #fff;
+  transform: scale(1.06);
+}
+
+.ini-dpad-center {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  background: var(--bg-panel);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  user-select: none;
+  cursor: help;
+}
+
+.ini-dpad-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ini-dpad-right .ini-xbox-display {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.ini-dpad-right .ini-xbox-capture-btn {
+  width: 100%;
+}
+
+/* Responsive : empilé verticalement sur petits écrans */
+@media (max-width: 900px) {
+  .ini-dpad-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ini-dpad-grid {
+    align-self: center;
+  }
 }
 /* ============================================================
    CATÉGORIES PLIABLES (ex : Boutons)
@@ -3719,6 +4120,20 @@ select:disabled, input:disabled {
 
 .qacrl-dialog-btn-cancel {
   padding: 10px 20px !important;
+}
+
+/* ⭐ v1.6.0 — Bouton danger (Abandonner, Supprimer...) */
+.qacrl-dialog-btn-danger {
+  padding: 10px 20px !important;
+  color: #e6a33b !important;
+  border-color: rgba(230, 163, 59, 0.4) !important;
+  background: transparent !important;
+  font-weight: 600;
+}
+.qacrl-dialog-btn-danger:hover {
+  background: rgba(230, 163, 59, 0.15) !important;
+  color: #ffd17a !important;
+  border-color: rgba(230, 163, 59, 0.6) !important;
 }
 /* ============================================================
    RECHERCHE GLOBALE DANS LES PARAMÈTRES
@@ -5226,6 +5641,111 @@ select:disabled, input:disabled {
   overflow: hidden;
 }
 
+/* ⭐ v1.6.0-UX — Wrapper "bare" : pas de fond, pas de bordure */
+.qacrl-ctrl-section-bare {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ⭐ v1.6.0-UX — Bandeau "Périphérique actif" */
+.qacrl-ctrl-device-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  font-size: 0.84rem;
+  font-family: inherit;
+  transition: all var(--t);
+}
+
+.qacrl-ctrl-device-banner.ok {
+  background: rgba(var(--accent-rgb), 0.06);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  border-left: 4px solid var(--accent);
+}
+
+.qacrl-ctrl-device-banner.warn {
+  background: rgba(230, 163, 59, 0.08);
+  border: 1px solid rgba(230, 163, 59, 0.35);
+  border-left: 4px solid #e6a33b;
+  color: #e6a33b;
+  line-height: 1.5;
+}
+
+.qacrl-ctrl-device-banner-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qacrl-ctrl-device-banner-sub {
+  color: var(--text-tertiary);
+  font-weight: 400;
+  font-size: 0.78rem;
+  margin-left: 2px;
+}
+
+.qacrl-ctrl-device-banner-select {
+  padding: 6px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  min-width: 200px;
+  max-width: 320px;
+  flex-shrink: 0;
+}
+
+.qacrl-ctrl-device-banner-select:hover {
+  border-color: var(--accent);
+}
+
+.qacrl-ctrl-device-banner-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-tertiary);
+  background: var(--bg-elevated);
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  flex-shrink: 0;
+}
+
+/* ⭐ v1.6.0-UX — Badge read-only (JOY en mode X360) */
+.ini-readonly-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  background: rgba(128, 128, 128, 0.08);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-style: italic;
+  min-height: 36px;
+  cursor: help;
+}
+
 .qacrl-ctrl-empty {
   font-size: 0.82rem;
   color: var(--text-tertiary);
@@ -5623,4 +6143,23 @@ select:disabled, input:disabled {
 
 .qacrl-ctrl-section.collapsed .qacrl-ctrl-section-body {
   display: none;
+}
+/* ⭐ v1.6.0-final — Badge informatif gâchette native X360 */
+.ini-axis-x360-wrap .ini-readonly-badge {
+  font-style: normal;
+  padding: 10px 16px;
+  min-height: 42px;
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  background: rgba(var(--accent-rgb), 0.06);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ini-axis-x360-wrap .ini-readonly-badge strong {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: 'Consolas', 'Monaco', monospace;
 }

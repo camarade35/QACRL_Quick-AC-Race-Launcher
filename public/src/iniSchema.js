@@ -55,11 +55,27 @@
   // Sections de controls.ini qui utilisent un template
   // (toutes les autres sections "binding" seront gérées par fallback)
   // ---------------------------------------------------------------------------
+  // ⭐ v1.6.0 — En mode X360, les pédales peuvent être bindées sur les
+  //    gâchettes/boutons Xbox (XBOXBUTTON) au lieu d'un axe analogique.
+  //    On utilise la même structure que HANDBRAKE.
+  const PEDAL_SECTION = Object.assign({}, T.AXIS_SECTION, {
+    keys: Object.assign({}, T.AXIS_SECTION.keys, {
+      'BUTTON':      { label: 'Bouton manette', type: 'binding' },
+      'KEY':         { label: 'Touche clavier', type: 'binding' },
+      'XBOXBUTTON':  { label: 'Bouton Xbox',    type: 'binding' },
+    })
+  });
+
   const CONTROLS_TEMPLATE_MAP = {
-    // Pédales / axes
-    'BRAKES':    T.AXIS_SECTION,
-    'CLUTCH':    T.AXIS_SECTION,
-    'THROTTLE':  T.AXIS_SECTION,
+    // Pédales / axes — ⭐ v1.6.0 : enrichis avec XBOXBUTTON pour mode Manette
+    'BRAKES':    PEDAL_SECTION,
+    'CLUTCH':    PEDAL_SECTION,
+    'THROTTLE':  PEDAL_SECTION,
+    'STEER':     Object.assign({}, T.AXIS_SECTION, {
+      keys: Object.assign({}, T.AXIS_SECTION.keys, {
+        'XBOXBUTTON':  { label: 'Bouton Xbox (D-pad)', type: 'binding' },
+      })
+    }),
     'HANDBRAKE': Object.assign({}, T.AXIS_SECTION, {
       keys: Object.assign({}, T.AXIS_SECTION.keys, {
         'BUTTON':      { label: 'Bouton manette', type: 'binding' },
@@ -405,6 +421,8 @@
   function isBlacklisted(sectionName) {
     if (typeof sectionName !== 'string') return false;
     if (BLACKLIST_EXACT.indexOf(sectionName) !== -1) return true;
+    // ⭐ v1.6.0 — Toute section commençant par __ est interne (CM/CSP)
+    if (sectionName.startsWith('__')) return true;
     for (let i = 0; i < BLACKLIST_PREFIXES.length; i++) {
       if (sectionName.startsWith(BLACKLIST_PREFIXES[i])) return true;
     }

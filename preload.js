@@ -102,6 +102,18 @@ contextBridge.exposeInMainWorld('api', {
   deleteControllerSetup: (filename) => ipcRenderer.invoke('delete-controller-setup', filename),
   setInputMethod: (method) => ipcRenderer.invoke('set-input-method', method),
 
+  // ⭐ v1.6.0 — Nouveau workflow profils
+  getInputMethod: () => ipcRenderer.invoke('get-input-method'),
+  getActiveProfile: (mode) => ipcRenderer.invoke('get-active-profile', mode),
+  saveControllerProfile: (filename, content, mode) =>
+    ipcRenderer.invoke('save-controller-profile', filename, content, mode),
+  compileControlsFromProfile: (mode) => ipcRenderer.invoke('compile-controls-from-profile', mode),
+
+  // ⭐ v1.6.0-UX — Périphérique actif par mode
+  getPreferredDeviceForMode: (mode) => ipcRenderer.invoke('get-preferred-device-for-mode', mode),
+  setPreferredDeviceForMode: (mode, deviceName) =>
+    ipcRenderer.invoke('set-preferred-device-for-mode', mode, deviceName),
+
   // ⭐ Filtres post-process (PP filters)
   listPpfilters: () => ipcRenderer.invoke('list-ppfilters'),
 

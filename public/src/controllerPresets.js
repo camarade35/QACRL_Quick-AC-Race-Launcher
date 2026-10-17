@@ -16,6 +16,9 @@
   let currentMethod = null;
   let devices = [];
   let setups = [];
+  let activePerMode = { WHEEL: null, X360: null, KEYBOARD: null };  // ⭐ v1.6.0
+  let preferredDevice = null;      // ⭐ v1.6.0-UX — { name, type, acIndex }
+  let deviceCandidates = [];       // ⭐ v1.6.0-UX — liste filtrée
 
   // -------------------------------------------------------------------------
   // Helpers UI
@@ -72,18 +75,36 @@
    * @param {string} titleText   Texte du titre (déjà traduit)
    * @param {Node|Node[]} bodyChildren  Contenu de la section
    * @param {string=} extraBadge  HTML optionnel affiché à droite du titre
+   * @param {object=} options     { alwaysOpen: boolean } → si vrai, pas de repli
    */
-  function makeCollapsibleSection(sectionId, titleText, bodyChildren, extraBadge) {
+  function makeCollapsibleSection(sectionId, titleText, bodyChildren, extraBadge, options) {
+    const opts = options || {};
+    const alwaysOpen = !!opts.alwaysOpen;
+    const defaultCollapsed = !!opts.defaultCollapsed;
+
+    // ⭐ v1.6.0-UX — État initial : si pas de préférence sauvegardée,
+    //    on applique `defaultCollapsed` (au lieu du déplié par défaut).
+    let initialState;
+    try {
+      const saved = localStorage.getItem(COLLAPSE_KEY_PREFIX + sectionId);
+      initialState = (saved === null) ? defaultCollapsed : (saved === '1');
+    } catch (e) {
+      initialState = defaultCollapsed;
+    }
+
     const wrap = el('div', {
-      class: 'qacrl-ctrl-section' + (isCollapsed(sectionId) ? ' collapsed' : ''),
+      class: 'qacrl-ctrl-section' + (!alwaysOpen && initialState ? ' collapsed' : ''),
       'data-section-id': sectionId,
     });
 
     const header = el('div', { class: 'qacrl-ctrl-section-header' });
 
-    const arrow = el('span', { class: 'qacrl-ctrl-section-arrow' });
-    arrow.textContent = '▸';
-    header.appendChild(arrow);
+    // ⭐ v1.6.0 — Flèche masquée pour les sections toujours ouvertes
+    if (!alwaysOpen) {
+      const arrow = el('span', { class: 'qacrl-ctrl-section-arrow' });
+      arrow.textContent = '▸';
+      header.appendChild(arrow);
+    }
 
     const title = el('span', { class: 'qacrl-ctrl-section-title' });
     title.textContent = titleText;
@@ -95,11 +116,17 @@
       header.appendChild(badge);
     }
 
-    header.addEventListener('click', () => {
-      const nowCollapsed = !wrap.classList.contains('collapsed');
-      wrap.classList.toggle('collapsed', nowCollapsed);
-      setCollapsed(sectionId, nowCollapsed);
-    });
+    // ⭐ v1.6.0 — Pas de listener si alwaysOpen (curseur par défaut, pas de pli)
+    if (!alwaysOpen) {
+      header.addEventListener('click', () => {
+        const nowCollapsed = !wrap.classList.contains('collapsed');
+        wrap.classList.toggle('collapsed', nowCollapsed);
+        setCollapsed(sectionId, nowCollapsed);
+      });
+    } else {
+      header.style.cursor = 'default';
+      header.classList.add('qacrl-ctrl-section-header-static');
+    }
 
     wrap.appendChild(header);
 
@@ -119,6 +146,20 @@
   // Lecture de l'INPUT_METHOD actuel depuis controls.ini
   // -------------------------------------------------------------------------
   async function readCurrentMethod() {
+    // ⭐ v1.6.0 — Lit d'abord settings.inputMethod (source de vérité)
+    //    Fallback : contrôle dans controls.ini pour compat
+    try {
+      const res = await window.api.getInputMethod();
+      if (res && res.success && res.method) {
+        let m = String(res.method).toUpperCase();
+        if (m === 'GAMEPAD') m = 'X360';
+        if (['WHEEL', 'X360', 'KEYBOARD'].includes(m)) return m;
+      }
+    } catch (e) {
+      console.warn('[ControllerPresets] getInputMethod KO', e);
+    }
+
+    // Fallback : lit controls.ini
     try {
       const res = await window.api.readIniFile('controls.ini');
       if (!res || !res.success) return null;
@@ -133,7 +174,11 @@
         }
         if (!inHeader) continue;
         const kv = line.match(/^INPUT_METHOD\s*=\s*(\w+)/i);
-        if (kv) return kv[1].toUpperCase();
+        if (kv) {
+          let m = kv[1].toUpperCase();
+          if (m === 'GAMEPAD') m = 'X360';
+          return m;
+        }
       }
     } catch (e) {
       console.warn('[ControllerPresets] readCurrentMethod KO', e);
@@ -148,17 +193,83 @@
     if (!root) return;
     root.innerHTML = '';
     root.appendChild(renderMethodSection());
+    root.appendChild(renderActiveDeviceSection());   // ⭐ v1.6.0-UX
     root.appendChild(renderDevicesSection());
     root.appendChild(renderSetupsSection());
+  }
+
+  // ⭐ v1.6.0-UX — Bandeau "Périphérique actif" (sous le picker)
+  function renderActiveDeviceSection() {
+    // Keyboard → pas de device
+    if (currentMethod === 'KEYBOARD') {
+      return el('div'); // vide
+    }
+
+    if (!preferredDevice) {
+      // Aucun device détecté
+      const warn = el('div', { class: 'qacrl-ctrl-device-banner warn' });
+      warn.innerHTML = '⚠️ ' + T('Aucun périphérique détecté pour le mode') + ' ' +
+        '<strong>' + escapeHtml(currentMethod) + '</strong>. ' +
+        T('Branche un device et relance QACRL.');
+      return warn;
+    }
+
+    const banner = el('div', { class: 'qacrl-ctrl-device-banner ok' });
+
+    const icon = preferredDevice.type === 'wheel' ? '🏎️'
+               : preferredDevice.type === 'gamepad' ? '🎮'
+               : '🔌';
+
+    const label = el('div', { class: 'qacrl-ctrl-device-banner-label' });
+    label.innerHTML = icon + ' <strong>' + escapeHtml(preferredDevice.name) + '</strong>'
+                    + ' <span class="qacrl-ctrl-device-banner-sub">'
+                    + T('Périphérique actif') + '</span>';
+
+    banner.appendChild(label);
+
+    // Si plusieurs devices compatibles → dropdown pour changer
+    if (deviceCandidates.length > 1) {
+      const sel = el('select', { class: 'qacrl-ctrl-device-banner-select' });
+      for (const d of deviceCandidates) {
+        const opt = el('option');
+        opt.value = d.name;
+        opt.textContent = d.name;
+        if (d.name === preferredDevice.name) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', async () => {
+        try {
+          const res = await window.api.setPreferredDeviceForMode(currentMethod, sel.value);
+          if (res && res.success) {
+            await loadAll();
+            // ⭐ Force le re-render de l'éditeur controls.ini pour propager
+            if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
+              try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
+            }
+          }
+        } catch (e) {
+          console.warn('[ControllerPresets] setPreferredDeviceForMode KO', e);
+        }
+      });
+      banner.appendChild(sel);
+    } else {
+      const badge = el('span', { class: 'qacrl-ctrl-device-banner-badge' });
+      badge.textContent = T('unique');
+      banner.appendChild(badge);
+    }
+
+    return banner;
   }
 
   // --- Section 1 : choix du contrôleur principal ---
   function renderMethodSection() {
     const picker = el('div', { class: 'qacrl-ctrl-method-picker' });
 
+    // ⚠️ L'id est la valeur technique écrite dans INPUT_METHOD
+    //    (voir main.js : CONTROLLER_INPUT_METHODS = ['WHEEL', 'X360', 'KEYBOARD'])
     const methods = [
       { id: 'WHEEL',    icon: '🏎️', label: T('Volant')   },
-      { id: 'GAMEPAD',  icon: '🎮', label: T('Manette')  },
+      { id: 'X360',     icon: '🎮', label: T('Manette')  },
       { id: 'KEYBOARD', icon: '⌨️', label: T('Clavier') },
     ];
 
@@ -188,43 +299,113 @@
                      + '</span>';
     }
 
-    // Badge à droite du titre : affiche le mode actif
-    const badge = currentMethod
-      ? '<code style="background:rgba(var(--accent-rgb),0.15);color:var(--accent);padding:2px 8px;border-radius:4px;font-weight:700;font-size:0.72rem;">' + escapeHtml(currentMethod) + '</code>'
-      : '';
-
-    return makeCollapsibleSection(
-      'method',
-      '🎮 ' + T('Contrôleur principal'),
-      [picker, hint],
-      badge
-    );
+    // ⭐ v1.6.0-UX — Le picker est affiché SANS encart pliable :
+    //    juste les 3 boutons + le hint, dans un wrapper minimal.
+    const wrap = el('div', { class: 'qacrl-ctrl-section qacrl-ctrl-section-bare' });
+    wrap.appendChild(picker);
+    wrap.appendChild(hint);
+    return wrap;
   }
 
-  async function onMethodClick(method) {
-    if (method === currentMethod) return;
+  let _methodSwitchInProgress = false;
+
+async function onMethodClick(method) {
+  if (method === currentMethod) return;
+  if (_methodSwitchInProgress) {
+    console.log('[ControllerPresets] onMethodClick ignoré (switch déjà en cours)');
+    return;
+  }
+  _methodSwitchInProgress = true;
+
+    // ⭐ v1.6.0 — Si l'éditeur controls.ini a des modifs non sauvegardées,
+    //    on demande avant de changer de mode (sinon les modifs sont perdues).
+    if (global.SettingsIni && typeof global.SettingsIni.promptSaveIfDirty === 'function') {
+      const ed = global.SettingsIni.getEditor && global.SettingsIni.getEditor('controls.ini');
+      if (ed && ed.dirty) {
+        const ok = await global.SettingsIni.promptSaveIfDirty(ed);
+        if (!ok) return; // Annulé
+      }
+    }
 
     const btn = root.querySelector('.qacrl-ctrl-method-btn[data-method="' + method + '"]');
     if (btn) btn.disabled = true;
 
     try {
+      // 1. Mémorise le nouveau mode dans settings
       const res = await window.api.setInputMethod(method);
       if (!res || !res.success) {
         alert('Erreur : ' + ((res && res.error) || 'inconnue'));
         return;
       }
       currentMethod = method;
-      renderRoot();
 
-      if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
-        try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
+      // ⭐ v1.6.0 — Recharge TOUT (device actif + candidats) après le switch.
+      //    Sans ça, le bandeau "Périphérique actif" garde les données de
+      //    l'ancien mode (ex : FANATEC Wheel visible en mode Manette).
+      await loadAll();
+
+      // 2. Cherche un profil actif pour ce mode
+      let activeProfile = null;
+      try {
+        const profRes = await window.api.getActiveProfile(method);
+        if (profRes && profRes.success && profRes.filename) {
+          activeProfile = profRes;
+        }
+      } catch (e) {}
+
+      // 3. Applique
+      if (activeProfile && activeProfile.content) {
+        // Profil actif trouvé → on le recharge dans l'éditeur
+        console.log('[ControllerPresets] Chargement profil actif', activeProfile.filename);
+        if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
+          try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
+        }
+      } else {
+        // Pas de profil actif → bascule l'éditeur en mode vierge (mêmes sections, mode changé)
+        console.log('[ControllerPresets] Pas de profil actif → mode éditeur bascule en', method);
+        if (global.SettingsIni && typeof global.SettingsIni.setInputMethodForEditor === 'function') {
+          global.SettingsIni.setInputMethodForEditor(method);
+        }
+        // Synchronise aussi les sections avec INPUT_METHOD (en mémoire)
+        try {
+          const iniRes = await window.api.readIniFile('controls.ini');
+          if (iniRes && iniRes.success && window.IniParser) {
+            const sections = window.IniParser.parseIni(iniRes.content);
+            let headerSec = sections.find(s => s.name === 'HEADER');
+            if (!headerSec) {
+              headerSec = { name: 'HEADER', entries: [] };
+              sections.unshift(headerSec);
+            }
+            const entry = headerSec.entries.find(e => e.kind === 'kv' && e.key === 'INPUT_METHOD');
+            if (entry) entry.value = method;
+            else headerSec.entries.push({ kind: 'kv', key: 'INPUT_METHOD', value: method, comment: '' });
+            // Réécrit le contenu pour que l'éditeur le relise
+            const newContent = window.IniParser.serializeIni(sections);
+            // (l'éditeur relira via ensureLoaded)
+            const ed = global.SettingsIni.getEditor && global.SettingsIni.getEditor('controls.ini');
+            if (ed) {
+              ed.sections = sections;
+              ed.rawContent = newContent;
+              ed.currentInputMethod = method;
+              if (global.SettingsIni.reloadByName) {
+                // Re-render propre
+                try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[ControllerPresets] sync sections KO', e);
+        }
       }
     } catch (e) {
       alert('Erreur : ' + e.message);
     } finally {
       if (btn) btn.disabled = false;
+      // ⭐ v1.6.0 — Libère le guard après un court délai pour laisser
+      //    les reloadByName en cascade se terminer proprement
+      setTimeout(() => { _methodSwitchInProgress = false; }, 800);
     }
-  }
+}
 
   // --- Section 2 : devices AC détectés ---
   function renderDevicesSection() {
@@ -239,7 +420,8 @@
         'devices',
         '📡 ' + T('Devices détectés par Assetto Corsa'),
         [empty],
-        badge
+        badge,
+        { defaultCollapsed: true }   // ⭐ v1.6.0-UX — replié par défaut
       );
     }
 
@@ -277,35 +459,52 @@
       'devices',
       '📡 ' + T('Devices détectés par Assetto Corsa'),
       [list],
-      badge
+      badge,
+      { defaultCollapsed: true }   // ⭐ v1.6.0-UX — replié par défaut
     );
   }
 
   // --- Section 3 : profils sauvegardés ---
+  // ⭐ v1.6.0 — Filtré par mode courant + sélection du profil actif
   function renderSetupsSection() {
     const bodyChildren = [];
 
-    if (setups.length === 0) {
+    // Filtrer les profils compatibles avec le mode courant
+    const compatible = setups.filter(s => s.method === currentMethod);
+    const incompatibleCount = setups.length - compatible.length;
+
+    // Identifier le profil actif pour ce mode
+    const activeFilename = activePerMode && activePerMode[currentMethod];
+
+    if (compatible.length === 0) {
       const empty = el('div', { class: 'qacrl-ctrl-empty' });
-      empty.textContent = T('Aucun profil sauvegardé dans savedsetups/.');
+      if (setups.length === 0) {
+        empty.textContent = T('Aucun profil sauvegardé dans savedsetups/.');
+      } else {
+        // ⭐ v1.6.0 — Message synthétique (le détail est en bas)
+        empty.textContent = T('Aucun profil compatible avec le mode') + ' ' + currentMethod + '.';
+      }
       bodyChildren.push(empty);
     }
 
     const row = el('div', { class: 'qacrl-ctrl-setups-row' });
 
-    // Dropdown des profils
+    // Dropdown (profils compatibles uniquement)
     const sel = el('select', { class: 'qacrl-ctrl-setup-select' });
-    if (setups.length === 0) {
+    if (compatible.length === 0) {
       const opt = el('option');
       opt.value = '';
       opt.textContent = '— ' + T('Aucun profil') + ' —';
       sel.appendChild(opt);
       sel.disabled = true;
     } else {
-      for (const s of setups) {
+      for (const s of compatible) {
         const opt = el('option');
         opt.value = s.filename;
-        opt.textContent = s.name;
+        // Marqueur visuel du profil actif
+        const isActive = (s.filename === activeFilename);
+        opt.textContent = (isActive ? '✅ ' : '') + s.name;
+        if (isActive) opt.selected = true;
         sel.appendChild(opt);
       }
     }
@@ -314,7 +513,7 @@
     // Charger
     const loadBtn = el('button', { type: 'button', class: 'qacrl-ctrl-setup-btn qacrl-ctrl-setup-btn-primary' });
     loadBtn.textContent = '📥 ' + T('Charger');
-    loadBtn.disabled = (setups.length === 0);
+    loadBtn.disabled = (compatible.length === 0);
     loadBtn.addEventListener('click', () => onLoadSetup(sel.value));
     row.appendChild(loadBtn);
 
@@ -327,30 +526,54 @@
     // Supprimer
     const delBtn = el('button', { type: 'button', class: 'qacrl-ctrl-setup-btn qacrl-ctrl-setup-btn-danger' });
     delBtn.textContent = '🗑️ ' + T('Supprimer');
-    delBtn.disabled = (setups.length === 0);
+    delBtn.disabled = (compatible.length === 0);
     delBtn.addEventListener('click', () => onDeleteSetup(sel.value));
     row.appendChild(delBtn);
 
     bodyChildren.push(row);
 
+    // Ligne info : profils masqués
+    if (incompatibleCount > 0) {
+      const info = el('div', { class: 'qacrl-ctrl-empty', style: 'font-size:0.72rem;margin-top:4px;' });
+      info.textContent = 'ℹ️ ' + incompatibleCount + ' ' +
+        T('profil(s) masqué(s) pour d\'autres périphériques');
+      bodyChildren.push(info);
+    }
+
     const badge = setups.length > 0
-      ? '<span style="background:var(--bg-elevated);color:var(--text-secondary);padding:2px 8px;border-radius:10px;font-weight:700;font-size:0.7rem;">' + setups.length + '</span>'
+      ? '<span style="background:var(--bg-elevated);color:var(--text-secondary);padding:2px 8px;border-radius:10px;font-weight:700;font-size:0.7rem;">' +
+        (compatible.length === setups.length ? setups.length : compatible.length + '/' + setups.length) +
+        '</span>'
       : '';
 
     return makeCollapsibleSection(
       'setups',
       '💾 ' + T('Mes profils sauvegardés'),
       bodyChildren,
-      badge
+      badge,
+      // ⭐ v1.6.0-UX — Replié par défaut, mais l'utilisateur peut déplier.
+      //    Contrairement aux devices, on le laisse replié sauf s'il a été
+      //    explicitement déplié auparavant.
+      { defaultCollapsed: false }
     );
   }
 
   async function onLoadSetup(filename) {
     if (!filename) return;
+
+    // ⭐ v1.6.0 — Si l'éditeur a des modifs non sauvegardées, on demande
+    if (global.SettingsIni && typeof global.SettingsIni.promptSaveIfDirty === 'function') {
+      const ed = global.SettingsIni.getEditor && global.SettingsIni.getEditor('controls.ini');
+      if (ed && ed.dirty) {
+        const ok = await global.SettingsIni.promptSaveIfDirty(ed);
+        if (!ok) return; // Annulé
+      }
+    }
+
     const setup = setups.find(s => s.filename === filename);
     const displayName = setup ? setup.name : filename;
 
-    const msg = T('Charger le profil "{name}" ? Un backup de ta configuration actuelle sera créé automatiquement.')
+    const msg = T('Charger le profil "{name}" ? Ta configuration actuelle sera remplacée (elle reste sauvegardée dans un backup).')
       .replace('{name}', displayName);
 
     const ok = (global.QacrlDialogs && typeof global.QacrlDialogs.confirm === 'function')
@@ -359,18 +582,27 @@
     if (!ok) return;
 
     try {
+      // ⭐ apply-controller-setup met à jour settings.inputMethod + profile actif
       const res = await window.api.applyControllerSetup(filename);
       if (!res || !res.success) {
         alert('Erreur : ' + ((res && res.error) || 'inconnue'));
         return;
       }
 
-      // Recharge l'éditeur controls.ini pour afficher les nouvelles valeurs
+      // ⭐ v1.6.0 — Bascule le picker sur le mode du profil chargé
+      if (res.method && res.method !== currentMethod) {
+        currentMethod = res.method;
+        console.log('[ControllerPresets] Picker basculé sur', currentMethod);
+      } else {
+        // Refresh au cas où
+        currentMethod = await readCurrentMethod();
+      }
+
+      // Recharge l'éditeur avec le nouveau profil
       if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
         try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
       }
-      // Recharge l'INPUT_METHOD (il peut avoir changé)
-      currentMethod = await readCurrentMethod();
+
       renderRoot();
 
       // Toast de confirmation
@@ -426,9 +658,19 @@
         alert('Erreur : ' + ((res && res.error) || 'inconnue'));
         return;
       }
-      const listRes = await window.api.listSavedControllerSetups();
-      if (listRes && listRes.success) setups = listRes.setups || [];
-      renderRoot();
+
+      // ⭐ v1.6.0 — Si le profil supprimé était actif, l'éditeur doit se vider
+      const wasActive = activePerMode && Object.values(activePerMode).includes(filename);
+      if (wasActive) {
+        console.log('[ControllerPresets] Profil actif supprimé → rechargement éditeur');
+        // Force le rechargement de l'éditeur (qui va détecter l'absence de profil)
+        if (global.SettingsIni && typeof global.SettingsIni.reloadByName === 'function') {
+          try { await global.SettingsIni.reloadByName('controls.ini'); } catch (e) {}
+        }
+      }
+
+      // Refresh la liste + dropdown
+      await loadAll();
     } catch (e) {
       alert('Erreur : ' + e.message);
     }
@@ -447,6 +689,27 @@
       currentMethod = m;
       devices = (d && d.success) ? (d.devices || []) : [];
       setups  = (s && s.success) ? (s.setups || [])  : [];
+      activePerMode = (s && s.success && s.activePerMode)
+        ? s.activePerMode
+        : { WHEEL: null, X360: null, KEYBOARD: null };
+
+      // ⭐ v1.6.0-UX — Récupère le device actif pour le mode courant
+      if (currentMethod && currentMethod !== 'KEYBOARD') {
+        try {
+          const r = await window.api.getPreferredDeviceForMode(currentMethod);
+          if (r && r.success) {
+            preferredDevice = r.device || null;
+            deviceCandidates = r.candidates || [];
+          }
+        } catch (e) {
+          console.warn('[ControllerPresets] getPreferredDeviceForMode KO', e);
+          preferredDevice = null;
+          deviceCandidates = [];
+        }
+      } else {
+        preferredDevice = null;
+        deviceCandidates = [];
+      }
     } catch (e) {
       console.warn('[ControllerPresets] loadAll KO', e);
     }

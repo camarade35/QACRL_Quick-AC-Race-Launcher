@@ -10,11 +10,40 @@ et ce projet adhère au [Semantic Versioning](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### À venir
+- Widget ThumbPicker (Paramètres > Contrôles > Manette)
+- Encart contextuel "Mode actif" dans l'éditeur
 - Documentation utilisateur intégrée (onglet Aide)
 - Mapping noms PP filters non-Sol
 - Affichage live inversé pédales Fanatec
 - Gestion `__IGUID` : vrais GUIDs Windows
 - Message d'erreur si controls.ini non créable (permissions)
+
+---
+
+## [1.6.1] - 2026-10-17
+
+### 🐛 Corrigé (CRITIQUE)
+- **Périphériques DIY invisibles par Chromium (SparkFun, Arduino)** : impossibles à capturer car `navigator.getGamepads()` les ignore.
+  - Ajout d'un module `gamepadHidCapture.js` utilisant l'API **WebHID**.
+  - Intégration de la capture HID en parallèle de la capture Chromium (le bouton "Capter" écoute les deux).
+  - Popup de permission Electron ajoutée pour autoriser l'accès HID.
+- **JOY=n écrasés au Save** : QACRL forçait tous les JOY=n au device actif (sauf SHIFTER), cassant les configs multi-devices (ex: Phares sur SparkFun, Frein à main sur ODDOR).
+  - Fix : QACRL respecte désormais les `JOY=n` pointant vers un device existant dans `[CONTROLLERS]`.
+- **CSP ignore les boutons (Clignotants / Warnings)** : les sections `__EXT_*` ne fonctionnaient pas car :
+  1. QACRL gardait les commentaires inline (`KEY=0x28 ; Espace`), faisant planter le parseur strict de CSP.
+  2. QACRL écrivait en fins de ligne Unix (`\n`) au lieu de Windows (`\r\n`).
+  - Fix : Nettoyage des commentaires et forçage du format CRLF à la compilation.
+- **PGUID manquants** : QACRL supprimait la ligne `PGUID=n` du bloc `[CONTROLLERS]` lors de la compilation.
+  - Fix : `parseControllersBlock` lit et réécrit désormais le PGUID.
+  - Fix : Fusion des devices présents dans le profil mais absents du `controls.ini` actuel.
+
+### 🔧 Modifié
+- `main.js` : Nettoyage des commentaires, CRLF, lecture/écriture PGUID, fusion [CONTROLLERS], permissions HID.
+- `public/src/iniControls.js` : Double capture (Gamepad + WebHID), affichage du nom du device sur le bouton.
+- `public/src/settingsIni.js` : Respect des JOY existants lors de la sauvegarde.
+- `public/src/iniLayout.js` : Le dropdown "Périphérique" (JOY) est masqué sur les boutons (n'apparaît que pour les axes).
+- `public/src/gamepadHidCapture.js` : Nouveau module (capture HID).
+- `public/index.html` : Ajout du script `gamepadHidCapture.js`.
 
 ---
 

@@ -297,12 +297,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // ⭐ Autorise l'accès aux périphériques audio (pour lister les sorties)
   const { session } = require('electron');
+  
+  // ⭐ Autorise l'accès aux périphériques audio, HID et USB
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
-    if (permission === 'media') return callback(true);
+    if (['media', 'hid', 'usb'].includes(permission)) return callback(true);
     callback(false);
   });
+
+  // ⭐ Force l'autorisation HID (nécessaire pour les périphériques DIY / Arduino comme le SparkFun)
+  session.defaultSession.setDevicePermissionHandler((details) => {
+    return true; // Autorise tous les périphériques HID
+  });
+
   createWindow();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
@@ -2027,6 +2034,32 @@ ipcMain.handle('launch-game', async (event, sessionData) => {
   const { path: documentsPath } = resolveDocumentsPath(settings);
   settings.documentsPath = documentsPath;
 
+  // ⭐ v1.6.0 — Compile controls.ini depuis le profil actif du mode courant
+  //    AVANT de lancer. Garantit qu'AC lit la bonne config.
+  try {
+    const currentMethod = String(settings.inputMethod || 'WHEEL').toUpperCase();
+    const profileMap = getControllerProfilesMap(settings);
+    const activeProfile = profileMap[currentMethod];
+
+    if (activeProfile) {
+      const profilePath = path.join(getSavedSetupsDir(documentsPath), activeProfile);
+      if (fs.existsSync(profilePath)) {
+        const profileContent = fs.readFileSync(profilePath, 'utf8');
+        const res = compileControlsFromProfile(documentsPath, profileContent, currentMethod);
+        console.log('[launch-game] controls.ini compilé depuis', activeProfile, '(mode', currentMethod + ')');
+        // Persiste la maj de settings (au cas où getControllerProfilesMap a créé la structure)
+        try { fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
+      } else {
+        console.warn('[launch-game] Profil actif introuvable :', activeProfile, '— controls.ini non compilé');
+      }
+    } else {
+      console.log('[launch-game] Aucun profil actif pour le mode', currentMethod, '— controls.ini inchangé');
+    }
+  } catch (e) {
+    console.warn('[launch-game] Compilation controls.ini KO :', e.message);
+    // On ne bloque PAS le lancement : on continue avec controls.ini existant
+  }
+
   const weatherMode = sessionData.weatherMode || 'static';
   const sessionStartTime = sessionData.sessionStartTime || '12:00';
   const timeMult = parseInt(sessionData.timeMult, 10) || 1;
@@ -3131,7 +3164,11 @@ ipcMain.handle('write-ini-file', async (event, filename, content) => {
              └── ...
    ============================================================ */
 
-const CONTROLLER_INPUT_METHODS = ['WHEEL', 'GAMEPAD', 'KEYBOARD'];
+// ⚠️ Valeurs EXACTES attendues par Assetto Corsa dans [HEADER] INPUT_METHOD
+//    - WHEEL    → volant
+//    - X360     → manette (convention AC, cf. X360Default.ini)
+//    - KEYBOARD → clavier
+const CONTROLLER_INPUT_METHODS = ['WHEEL', 'X360', 'KEYBOARD'];
 const CONTROLLER_SETUP_NAME_MAX = 80;
 
 function getControllersDir(documentsPath) {
@@ -3142,6 +3179,297 @@ function getSavedSetupsDir(documentsPath) {
 }
 function getControlsIniPath(documentsPath) {
   return path.join(documentsPath, 'Assetto Corsa', 'cfg', 'controls.ini');
+}
+
+/* ============================================================
+   ⭐ v1.6.0 — Helpers profils de contrôleurs
+   ------------------------------------------------------------
+   Nouveau modèle :
+     - savedsetups/*.ini  = profils nommés (source de vérité)
+     - controls.ini       = fichier COMPILÉ (artefact, lu par AC)
+     - settings.json      = mémoire { controllerProfiles: { MODE: filename } }
+   ============================================================ */
+
+const crypto = require('crypto');
+
+// Lit INPUT_METHOD dans [HEADER] d'un contenu INI (sans parser complet)
+function readInputMethodFromContent(content) {
+  if (!content || typeof content !== 'string') return null;
+  const lines = content.split(/\r?\n/);
+  let inHeader = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    const secMatch = line.match(/^\[([^\]]+)\]\s*$/);
+    if (secMatch) {
+      inHeader = (secMatch[1].trim().toUpperCase() === 'HEADER');
+      continue;
+    }
+    if (!inHeader) continue;
+    const kv = line.match(/^INPUT_METHOD\s*=\s*(\w+)/i);
+    if (kv) {
+      let m = kv[1].toUpperCase();
+      if (m === 'GAMEPAD') m = 'X360';  // compat v1.5.0
+      return m;
+    }
+  }
+  return null;
+}
+
+// Devine le mode d'un profil par heuristique si INPUT_METHOD absent
+function guessProfileMethod(content) {
+  const explicit = readInputMethodFromContent(content);
+  if (explicit) return explicit;
+
+  // Heuristiques de fallback
+  if (/\[X360\][\s\S]*?STEER_THUMB\s*=\s*(LEFT|RIGHT)/i.test(content)) return 'X360';
+  if (/\[KEYBOARD\][\s\S]*?GAS\s*=\s*0x/i.test(content)) return 'KEYBOARD';
+  return 'WHEEL';
+}
+
+// Hash SHA1 du contenu normalisé (pour isActive)
+function hashIniContent(content) {
+  if (!content) return '';
+  const normalized = String(content)
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')   // trailing whitespace
+    .trim();
+  return crypto.createHash('sha1').update(normalized, 'utf8').digest('hex');
+}
+
+// Extrait la valeur d'INPUT_METHOD d'un fichier
+function getProfileInputMethod(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return guessProfileMethod(content);
+  } catch (e) {
+    return 'WHEEL';
+  }
+}
+
+// Lit settings.controllerProfiles (crée la structure si absente)
+function getControllerProfilesMap(settings) {
+  if (!settings.controllerProfiles || typeof settings.controllerProfiles !== 'object') {
+    settings.controllerProfiles = { WHEEL: null, X360: null, KEYBOARD: null };
+  }
+  for (const m of ['WHEEL', 'X360', 'KEYBOARD']) {
+    if (!(m in settings.controllerProfiles)) settings.controllerProfiles[m] = null;
+  }
+  return settings.controllerProfiles;
+}
+
+// Extrait [CONTROLLERS] d'un contenu INI (retourne null si absent)
+function extractControllersBlock(content) {
+  if (!content) return null;
+  const match = content.match(/\[CONTROLLERS\][\s\S]*?(?=\r?\n\[|$)/);
+  return match ? match[0] : null;
+}
+
+/**
+ * ⭐ Compile controls.ini à partir d'un profil nommé.
+ *   - Écrit le contenu du profil
+ *   - Préserve [CONTROLLERS] actuel de controls.ini (AC le régénère tout seul)
+ *   - ⭐ v1.6.0-fix-joy — REMAPPE les JOY=n du profil selon le [CONTROLLERS] actuel
+ *      (les index peuvent avoir changé si AC a regénéré la liste des devices)
+ *   - Force INPUT_METHOD dans [HEADER]
+ */
+
+// Extrait la map { index: { name, iguid } } depuis un bloc [CONTROLLERS]
+function parseControllersBlock(block) {
+  const map = {};
+  if (!block) return map;
+  const lines = block.split(/\r?\n/);
+  for (const line of lines) {
+    const mCon = line.match(/^CON(\d+)\s*=\s*(.+)$/);
+    const mIg  = line.match(/^__IGUID(\d+)\s*=\s*(.+)$/);
+    const mPg  = line.match(/^PGUID(\d+)\s*=\s*(.+)$/); // ⭐ Capture du PGUID
+    
+    if (mCon) {
+      const idx = parseInt(mCon[1], 10);
+      if (!map[idx]) map[idx] = {};
+      map[idx].name = mCon[2].trim();
+    } else if (mIg) {
+      const idx = parseInt(mIg[1], 10);
+      if (!map[idx]) map[idx] = {};
+      map[idx].iguid = mIg[2].trim();
+    } else if (mPg) {
+      const idx = parseInt(mPg[1], 10);
+      if (!map[idx]) map[idx] = {};
+      map[idx].pguid = mPg[2].trim(); // ⭐ Sauvegarde du PGUID
+    }
+  }
+  return map;
+}
+
+// Trouve l'index du device dans `target` qui correspond au device d'index `srcIdx` dans `source`
+// Match par iguid (fiable) puis par name (fallback)
+function findMatchingIndex(source, target, srcIdx) {
+  const src = source[srcIdx];
+  if (!src) return null;
+  // 1) Match par iguid
+  if (src.iguid) {
+    for (const k of Object.keys(target)) {
+      const t = target[k];
+      if (t.iguid && String(t.iguid).toLowerCase() === String(src.iguid).toLowerCase()) {
+        return parseInt(k, 10);
+      }
+    }
+  }
+  // 2) Match par name
+  if (src.name) {
+    for (const k of Object.keys(target)) {
+      const t = target[k];
+      if (t.name === src.name) return parseInt(k, 10);
+    }
+  }
+  return null;
+}
+
+function compileControlsFromProfile(documentsPath, profileContent, inputMethod) {
+  const controlsPath = getControlsIniPath(documentsPath);
+
+  // 1. Lit le controls.ini actuel pour récupérer son [CONTROLLERS]
+  let currentControllersBlock = null;
+  if (fs.existsSync(controlsPath)) {
+    try {
+      const currentContent = fs.readFileSync(controlsPath, 'utf8');
+      currentControllersBlock = extractControllersBlock(currentContent);
+    } catch (e) {}
+  }
+
+  // 2. Extrait [CONTROLLERS] du PROFIL (avant écrasement)
+  const profileControllersBlock = extractControllersBlock(profileContent);
+  const profileCtrlMap = parseControllersBlock(profileControllersBlock);
+  let currentCtrlMap = parseControllersBlock(currentControllersBlock);
+
+  // ⭐ v1.6.1-FIX — FUSION DES DEVICES
+  // Si le profil contient des devices absents du controls.ini actuel
+  // (ex: SparkFun pas encore détecté par AC), on les ajoute au [CONTROLLERS]
+  // pour éviter que leurs JOY=n soient transformés en -1.
+  let mergedCtrlMap = { ...currentCtrlMap };
+  let nextIdx = Object.keys(mergedCtrlMap).length > 0 ? Math.max(...Object.keys(mergedCtrlMap).map(Number)) + 1 : 0;
+
+  for (const srcIdx of Object.keys(profileCtrlMap)) {
+    const p = profileCtrlMap[srcIdx];
+    const exists = Object.values(mergedCtrlMap).find(c =>
+      (c.iguid && p.iguid && c.iguid.toLowerCase() === p.iguid.toLowerCase()) ||
+      (c.name && p.name && c.name === p.name)
+    );
+    if (!exists) {
+      mergedCtrlMap[nextIdx] = p;
+      nextIdx++;
+    }
+  }
+
+  // Reconstruit le bloc [CONTROLLERS] fusionné
+  const mergedLines = ['[CONTROLLERS]'];
+  for (const k of Object.keys(mergedCtrlMap).sort((a,b)=>parseInt(a,10)-parseInt(b,10))) {
+    const c = mergedCtrlMap[k];
+    if (c.name) mergedLines.push('CON' + k + '=' + c.name);
+    if (c.iguid) mergedLines.push('__IGUID' + k + '=' + c.iguid);
+    if (c.pguid) mergedLines.push('PGUID' + k + '=' + c.pguid);
+  }
+  const mergedControllersBlock = mergedLines.join('\n');
+
+  // 3. Remap des JOY=n avec le bloc FUSIONNÉ
+  const remapJoyLine = (line, sectionName) => {
+    const m = line.match(/^(\s*)JOY\s*=\s*(-?\d+)\s*$/);
+    if (!m) return line;
+    const srcIdx = parseInt(m[2], 10);
+    if (srcIdx < 0) return line;
+    
+    const newIdx = findMatchingIndex(profileCtrlMap, mergedCtrlMap, srcIdx);
+    if (newIdx === null) {
+      console.warn('[compileControlsFromProfile] Device index', srcIdx,
+        '(' + (profileCtrlMap[srcIdx] && profileCtrlMap[srcIdx].name) + ')',
+        'absent du controls.ini fusionné → JOY=-1 dans [' + sectionName + ']');
+      return m[1] + 'JOY=-1';
+    }
+    if (newIdx !== srcIdx) {
+      console.log('[compileControlsFromProfile] Remap JOY=' + srcIdx + ' → JOY=' + newIdx,
+        'dans [' + sectionName + ']');
+    }
+    return m[1] + 'JOY=' + newIdx;
+  };
+
+  // Applique le remap à toutes les lignes JOY=n (hors [CONTROLLERS])
+  let remappedContent = profileContent;
+  if (currentControllersBlock && profileControllersBlock) {
+    let currentSection = null;
+    const outLines = [];
+    for (const raw of profileContent.split(/\r?\n/)) {
+      const secM = raw.match(/^\s*\[([^\]]+)\]\s*$/);
+      if (secM) {
+        currentSection = secM[1].trim().toUpperCase();
+        outLines.push(raw);
+        continue;
+      }
+      if (currentSection && currentSection !== 'CONTROLLERS') {
+        outLines.push(remapJoyLine(raw, currentSection));
+      } else {
+        outLines.push(raw);
+      }
+    }
+    remappedContent = outLines.join('\n');
+  }
+
+  // 4. Prépare le nouveau contenu (à partir du profil remappé)
+  let newContent = remappedContent;
+
+  // ⭐ v1.6.1-FIX-CSP — Nettoie les commentaires inline (ex: "KEY=0x28 ; Espace")
+  //    qui font planter le parseur strict de Custom Shaders Patch (CSP)
+  //    pour les commandes comme les clignotants ou les warnings.
+  newContent = newContent.split(/\r?\n/).map(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith(';') || trimmed.startsWith('#')) return line;
+    const idx = line.indexOf(';');
+    if (idx > 0) return line.substring(0, idx).trimEnd();
+    return line;
+  }).join('\n');
+
+  // 5. Remplace [CONTROLLERS] du profil par le bloc FUSIONNÉ
+  if (mergedControllersBlock) {
+    if (/\[CONTROLLERS\]/.test(newContent)) {
+      newContent = newContent.replace(/\[CONTROLLERS\][\s\S]*?(?=\r?\n\[|$)/, mergedControllersBlock);
+    } else {
+      const eol0 = newContent.includes('\r\n') ? '\r\n' : '\n';
+      newContent = newContent.replace(/\[HEADER\][\s\S]*?(?=\r?\n\[|$)/, (m) => m + eol0 + eol0 + mergedControllersBlock);
+    }
+  }
+
+  // 6. Force INPUT_METHOD dans [HEADER]
+  const eol = newContent.includes('\r\n') ? '\r\n' : '\n';
+  const lines = newContent.split(/\r?\n/);
+  let headerIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
+    if (m && m[1].trim().toUpperCase() === 'HEADER') { headerIdx = i; break; }
+  }
+  if (headerIdx < 0) {
+    lines.unshift('[HEADER]', 'INPUT_METHOD=' + inputMethod, '');
+  } else {
+    let imIdx = -1;
+    for (let i = headerIdx + 1; i < lines.length; i++) {
+      if (/^\s*\[/.test(lines[i])) break;
+      if (/^\s*INPUT_METHOD\s*=/i.test(lines[i])) { imIdx = i; break; }
+    }
+    if (imIdx >= 0) lines[imIdx] = 'INPUT_METHOD=' + inputMethod;
+    else lines.splice(headerIdx + 1, 0, 'INPUT_METHOD=' + inputMethod);
+  }
+  newContent = lines.join(eol);
+
+  // 7. Backup + écriture
+  const cfgDir = path.dirname(controlsPath);
+  if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
+  if (fs.existsSync(controlsPath)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    try { fs.copyFileSync(controlsPath, controlsPath + '.bak-' + stamp); } catch (e) {}
+  }
+
+  // ⭐ v1.6.1-CRITICAL — Force les fins de ligne Windows (CRLF) pour AC / CSP
+  const windowsContent = newContent.replace(/\r?\n/g, '\r\n');
+  fs.writeFileSync(controlsPath, windowsContent, 'utf8');
+
+  return { success: true, method: inputMethod };
 }
 
 // Sanitize d'un nom de profil : retire les caractères interdits Windows.
@@ -3179,17 +3507,40 @@ function parseControllerFile(content) {
   return out;
 }
 
-// Détermine le type de contrôleur d'après son PGUID (heuristique).
+// Détermine le type de contrôleur d'après son nom + PGUID (heuristique).
 // Sert à filtrer les devices par catégorie dans l'UI.
+//
+// ⭐ v1.6.0 — Refonte de la logique de matching :
+//    Avant : on testait "xbox" en premier → un Logitech G920 (dont le nom
+//    contient "Xbox") était classé gamepad par erreur.
+//    Après : on matche d'abord les mots-clés SPÉCIFIQUES (gamepad explicite,
+//    modèles de volants), puis seulement les marques génériques (Xbox).
+//    Les marques ambiguës (Logitech = wheels ET pads) sont résolues par le
+//    nom du modèle (F310/F710 vs G25/G27/G29/G920/G923).
 function guessControllerType(name, product) {
   const n = String(name || '').toLowerCase();
   const p = String(product || '').toLowerCase();
-  // Manettes standard
-  if (/xbox|gamepad|manette|dualsense|dualshock|joy-?con|nintendo|switch|gpx/.test(n)) return 'gamepad';
-  if (/^028e|^045e|^054c|^057e|^0f0d/.test(p)) return 'gamepad';
-  // Volants / pédaliers / shifter
-  if (/wheel|volant|fanatec|logitech|thrustmaster|racing|shifter|pedal|clutch|csl|club.?sport|csw|g25|g27|g29|g920|t500|f430|csr/.test(n)) return 'wheel';
-  if (/^0eb7|^046d|^044f/.test(p)) return 'wheel';
+
+  // ─── 1. Manettes explicites (mots-clés + modèles connus) ───────────────
+  //    À tester en premier : "Logitech Gamepad F310" doit matcher ici
+  //    (sinon "Logitech" le ferait basculer côté wheel).
+  if (/gamepad|manette|dualsense|dualshock|joy-?con|nintendo|switch|gpx|f310|f710/.test(n)) return 'gamepad';
+  if (/^054c|^057e|^0f0d/.test(p)) return 'gamepad';   // Sony / Nintendo / Hori
+
+  // ─── 2. Volants explicites (mots-clés + modèles + marques dédiées) ─────
+  //    "Logitech G920 Driving Force Racing Wheel for Xbox" → wheel ✅
+  //    "Fanatec ClubSport Wheel Base V2.5"               → wheel ✅
+  //    "Thrustmaster T300 RS"                            → wheel ✅
+  if (/wheel|volant|racing|driving.?force|fanatec|thrustmaster|moza|simagic|cammus|simucube|heusinkveld|asetek|g25|g27|g29|g920|g923|t150|t248|t300|t500|ts-?pc|csr|csl|csw|club.?sport|podium|dd1|dd2/.test(n)) return 'wheel';
+  if (/^0eb7|^044f/.test(p)) return 'wheel';   // Fanatec / Thrustmaster
+
+  // ─── 3. Xbox générique (probablement une manette si rien d'autre matché) ─
+  //    "Controller (XBOX 360 For Windows)" → gamepad ✅
+  if (/xbox/.test(n)) return 'gamepad';
+  if (/^028e|^045e/.test(p)) return 'gamepad';   // Logic3 / Microsoft
+
+  // ─── 4. Logitech seul (sans modèle identifiable) → ambigu ──────────────
+  //    On ne tranche PAS : l'utilisateur assignera manuellement.
   return 'other';
 }
 
@@ -3242,13 +3593,25 @@ ipcMain.handle('list-ac-controller-devices', async () => {
   return { success: true, devices, path: dir };
 });
 
-// Liste les setups sauvegardés dans savedsetups/
+// Liste les setups sauvegardés dans savedsetups/ (enrichi v1.6.0)
 ipcMain.handle('list-saved-controller-setups', async () => {
   const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
   const { path: documentsPath } = resolveDocumentsPath(settings);
   const dir = getSavedSetupsDir(documentsPath);
 
-  if (!fs.existsSync(dir)) return { success: true, setups: [], path: dir };
+  if (!fs.existsSync(dir)) return { success: true, setups: [], path: dir, activePerMode: getControllerProfilesMap(settings) };
+
+  // Hash de controls.ini actuel pour détecter isActive
+  const controlsPath = getControlsIniPath(documentsPath);
+  let currentHash = '';
+  let currentInputMethod = null;
+  if (fs.existsSync(controlsPath)) {
+    try {
+      const cContent = fs.readFileSync(controlsPath, 'utf8');
+      currentHash = hashIniContent(cContent);
+      currentInputMethod = readInputMethodFromContent(cContent);
+    } catch (e) {}
+  }
 
   const setups = [];
   try {
@@ -3259,11 +3622,17 @@ ipcMain.handle('list-saved-controller-setups', async () => {
       const full = path.join(dir, e.name);
       try {
         const stat = fs.statSync(full);
+        const content = fs.readFileSync(full, 'utf8');
+        const method = guessProfileMethod(content);
+        const isActive = (hashIniContent(content) === currentHash);
+
         setups.push({
           filename: e.name,
           name: e.name.replace(/\.ini$/i, ''),
           size: stat.size,
           mtime: stat.mtimeMs,
+          method,           // ⭐ v1.6.0
+          isActive,         // ⭐ v1.6.0
         });
       } catch (err) {}
     }
@@ -3272,7 +3641,13 @@ ipcMain.handle('list-saved-controller-setups', async () => {
   }
 
   setups.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
-  return { success: true, setups, path: dir };
+  return {
+    success: true,
+    setups,
+    path: dir,
+    activePerMode: getControllerProfilesMap(settings),  // ⭐ v1.6.0
+    currentInputMethod,                                  // ⭐ v1.6.0
+  };
 });
 
 // Lit le contenu d'un setup sauvegardé
@@ -3291,30 +3666,187 @@ ipcMain.handle('read-controller-setup', async (event, filename) => {
   }
 });
 
-// Applique un setup sauvegardé sur controls.ini (avec backup auto)
+// ⭐ v1.6.0 — CHARGE un profil en mémoire (n'écrit plus controls.ini)
+//   Le contenu est retourné à l'UI pour affichage dans l'éditeur.
+//   Le fichier controls.ini ne sera écrit qu'au moment de la compilation
+//   (au lancement de course ou au changement de mode).
 ipcMain.handle('apply-controller-setup', async (event, filename) => {
   if (!filename || typeof filename !== 'string') return { success: false, error: 'Nom manquant.' };
   const safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
   const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
   const { path: documentsPath } = resolveDocumentsPath(settings);
   const src = path.join(getSavedSetupsDir(documentsPath), safe);
-  const dst = getControlsIniPath(documentsPath);
 
   if (!fs.existsSync(src)) return { success: false, error: 'Setup introuvable : ' + safe };
 
   try {
-    const cfgDir = path.dirname(dst);
-    if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
+    const content = fs.readFileSync(src, 'utf8');
+    const method = guessProfileMethod(content);
 
-    // Backup auto avant écrasement
-    if (fs.existsSync(dst)) {
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      fs.copyFileSync(dst, dst + '.bak-' + stamp);
+    // Maj du profil actif pour ce mode
+    const map = getControllerProfilesMap(settings);
+    map[method] = safe;
+
+    // ⭐ v1.6.0 — Charger un profil bascule AUSSI le mode courant
+    //    (sinon incohérence picker ↔ layout)
+    settings.inputMethod = method;
+
+    try {
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    } catch (e) { console.warn('[apply-controller-setup] save settings KO', e); }
+
+    console.log('[apply-controller-setup] Profil chargé en mémoire :', safe, '(mode', method + ')');
+    return { success: true, filename: safe, content, method };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ⭐ v1.6.0 — Récupère le profil actif pour un mode donné
+ipcMain.handle('get-active-profile', async (event, mode) => {
+  const m = String(mode || '').toUpperCase();
+  if (!['WHEEL', 'X360', 'KEYBOARD'].includes(m)) {
+    return { success: false, error: 'Mode inconnu : ' + mode };
+  }
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const map = getControllerProfilesMap(settings);
+  const filename = map[m];
+
+  if (!filename) return { success: true, filename: null, content: null, method: m };
+
+  const full = path.join(getSavedSetupsDir(documentsPath), filename);
+
+  // ⭐ v1.6.0 — Fichier absent → nettoie la réf
+  if (!fs.existsSync(full)) {
+    map[m] = null;
+    try { fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
+    console.log('[get-active-profile] Ref morte nettoyée pour', m, ':', filename);
+    return { success: true, filename: null, content: null, method: m, warning: 'Profil référencé introuvable : ' + filename };
+  }
+
+  try {
+    const content = fs.readFileSync(full, 'utf8');
+    const profileMethod = guessProfileMethod(content);
+
+    // ⭐ v1.6.0 — Cohérence : si le profil est WHEEL mais qu'on demande X360,
+    //    on prévient et on retourne null (l'UI utilisera controls.ini).
+    if (profileMethod !== m) {
+      console.warn('[get-active-profile] Incohérence mode : profil', filename,
+                   'est', profileMethod, 'mais mode demandé =', m);
+      return {
+        success: true,
+        filename: null,
+        content: null,
+        method: m,
+        warning: 'Profil "' + filename + '" est un profil ' + profileMethod +
+                 ', pas ' + m + '. Change de mode ou crée un nouveau profil.',
+      };
     }
 
-    fs.copyFileSync(src, dst);
-    console.log('[apply-controller-setup] Appliqué', safe, '→', dst);
-    return { success: true };
+    return { success: true, filename, content, method: m };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ⭐ v1.6.0 — Sauvegarde un contenu dans un profil (crée ou écrase)
+ipcMain.handle('save-controller-profile', async (event, filename, content, mode) => {
+  if (typeof content !== 'string') return { success: false, error: 'Contenu invalide.' };
+  const m = String(mode || '').toUpperCase();
+  if (!['WHEEL', 'X360', 'KEYBOARD'].includes(m)) {
+    return { success: false, error: 'Mode inconnu : ' + mode };
+  }
+
+  // ⭐ v1.6.0 — Garde-fou : force INPUT_METHOD dans [HEADER] du contenu,
+  //    peu importe ce que l'UI a envoyé. Empêche tout profil d'avoir un
+  //    INPUT_METHOD incohérent avec son mode de destination.
+  try {
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+    const lines = content.split(/\r?\n/);
+    let headerIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const sm = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
+      if (sm && sm[1].trim().toUpperCase() === 'HEADER') { headerIdx = i; break; }
+    }
+    if (headerIdx < 0) {
+      lines.unshift('[HEADER]', 'INPUT_METHOD=' + m, '');
+    } else {
+      let imIdx = -1;
+      for (let i = headerIdx + 1; i < lines.length; i++) {
+        if (/^\s*\[/.test(lines[i])) break;
+        if (/^\s*INPUT_METHOD\s*=/i.test(lines[i])) { imIdx = i; break; }
+      }
+      if (imIdx >= 0) lines[imIdx] = 'INPUT_METHOD=' + m;
+      else lines.splice(headerIdx + 1, 0, 'INPUT_METHOD=' + m);
+    }
+    content = lines.join(eol);
+  } catch (e) {
+    console.warn('[save-controller-profile] force INPUT_METHOD KO', e);
+  }
+
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const dir = getSavedSetupsDir(documentsPath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  // Si filename null → créer un nouveau nom
+  let safe;
+  if (filename) {
+    safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
+    if (!safe) return { success: false, error: 'Nom invalide.' };
+  } else {
+    return { success: false, error: 'Nom de profil requis pour créer un nouveau profil.' };
+  }
+
+  const full = path.join(dir, safe);
+
+  try {
+    // Backup si écrasement
+    if (fs.existsSync(full)) {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      try { fs.copyFileSync(full, full + '.bak-' + stamp); } catch (e) {}
+    }
+    fs.writeFileSync(full, content, 'utf8');
+
+    // Maj profil actif pour ce mode
+    const map = getControllerProfilesMap(settings);
+    map[m] = safe;
+    try { fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
+
+    console.log('[save-controller-profile] Écrit :', safe, '(mode', m + ')');
+    return { success: true, filename: safe };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ⭐ v1.6.0 — Compile controls.ini depuis le profil actif du mode courant
+ipcMain.handle('compile-controls-from-profile', async (event, mode) => {
+  const m = String(mode || '').toUpperCase();
+  if (!['WHEEL', 'X360', 'KEYBOARD'].includes(m)) {
+    return { success: false, error: 'Mode inconnu : ' + mode };
+  }
+
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const map = getControllerProfilesMap(settings);
+  const filename = map[m];
+
+  if (!filename) {
+    return { success: false, error: 'Aucun profil actif pour le mode ' + m, noProfile: true };
+  }
+
+  const src = path.join(getSavedSetupsDir(documentsPath), filename);
+  if (!fs.existsSync(src)) {
+    return { success: false, error: 'Profil introuvable : ' + filename };
+  }
+
+  try {
+    const content = fs.readFileSync(src, 'utf8');
+    const result = compileControlsFromProfile(documentsPath, content, m);
+    console.log('[compile-controls-from-profile] Compilé depuis', filename, '(mode', m + ')');
+    return result;
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -3343,7 +3875,7 @@ ipcMain.handle('save-current-as-setup', async (event, name) => {
   }
 });
 
-// Supprime un setup sauvegardé
+// Supprime un setup sauvegardé (⭐ v1.6.0 : nettoie aussi les références actives)
 ipcMain.handle('delete-controller-setup', async (event, filename) => {
   if (!filename || typeof filename !== 'string') return { success: false, error: 'Nom manquant.' };
   const safe = sanitizeSetupName(filename).replace(/\.ini$/i, '') + '.ini';
@@ -3351,63 +3883,204 @@ ipcMain.handle('delete-controller-setup', async (event, filename) => {
   const { path: documentsPath } = resolveDocumentsPath(settings);
   const full = path.join(getSavedSetupsDir(documentsPath), safe);
   if (!fs.existsSync(full)) return { success: true, alreadyGone: true };
+
   try {
     fs.unlinkSync(full);
-    return { success: true };
+
+    // ⭐ v1.6.0 — Nettoie les références actives qui pointaient vers ce profil
+    const map = getControllerProfilesMap(settings);
+    let cleanedRefs = [];
+    for (const m of ['WHEEL', 'X360', 'KEYBOARD']) {
+      if (map[m] === safe) {
+        map[m] = null;
+        cleanedRefs.push(m);
+      }
+    }
+    if (cleanedRefs.length > 0) {
+      try {
+        fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+        console.log('[delete-controller-setup] Refs nettoyées pour modes :', cleanedRefs.join(', '));
+      } catch (e) { console.warn('[delete-controller-setup] save settings KO', e); }
+    }
+
+    return { success: true, cleanedRefs };
   } catch (e) {
     return { success: false, error: e.message };
   }
 });
 
-// Écrit INPUT_METHOD dans [HEADER] de controls.ini
+// ⭐ v1.6.0 — Mémorise INPUT_METHOD dans settings.json (n'écrit PLUS controls.ini)
+//   controls.ini sera recompilé au lancement de course ou au changement de mode.
 ipcMain.handle('set-input-method', async (event, method) => {
   const m = String(method || '').toUpperCase();
   if (!CONTROLLER_INPUT_METHODS.includes(m)) {
     return { success: false, error: 'Méthode inconnue : ' + method };
   }
   const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
-  const { path: documentsPath } = resolveDocumentsPath(settings);
-  const file = getControlsIniPath(documentsPath);
 
   try {
-    const cfgDir = path.dirname(file);
-    if (!fs.existsSync(cfgDir)) fs.mkdirSync(cfgDir, { recursive: true });
-
-    let content = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-    const eol = content.includes('\r\n') ? '\r\n' : '\n';
-
-    if (!content) {
-      content = '[HEADER]' + eol + 'INPUT_METHOD=' + m + eol;
-    } else {
-      const lines = content.split(/\r?\n/);
-      let headerIdx = -1;
-      for (let i = 0; i < lines.length; i++) {
-        const secMatch = lines[i].match(/^\s*\[([^\]]+)\]\s*$/);
-        if (secMatch && secMatch[1].trim().toUpperCase() === 'HEADER') { headerIdx = i; break; }
-      }
-      if (headerIdx < 0) {
-        // Insère la section [HEADER] au tout début
-        lines.unshift('[HEADER]', 'INPUT_METHOD=' + m, '');
-      } else {
-        // Cherche INPUT_METHOD dans la section HEADER
-        let imIdx = -1;
-        for (let i = headerIdx + 1; i < lines.length; i++) {
-          if (/^\s*\[/.test(lines[i])) break;
-          if (/^\s*INPUT_METHOD\s*=/i.test(lines[i])) { imIdx = i; break; }
-        }
-        if (imIdx >= 0) lines[imIdx] = 'INPUT_METHOD=' + m;
-        else lines.splice(headerIdx + 1, 0, 'INPUT_METHOD=' + m);
-      }
-      content = lines.join(eol);
-    }
-
-    fs.writeFileSync(file, content, 'utf8');
-    console.log('[set-input-method] INPUT_METHOD =', m);
+    settings.inputMethod = m;  // mode courant (affichage UI)
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    console.log('[set-input-method] INPUT_METHOD (mémoire) =', m);
     return { success: true, method: m };
   } catch (e) {
     return { success: false, error: e.message };
   }
 });
+
+// ⭐ v1.6.0 — Récupère le mode courant mémorisé
+ipcMain.handle('get-input-method', async () => {
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  return { success: true, method: settings.inputMethod || 'WHEEL' };
+});
+
+/* ============================================================
+   ⭐ v1.6.0-UX — Périphérique "actif" par mode
+   ============================================================ */
+
+function getPreferredDeviceMap(settings) {
+  if (!settings.preferredDeviceByMode || typeof settings.preferredDeviceByMode !== 'object') {
+    settings.preferredDeviceByMode = { WHEEL: null, X360: null, KEYBOARD: null };
+  }
+  for (const m of ['WHEEL', 'X360', 'KEYBOARD']) {
+    if (!(m in settings.preferredDeviceByMode)) settings.preferredDeviceByMode[m] = null;
+  }
+  return settings.preferredDeviceByMode;
+}
+
+function readControllersFromControlsIni(documentsPath) {
+  const controlsPath = getControlsIniPath(documentsPath);
+  if (!fs.existsSync(controlsPath)) return [];
+  try {
+    const content = fs.readFileSync(controlsPath, 'utf8');
+    const ctrlMatch = content.match(/\[CONTROLLERS\]([\s\S]*?)(?=\r?\n\[|$)/);
+    if (!ctrlMatch) return [];
+    const map = {};
+    const lines = ctrlMatch[1].split(/\r?\n/);
+    for (const line of lines) {
+      // ⭐ v1.6.0 — Extrait CON (nom) ET __IGUID (identifiant unique fiable)
+      const mCon = line.match(/^CON(\d+)\s*=\s*(.+)$/);
+      const mIg  = line.match(/^__IGUID(\d+)\s*=\s*(.+)$/);
+      if (mCon) {
+        const idx = parseInt(mCon[1], 10);
+        if (!map[idx]) map[idx] = { index: idx };
+        map[idx].name = mCon[2].trim();
+      } else if (mIg) {
+        const idx = parseInt(mIg[1], 10);
+        if (!map[idx]) map[idx] = { index: idx };
+        map[idx].iguid = mIg[2].trim();
+      }
+    }
+    return Object.values(map).sort((a, b) => a.index - b.index);
+  } catch (e) { return []; }
+}
+
+ipcMain.handle('get-preferred-device-for-mode', async (event, mode) => {
+  const m = String(mode || '').toUpperCase();
+  if (!['WHEEL', 'X360', 'KEYBOARD'].includes(m)) {
+    return { success: false, error: 'Mode inconnu : ' + mode };
+  }
+
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const { path: documentsPath } = resolveDocumentsPath(settings);
+  const dir = getControllersDir(documentsPath);
+
+  if (m === 'KEYBOARD') {
+    return { success: true, mode: m, device: null, candidates: [] };
+  }
+
+  if (!fs.existsSync(dir)) {
+    return { success: true, mode: m, device: null, candidates: [], reason: 'dossier controllers absent' };
+  }
+
+  const all = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.toLowerCase().endsWith('.ini')) continue;
+      const full = path.join(dir, e.name);
+      try {
+        const content = fs.readFileSync(full, 'utf8');
+        const parsed = parseControllerFile(content);
+        all.push({
+          iguid: e.name.replace(/\.ini$/i, ''),
+          filename: e.name,
+          name: parsed.name || e.name,
+          product: parsed.product || '',
+          type: guessControllerType(parsed.name, parsed.product),
+        });
+      } catch (err) {}
+    }
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+
+  const seen = new Set();
+  const unique = [];
+  for (const d of all) {
+    if (seen.has(d.name)) continue;
+    seen.add(d.name);
+    unique.push(d);
+  }
+
+  const wantedType = (m === 'WHEEL') ? 'wheel' : (m === 'X360') ? 'gamepad' : 'other';
+  const candidates = unique.filter(d => d.type === wantedType);
+
+  const ctrlSec = readControllersFromControlsIni(documentsPath);
+  const withIndex = candidates.map(d => {
+    // ⭐ v1.6.0 — Match par __IGUID d'abord (source de vérité AC : identifiant
+    //            unique stable = nom du fichier .ini du device), puis fallback
+    //            sur le nom (compat avec les très vieux controls.ini).
+    //            Sans ça, un device comme "Controller (XBOX 360 For Windows)"
+    //            ne matche jamais son entrée "Xbox 360" dans controls.ini.
+    let c = null;
+    if (d.iguid) {
+      c = ctrlSec.find(x => x.iguid &&
+        String(x.iguid).toLowerCase() === String(d.iguid).toLowerCase());
+    }
+    if (!c) {
+      c = ctrlSec.find(x => x.name === d.name);
+    }
+    return Object.assign({}, d, { acIndex: c ? c.index : null });
+  }).filter(d => d.acIndex !== null);
+
+  const map = getPreferredDeviceMap(settings);
+  const preferredName = map[m];
+  let chosen = null;
+  if (preferredName) {
+    chosen = withIndex.find(d => d.name === preferredName) || null;
+  }
+  if (!chosen && withIndex.length > 0) chosen = withIndex[0];
+
+  if (chosen && map[m] !== chosen.name) {
+    map[m] = chosen.name;
+    try { fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8'); } catch (e) {}
+  }
+
+  return {
+    success: true,
+    mode: m,
+    device: chosen,
+    candidates: withIndex,
+  };
+});
+
+ipcMain.handle('set-preferred-device-for-mode', async (event, mode, deviceName) => {
+  const m = String(mode || '').toUpperCase();
+  if (!['WHEEL', 'X360', 'KEYBOARD'].includes(m)) {
+    return { success: false, error: 'Mode inconnu : ' + mode };
+  }
+  const settings = fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) : {};
+  const map = getPreferredDeviceMap(settings);
+  map[m] = deviceName || null;
+  try {
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2), 'utf8');
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 
 /* ============================================================
    IPC — LISTE DES FILTRES POST-PROCESS (ppfilters)

@@ -6,7 +6,7 @@
 
 **Un launcher custom léger, moderne et rapide pour Assetto Corsa**
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
+[![Version](https://img.shields.io/badge/version-1.6.1-blue.svg)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 [![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://github.com/camarade35/QACRL_Quick-AC-Race-Launcher/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -99,6 +99,8 @@ Il se concentre sur **l'essentiel** : choix voiture + circuit + session, configu
   - Écrit `INPUT_METHOD` dans `controls.ini`
   - **Liste des devices détectés par AC** (lecture seule, avec statut de mapping)
   - **Gestion des profils sauvegardés** (`cfg/controllers/savedsetups/`) : charger, sauver, supprimer
+- **Capture universelle** : supporte les manettes standard (Chromium) **et les périphériques DIY / Arduino** (SparkFun, etc.) via l'API WebHID
+- **Sauvegarde intelligente** : préserve les assignations multi-devices (ex: boutons sur un Arduino, frein à main sur un autre USB)
 - **Undo fin par ligne** dans tous les éditeurs de config
 - **Détection auto de conflits CSP** avec bandeau + badges
 - Wizard de calibration volant (Reset axe, dropdown AC 0-31)

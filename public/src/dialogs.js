@@ -76,7 +76,8 @@
 
   // ---------------------------------------------------------------------------
   // Ouvre une modale générique
-  // opts = { type: 'alert'|'confirm'|'prompt', title, message, okLabel, cancelLabel, defaultValue, isHtml }
+  // opts = { type: 'alert'|'confirm'|'prompt', title, message, okLabel, cancelLabel, defaultValue, isHtml,
+  //          buttons: [{id, label, variant:'primary'|'danger'|'cancel'}] }
   // ---------------------------------------------------------------------------
   function open(opts) {
     ensureInit();
@@ -85,6 +86,7 @@
 
       const type = opts.type || 'alert';
       const isConfirm = (type === 'confirm' || type === 'prompt');
+      const hasCustomButtons = Array.isArray(opts.buttons) && opts.buttons.length > 0;
 
       // Icône
       const iconEl = overlayEl.querySelector('.qacrl-dialog-icon');
@@ -128,22 +130,63 @@
         inputWrap.style.display = 'none';
       }
 
-      // Boutons
-      const btnOk = overlayEl.querySelector('.qacrl-dialog-btn-ok');
-      const btnCancel = overlayEl.querySelector('.qacrl-dialog-btn-cancel');
-      const okLabel = opts.okLabel || 'OK';
-      btnOk.textContent = okLabel;
-      btnOk.onclick = () => {
-        if (type === 'prompt') close(inputField.value, true);
-        else close(true, true);
-      };
+      // ⭐ v1.6.0 — Mode "custom buttons" : tableau de boutons passés par l'appelant
+      const footer = overlayEl.querySelector('.qacrl-dialog-footer');
 
-      if (isConfirm) {
-        btnCancel.style.display = '';
-        btnCancel.textContent = opts.cancelLabel || 'Annuler';
-        btnCancel.onclick = () => close(null, false);
+      if (hasCustomButtons) {
+        // Reset complet du footer avec les boutons custom
+        footer.innerHTML = '';
+        for (const btnDef of opts.buttons) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'filter-btn qacrl-dialog-btn';
+
+          if (btnDef.variant === 'primary') {
+            b.classList.add('qacrl-dialog-btn-ok');
+            b.style.padding = '10px 22px';
+            b.style.backgroundColor = 'var(--accent)';
+            b.style.color = '#fff';
+            b.style.borderColor = 'var(--accent)';
+            b.style.fontWeight = '700';
+          } else if (btnDef.variant === 'danger') {
+            b.classList.add('qacrl-dialog-btn-danger');
+          } else {
+            b.classList.add('qacrl-dialog-btn-cancel');
+            b.style.padding = '10px 20px';
+          }
+
+          b.textContent = btnDef.label;
+          b.onclick = () => close(btnDef.id, true);
+          footer.appendChild(b);
+        }
+
+        // Focus sur le bouton primary si présent
+        const primary = footer.querySelector('.qacrl-dialog-btn-ok');
+        if (primary) setTimeout(() => primary.focus(), 50);
       } else {
-        btnCancel.style.display = 'none';
+        // Mode classique : OK + Cancel
+        footer.innerHTML =
+          '<button class="filter-btn qacrl-dialog-btn-cancel" type="button" style="display:none;">Annuler</button>' +
+          '<button class="filter-btn qacrl-dialog-btn-ok" type="button">OK</button>';
+
+        const btnOk = footer.querySelector('.qacrl-dialog-btn-ok');
+        const btnCancel = footer.querySelector('.qacrl-dialog-btn-cancel');
+        const okLabel = opts.okLabel || 'OK';
+        btnOk.textContent = okLabel;
+        btnOk.onclick = () => {
+          if (type === 'prompt') close(inputField.value, true);
+          else close(true, true);
+        };
+
+        if (isConfirm) {
+          btnCancel.style.display = '';
+          btnCancel.textContent = opts.cancelLabel || 'Annuler';
+          btnCancel.onclick = () => close(null, false);
+        } else {
+          btnCancel.style.display = 'none';
+        }
+
+        setTimeout(() => btnOk.focus(), 50);
       }
 
       // Variant CSS
@@ -152,7 +195,6 @@
       if (opts.variant) dialogEl.classList.add('qacrl-dialog-' + opts.variant);
 
       overlayEl.classList.add('visible');
-      setTimeout(() => btnOk.focus(), 50);
     });
   }
 
@@ -221,7 +263,7 @@
     window.Dialogs = { alert, confirm, prompt };
   }
 
-  const API = { alert, confirm, prompt, installGlobalOverrides };
+  const API = { alert, confirm, prompt, open, installGlobalOverrides };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   if (typeof global !== 'undefined') global.QacrlDialogs = API;
 })(typeof window !== 'undefined' ? window : globalThis);

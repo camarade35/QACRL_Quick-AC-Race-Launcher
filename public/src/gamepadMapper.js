@@ -70,6 +70,13 @@
   // -------------------------------------------------------------------------
   // Parse l'id Chromium d'un gamepad
   // Ex : "FANATEC Wheel (Vendor: 0eb7 Product: 0020)"
+  //
+  // ⭐ v1.6.0-W4D — Fallback XInput :
+  //    Chromium sur Windows n'expose PAS Vendor/Product pour les manettes
+  //    utilisant le mapping standard XInput ("Xbox 360 Controller
+  //    (XInput STANDARD GAMEPAD)"). On les identifie comme Microsoft
+  //    Xbox 360 (045e:028e) par convention, ce qui permet de matcher le
+  //    PGUID "028E045E" côté Assetto Corsa.
   // -------------------------------------------------------------------------
   function parseChromiumGamepadId(id) {
     if (!id || typeof id !== 'string') return null;
@@ -80,6 +87,9 @@
         vendor:  vendorM[1].toLowerCase(),
         product: productM[1].toLowerCase(),
       };
+    }
+    if (/XInput\s+STANDARD\s+GAMEPAD/i.test(id)) {
+      return { vendor: '045e', product: '028e' };
     }
     return null;
   }
@@ -184,6 +194,59 @@
   const BLOCKED_AXES_BY_DEVICE = {
     '0eb7:0020': [9],  // D-pad du Fanatec (hat switch, valeurs hors [-1,1])
   };
+
+  // ⭐ v1.6.0-W4D-fix3 — Manette Xbox 360 (045e:028e) sur Windows :
+  //    Chromium expose LT/RT comme BOUTONS ANALOGIQUES (buttons[6]/[7],
+  //    valeur 0→1). DirectInput/AC les expose comme AXES :
+  //      AXLE 5 = accélérateur (RT)
+  //      AXLE 1 = frein (LT)
+  //    (observé dans xbox1.ini fonctionnel : THROTTLE AXLE=5, BRAKES AXLE=1)
+  //
+  //    Le mapping identité pour 0/1/2/3 permet de couvrir LX/LY/RX/RY.
+  AXIS_MAP_BY_DEVICE['045e:028e'] = {
+    0: 0,   // LX → AC 0 (direction)
+    1: 1,   // LY → AC 1 (fallback si trigger absent)
+    2: 2,   // RX → AC 2
+    3: 3,   // RY → AC 3
+  };
+
+  // Mapping bouton analogique → axe AC pour les triggers XInput
+  const XINPUT_TRIGGER_AXIS_MAP = {
+    '045e:028e': {
+      5: { button: 7, invert: false },   // AC 5 (accél) ← RT (button 7)
+      1: { button: 6, invert: false },   // AC 1 (frein) ← LT (button 6)
+    },
+  };
+
+  // ⭐ v1.6.0 — Mapping Chromium buttonIndex → valeur AC XBOXBUTTON
+  //    Standard XInput (identique Xbox 360/One/Series, DualShock/DualSense en mode XInput)
+  const CHROMIUM_TO_XBOX_BUTTON = {
+    0:  'A',
+    1:  'B',
+    2:  'X',
+    3:  'Y',
+    4:  'LSHOULDER',
+    5:  'RSHOULDER',
+    // 6 (LT) et 7 (RT) sont des AXES, pas des XBOXBUTTON → null
+    6:  null,
+    7:  null,
+    8:  'BACK',
+    9:  'START',
+    10: 'LTHUMB',
+    11: 'RTHUMB',
+    12: 'DPAD_UP',
+    13: 'DPAD_DOWN',
+    14: 'DPAD_LEFT',
+    15: 'DPAD_RIGHT',
+  };
+
+  /**
+   * Convertit un index de bouton Chromium en valeur AC XBOXBUTTON.
+   * Retourne null si le bouton n'est pas convertible (gâchettes analogiques).
+   */
+  function chromiumButtonToXboxButton(buttonIndex) {
+    return CHROMIUM_TO_XBOX_BUTTON[buttonIndex] || null;
+  }
 
   /**
    * Convertit un index d'axe Chromium en index AC pour un périphérique donné.
@@ -303,6 +366,48 @@
   }
 
   /**
+   * ⭐ v1.6.0-W4D-fix3 — Lit la valeur brute d'un axe AC sur un pad Chromium.
+   *
+   * Ordre de recherche :
+   *   1. Trigger XInput (bouton analogique) — Xbox 360 : LT/RT sont
+   *      exposés par Chromium comme buttons[6]/[7] avec value 0→1.
+   *      On les convertit en axe -1..+1 (0 → -1, 1 → +1) pour rester
+   *      cohérent avec le repère AC.
+   *   2. Axe Chromium classique (via acAxisToChromiumAxis).
+   *
+   * Retourne :
+   *   - un nombre entre -1 et 1 (repère AC)
+   *   - null si l'axe n'est pas mappable pour ce device
+   */
+  function readAxisFromPad(pad, vendor, product, acAxisIndex) {
+    if (!pad) return null;
+    const key = (vendor + ':' + product).toLowerCase();
+
+    // 1) Trigger analogique (bouton)
+    const triggerMap = XINPUT_TRIGGER_AXIS_MAP[key];
+    if (triggerMap && triggerMap[acAxisIndex]) {
+      const m = triggerMap[acAxisIndex];
+      const btn = pad.buttons && pad.buttons[m.button];
+      if (btn) {
+        const raw = (typeof btn === 'object' && btn.value != null)
+          ? btn.value
+          : (btn === true ? 1 : 0);
+        let v = raw * 2 - 1;          // 0..1  →  -1..+1
+        if (m.invert) v = -v;
+        return v;
+      }
+    }
+
+    // 2) Axe Chromium classique
+    const cAxis = acAxisToChromiumAxis(vendor, product, acAxisIndex);
+    if (cAxis >= 0 && pad.axes && pad.axes[cAxis] != null) {
+      return pad.axes[cAxis];
+    }
+
+    return null;
+  }
+
+  /**
    * ⭐ Retourne le mapping AC pour un axe Chromium donné,
    *    ou null si le device/axe n'est pas connu.
    *    Différent de chromiumAxisToAcAxis qui retourne l'index inchangé en fallback.
@@ -353,6 +458,8 @@
       acAxisToChromiumAxis: acAxisToChromiumAxis,
       chromiumAxisToAcAxis: chromiumAxisToAcAxis,
       isAxisBlocked: isAxisBlocked,
+      readAxisFromPad: readAxisFromPad,               // ⭐ v1.6.0-W4D-fix3
+      XINPUT_TRIGGER_AXIS_MAP: XINPUT_TRIGGER_AXIS_MAP, // ⭐ (optionnel, debug)
     };
   }
 
@@ -365,11 +472,14 @@
     matchAll,
     chromiumAxisToAcAxis,
     acAxisToChromiumAxis,
-    getAxisMapping,          // ⭐ nouveau
+    getAxisMapping,
     isAxisBlocked,
     loadLearnedProfiles,
     refreshLearnedProfiles,
     learnAxisMapping,
+    chromiumButtonToXboxButton,   // ⭐ v1.6.0
+    readAxisFromPad,              // ⭐ v1.6.0-W4D-fix3
+    XINPUT_TRIGGER_AXIS_MAP,      // ⭐ v1.6.0-W4D-fix3
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
