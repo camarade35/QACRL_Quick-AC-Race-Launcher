@@ -327,6 +327,16 @@
       }
     },
     "iniLabels": {
+      "Options Manette & Volant (CSP)": "Options Manette & Volant (CSP)",
+      "Désactiver le D-pad dans les stands (utiliser la souris)": "Désactiver le D-pad dans les stands (utiliser la souris)",
+      "Évite de changer de page par erreur avec la croix directionnelle quand tu es aux stands.": "Évite de changer de page par erreur avec la croix directionnelle quand tu es aux stands.",
+      "Détection réussie": "Détection réussie",
+      "Mouvement détecté sur le périphérique !\n\n": "Mouvement détecté sur le périphérique !\n\n",
+      "L'axe a été assigné à AXLE=": "L'axe a été assigné à AXLE=",
+      " par défaut.\n\n": " par défaut.\n\n",
+      "Si cela ne fonctionne pas en jeu, tu pourras changer la valeur dans le menu déroulant.": "Si cela ne fonctionne pas en jeu, tu pourras changer la valeur dans le menu déroulant.",
+      "Détecter automatiquement l'axe via WebHID": "Détecter automatiquement l'axe via WebHID",
+      "Tirez le frein...": "Tirez le frein...",
       "Croix ↑": "Croix ↑",
       "Croix ↓": "Croix ↓",
       "Croix ←": "Croix ←",

@@ -645,6 +645,15 @@
           });
           reconfigBtn.textContent = '🎯';
 
+          // ⭐ v1.6.2 — Bouton de capture HID pour les devices invisibles (ODDOR)
+          const hidBtn = el('button', {
+            type: 'button',
+            class: 'ini-axis-reconfig',
+            title: T('Tester l\'axe en temps réel via WebHID'),
+            style: 'display: none;' // Caché par défaut, affiché si device "other"
+          });
+          hidBtn.textContent = '🔍';
+
           // Détermine si le device JOY courant est un "other" (accessoire)
           // ⭐ FIX : opts.sectionHelpers (pas sectionHelpers)
           const currentJoyStr = opts.sectionHelpers
@@ -656,15 +665,59 @@
           const isOtherDevice = currentCtl && currentCtl.type === 'other';
 
           if (isOtherDevice) {
-            // Bouton grisé + tooltip explicatif
-            reconfigBtn.disabled = true;
-            reconfigBtn.style.opacity = '0.35';
-            reconfigBtn.style.cursor = 'not-allowed';
-            reconfigBtn.title = T('Wizard indisponible pour les accessoires (handbrake, shifter, pédalier custom). Chromium ne les expose pas — utilise le menu déroulant AXE.');
+            // ⭐ v1.6.2 — Wizard HID pour les devices "other" (ODDOR, etc.)
+            reconfigBtn.title = T('Détecter automatiquement l\'axe via WebHID');
             reconfigBtn.addEventListener('click', (e) => {
               e.preventDefault();
               e.stopPropagation();
-              alert(T('Cet accessoire (handbrake, shifter, pédalier custom) n\'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d\'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur.'));
+              
+              if (!global.GamepadHidCapture) {
+                alert(T('Module WebHID non disponible.'));
+                return;
+              }
+
+              // On lance une capture HID (pas de test continu, on veut juste le 1er mouvement)
+              const originalText = liveValue.textContent;
+              liveValue.textContent = 'Tirez le frein...';
+              
+              global.GamepadHidCapture.start({
+                captureMode: 'axis',
+                timeoutMs: 5000,
+                deviceName: currentCtl ? currentCtl.name : null,
+                onCapture: (r) => {
+                  // ⭐ v1.6.2 — Assignation intelligente selon le périphérique
+                  // L'ODDOR (et la plupart des DIY) utilisent le Slider (Axe 6) pour le frein à main.
+                  let suggestedAxis = 6; 
+                  if (opts.section === 'THROTTLE') suggestedAxis = 1;
+                  if (opts.section === 'STEER') suggestedAxis = 0;
+                  if (opts.section === 'BRAKES') suggestedAxis = 2;
+
+                  currentValue = String(suggestedAxis);
+                  if (opts.onChange) opts.onChange(currentValue);
+                  
+                  // ⭐ Met à jour l'interface visuelle (le menu déroulant et le bouton)
+                  if (typeof updateLabel === 'function') {
+                    updateLabel(); 
+                  }
+                  
+                  liveValue.textContent = originalText;
+                  
+                  // ⭐ Alerte de succès
+                  const showAlert = window.QacrlDialogs ? window.QacrlDialogs.alert : window.alert;
+                  showAlert(
+                    T('Mouvement détecté sur le périphérique !\n\n') +
+                    T('L\'axe a été assigné à AXLE=' + suggestedAxis + ' par défaut.\n\n') +
+                    T('Si cela ne fonctionne pas en jeu, tu pourras changer la valeur dans le menu déroulant.'),
+                    T('Détection réussie'),
+                    { variant: 'success', okLabel: 'OK' }
+                  );
+                },
+                onCancel: () => {
+                  liveValue.textContent = originalText;
+                }
+              }).catch(() => {
+                liveValue.textContent = originalText;
+              });
             });
           } else {
             reconfigBtn.addEventListener('click', (e) => {
@@ -690,8 +743,78 @@
           const liveFill = el('div', { class: 'ini-axis-live-fill' });
           const liveValue = el('div', { class: 'ini-axis-live-value', text: '—' });
           const liveBar = el('div', { class: 'ini-axis-live' }, [liveFill, liveValue]);
-          const wrapTop = el('div', { class: 'ini-binding-wrap ini-binding-wrap-4col' }, [btn, sel, resetBtn, reconfigBtn]);
+          // ⭐ v1.6.2 — Affiche le bouton HID si c'est un device "other" (ex: ODDOR)
+          if (isOtherDevice) {
+            hidBtn.style.display = 'flex';
+            hidBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              if (!global.GamepadHidCapture) {
+                alert(T('Module WebHID non disponible.'));
+                return;
+              }
+
+              // ⭐ Stoppe le live en cours avant de lancer le test
+              if (global.GamepadHidCapture) global.GamepadHidCapture.stop();
+
+              const originalText = liveValue.textContent;
+              liveValue.textContent = 'En attente...';
+              liveFill.style.width = '0%';
+
+              hidBtn.disabled = true;
+              hidBtn.style.opacity = '0.5';
+
+              let minObserved = 999999;
+              let maxObserved = -1;
+
+              let lastPct = 0; // ⭐ Mémorise la dernière position pour le lissage
+
+              global.GamepadHidCapture.start({
+                captureMode: 'axis',
+                timeoutMs: 15000,
+                isTestMode: true, // ⭐ Mode Test continu
+                deviceName: currentCtl ? currentCtl.name : null,
+                onLiveData: (val) => {
+                  // ⭐ Calcul du pourcentage pour l'ODDOR (0 - 1023 après correction)
+                  const maxVal = 1023; 
+                  const pct = Math.min(100, Math.max(0, (val / maxVal) * 100));
+                  
+                  liveFill.style.transition = 'none';
+                  liveFill.style.width = pct.toFixed(1) + '%';
+                  liveValue.textContent = `Valeur : ${val} (${pct.toFixed(0)}%)`;
+                },
+                onCapture: () => {
+                  // Pas utilisé en mode Test
+                },
+                onCancel: () => {
+                  liveFill.style.transition = 'width 0.08s linear'; // ⭐ Restaure l'animation
+                  liveFill.style.width = '0%';
+                  liveValue.textContent = originalText;
+                  hidBtn.disabled = false;
+                  hidBtn.style.opacity = '1';
+                }
+              }).catch(() => {
+                liveFill.style.width = '0%';
+                liveValue.textContent = originalText;
+                hidBtn.disabled = false;
+                hidBtn.style.opacity = '1';
+              });
+            });
+          }
+
+          const wrapTop = el('div', { class: 'ini-binding-wrap ini-binding-wrap-4col' }, [btn, sel, hidBtn, reconfigBtn]);
           const fullWrap = el('div', { class: 'ini-axis-fullwrap' }, [wrapTop, liveBar]);
+
+          // ⭐ Astuce MIN/MAX pour les devices "other"
+          if (isOtherDevice) {
+            const hintEl = el('div', {
+              class: 'ini-axis-hint',
+              text: T('💡 Astuce : Pour un frein à main, choisis AXLE=5, puis ajuste MIN=-1 et MAX=1. Si l\'axe est inversé, mets MIN=1 et MAX=-1.'),
+              style: 'font-size: 0.72rem; color: var(--text-tertiary); margin-top: 6px; font-style: italic; display: block;'
+            });
+            fullWrap.appendChild(hintEl);
+          }
 
           let liveInterval = null;
 
@@ -758,6 +881,35 @@
 
           function startLive() {
             if (liveInterval) return;
+
+            // ⭐ v1.6.2 — Live continu via WebHID pour les devices invisibles (ODDOR)
+            if (isOtherDevice && global.GamepadHidCapture) {
+              liveValue.textContent = 'En attente...';
+              global.GamepadHidCapture.start({
+                captureMode: 'axis',
+                timeoutMs: 0, // 0 = Tourne à l'infini
+                isTestMode: true,
+                deviceName: currentCtl ? currentCtl.name : null,
+                onLiveData: (val) => {
+                  // ⭐ Calcul du pourcentage pour l'ODDOR (0 - 1023 après correction)
+                  const maxVal = 1023; 
+                  const pct = Math.min(100, Math.max(0, (val / maxVal) * 100));
+                  
+                  liveFill.style.transition = 'none';
+                  liveFill.style.width = pct.toFixed(1) + '%';
+                  liveValue.textContent = `Valeur : ${val} (${pct.toFixed(0)}%)`;
+                },
+                onCancel: () => {
+                  liveFill.style.width = '0%';
+                  liveValue.textContent = '—';
+                }
+              }).catch(() => {
+                liveValue.textContent = 'Erreur HID';
+              });
+              return;
+            }
+
+            // Comportement normal pour les manettes/volants (Gamepad API)
             liveInterval = setInterval(updateLiveBar, 80);
             _liveIntervals.push(liveInterval);
           }
@@ -1123,6 +1275,10 @@
   function stopAllLives() {
     for (const id of _liveIntervals) clearInterval(id);
     _liveIntervals.length = 0;
+    // ⭐ v1.6.2 — Stoppe aussi la capture HID en arrière-plan pour éviter les fuites
+    if (global.GamepadHidCapture) {
+      global.GamepadHidCapture.stop();
+    }
   }
 
   const API = { createIniControl, stopAllLives };

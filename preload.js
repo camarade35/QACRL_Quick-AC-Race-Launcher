@@ -126,6 +126,10 @@ contextBridge.exposeInMainWorld('api', {
   // ⭐ Auto-configure style + filtre PP selon ce qui est installé
   autoConfigureWeather: () => ipcRenderer.invoke('auto-configure-weather'),
 
+  // ⭐ Options CSP AssettoCorsa.ini (D-pad dans les stands)
+  getCspIgnorePov: () => ipcRenderer.invoke('get-csp-ignore-pov'),
+  setCspIgnorePov: (enabled) => ipcRenderer.invoke('set-csp-ignore-pov', enabled),
+
   // ⭐ Résolutions d'écran disponibles
   listResolutions: () => ipcRenderer.invoke('list-resolutions'),
 

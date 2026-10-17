@@ -327,6 +327,16 @@
       }
     },
         "iniLabels": {
+      "Options Manette & Volant (CSP)": "Gamepad & Wheel Options (CSP)",
+      "Désactiver le D-pad dans les stands (utiliser la souris)": "Disable D-pad in pits (use mouse)",
+      "Évite de changer de page par erreur avec la croix directionnelle quand tu es aux stands.": "Avoid accidentally changing pages with the D-pad when in pits.",
+      "Détection réussie": "Detection successful",
+      "Mouvement détecté sur le périphérique !\n\n": "Movement detected on the device!\n\n",
+      "L'axe a été assigné à AXLE=": "The axis has been assigned to AXLE=",
+      " par défaut.\n\n": " by default.\n\n",
+      "Si cela ne fonctionne pas en jeu, tu pourras changer la valeur dans le menu déroulant.": "If it doesn't work in-game, you can change the value in the dropdown menu.",
+      "Détecter automatiquement l'axe via WebHID": "Automatically detect axis via WebHID",
+      "Tirez le frein...": "Pull the handbrake...",
       "Croix ↑": "D-pad ↑",
       "Croix ↓": "D-pad ↓",
       "Croix ←": "D-pad ←",

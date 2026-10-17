@@ -679,6 +679,24 @@
       </div>
 
       <div id="subtab-settings-controls" class="subtab-content">
+        <div class="group">
+          <div class="group-title" data-i18n="app.settings.groups.pitsDpad">🎮 Options Manette & Volant (CSP)</div>
+          <div class="row">
+            <div class="field">
+              <label class="check">
+                <input type="checkbox" id="csp-ignore-pov">
+                <span data-i18n="app.settings.fields.ignorePov">Désactiver le D-pad dans les stands (utiliser la souris)</span>
+              </label>
+              <div style="font-size: 0.72rem; color: var(--text-tertiary); margin-top: 4px; line-height: 1.5;">
+                <span data-i18n="app.settings.hints.ignorePov">Évite de changer de page par erreur avec la croix directionnelle quand tu es aux stands.</span>
+              </div>
+            </div>
+            <div class="field" style="flex: 0 0 auto; min-width: auto; justify-content: flex-end;">
+              <span id="csp-ignore-pov-status" style="font-size: 0.75rem; color: var(--text-tertiary); align-self: center;"></span>
+            </div>
+          </div>
+        </div>
+        
         <div class="ini-editor" data-ini-file="controls.ini"></div>
       </div>
 

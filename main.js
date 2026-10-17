@@ -4542,6 +4542,46 @@ ipcMain.handle('set-free-camera-options', async (event, opts) => {
 });
 
 /* ============================================================
+   IPC — PITSTOP.INI (Désactiver le D-pad dans les stands)
+   ============================================================ */
+function getPitstopIniPath() {
+  const settings = fs.existsSync(settingsFilePath)
+    ? JSON.parse(fs.readFileSync(settingsFilePath, 'utf8'))
+    : {};
+  const acPath = settings.acPath;
+  if (!acPath || !fs.existsSync(acPath)) throw new Error('Dossier AC non configuré.');
+  return path.join(acPath, 'system', 'cfg', 'pitstop.ini');
+}
+
+ipcMain.handle('get-csp-ignore-pov', async () => {
+  try {
+    const file = getPitstopIniPath();
+    if (!fs.existsSync(file)) return { success: true, value: false };
+    const val = readIniValue(file, 'SETTINGS', 'USE_MOUSE_PITSTOP');
+    // Si USE_MOUSE_PITSTOP=1, alors le D-pad est désactivé (utilisation de la souris).
+    return { success: true, value: (val === '1') };
+  } catch (e) {
+    return { success: false, error: e.message, value: false };
+  }
+});
+
+ipcMain.handle('set-csp-ignore-pov', async (event, enabled) => {
+  try {
+    const file = getPitstopIniPath();
+    if (!fs.existsSync(file)) {
+      // Crée le fichier si absent
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, '[SETTINGS]\n', 'utf8');
+    }
+    // Quand enabled = true, on veut USE_MOUSE_PITSTOP=1
+    writeIniValue(file, 'SETTINGS', 'USE_MOUSE_PITSTOP', enabled ? '1' : '0');
+    return { success: true, enabled: !!enabled };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+/* ============================================================
    IPC — ÉTAT ENABLED de weather_fx.ini
    ============================================================ */
 function getWeatherFxIniPath() {

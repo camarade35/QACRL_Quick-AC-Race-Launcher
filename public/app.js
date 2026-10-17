@@ -505,6 +505,44 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.FreeCamera && typeof window.FreeCamera.init === 'function') {
     window.FreeCamera.init();
   }
+
+  // ⭐ Init de l'option CSP "D-pad dans les stands"
+  (function initCspIgnorePov() {
+    const cb = document.getElementById('csp-ignore-pov');
+    const statusEl = document.getElementById('csp-ignore-pov-status');
+    if (!cb) return;
+
+    // Charge l'état actuel
+    window.api.getCspIgnorePov().then(res => {
+      if (res && res.success) cb.checked = !!res.value;
+    }).catch(() => {});
+
+    // Écoute le changement
+    cb.addEventListener('change', async () => {
+      const newVal = cb.checked;
+      cb.disabled = true;
+      if (statusEl) { statusEl.textContent = '⏳ Application…'; statusEl.style.color = 'var(--text-tertiary)'; }
+      
+      try {
+        const res = await window.api.setCspIgnorePov(newVal);
+        if (res && res.success) {
+          if (statusEl) { 
+            statusEl.textContent = '✅ Enregistré'; 
+            statusEl.style.color = '#4caf50'; 
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+          }
+        } else {
+          cb.checked = !newVal;
+          if (statusEl) { statusEl.textContent = '❌ Erreur'; statusEl.style.color = '#ff6b6b'; }
+        }
+      } catch (e) {
+        cb.checked = !newVal;
+        if (statusEl) { statusEl.textContent = '❌ ' + e.message; statusEl.style.color = '#ff6b6b'; }
+      } finally {
+        cb.disabled = false;
+      }
+    });
+  })();
   
   // ⭐ Init de l'onglet CSP
   if (window.SettingsCsp && typeof window.SettingsCsp.init === 'function') {
