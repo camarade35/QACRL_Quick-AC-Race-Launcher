@@ -787,7 +787,16 @@
       "Volants + accessoires (mode Volant)": "Wheels + accessories (Wheel mode)",
       "Manettes + accessoires (mode Manette)": "Gamepads + accessories (Gamepad mode)",
 	        "Wizard indisponible pour les accessoires (handbrake, shifter, pédalier custom). Chromium ne les expose pas — utilise le menu déroulant AXE.": "Wizard unavailable for accessories (handbrake, shifter, custom pedals). Chromium doesn't expose them — use the AXE dropdown.",
-      "Cet accessoire (handbrake, shifter, pédalier custom) n'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur.": "This accessory (handbrake, shifter, custom pedals) doesn't expose its axes to Chromium. The wizard can't detect its movements — it would capture an axis from another device.\n\nUse the AXE dropdown to choose the correct value manually."
+      "Cet accessoire (handbrake, shifter, pédalier custom) n'expose pas ses axes à Chromium. Le wizard ne peut pas détecter ses mouvements — il capturerait un axe d'un autre périphérique.\n\nUtilise le menu déroulant AXE pour choisir manuellement la bonne valeur.": "This accessory (handbrake, shifter, custom pedals) doesn't expose its axes to Chromium. The wizard can't detect its movements — it would capture an axis from another device.\n\nUse the AXE dropdown to choose the correct value manually.",
+
+      "Stick Gauche": "Left Stick",
+      "Stick Droit": "Right Stick",
+      "Réinitialiser à 0%": "Reset to 0%",
+      "Mode Volant": "Wheel Mode",
+      "Mode Manette": "Gamepad Mode",
+      "Mode Clavier": "Keyboard Mode",
+      "Édition du profil": "Editing profile",
+      "Les modifications seront sauvegardées dans ce mode.": "Changes will be saved in this mode."
     },
     "setup": {
       "steps": {

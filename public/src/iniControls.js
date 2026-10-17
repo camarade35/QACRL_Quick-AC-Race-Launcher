@@ -95,6 +95,40 @@
 
       case 'int':
       case 'float': {
+        // ⭐ v1.6.2 — Deadzone custom avec pourcentage et bouton Reset
+        if (opts.section === 'X360' && opts.key === 'STEER_DEADZONE') {
+          let currentValue = parseFloat(rawValue) || 0;
+          const wrap = el('div', { class: 'ini-slider-wrap' });
+          
+          const range = el('input', { type: 'range', class: 'ini-range', min: 0, max: 1, step: 0.01, value: currentValue });
+          const num = el('div', { class: 'ini-number', style: 'width: 60px; text-align: center; font-weight: bold;', text: Math.round(currentValue * 100) + '%' });
+          
+          const resetBtn = el('button', {
+            type: 'button',
+            class: 'ini-axis-reset',
+            title: T('Réinitialiser à 0%')
+          });
+          resetBtn.textContent = '↺';
+          
+          const updateUI = (val) => {
+            currentValue = parseFloat(val) || 0;
+            range.value = currentValue;
+            num.textContent = Math.round(currentValue * 100) + '%';
+            if (opts.onChange) opts.onChange(currentValue.toFixed(2));
+          };
+
+          range.addEventListener('input', () => updateUI(range.value));
+          resetBtn.addEventListener('click', () => updateUI(0));
+
+          wrap.appendChild(range);
+          wrap.appendChild(num);
+          wrap.appendChild(resetBtn);
+
+          controlEl = wrap;
+          getValue = () => currentValue.toFixed(2);
+          break;
+        }
+
         const step = schema.step != null ? schema.step : (type === 'int' ? 1 : 0.01);
         const hasRange = schema.min != null && schema.max != null;
         if (hasRange) {
@@ -116,6 +150,38 @@
       }
 
       case 'enum': {
+        // ⭐ v1.6.2 — ThumbPicker pour la section X360
+        if (opts.section === 'X360' && opts.key === 'STEER_THUMB') {
+          let currentValue = rawValue || 'LEFT';
+          const wrap = el('div', { class: 'qacrl-ctrl-method-picker', style: 'gap: 6px;' });
+          
+          const btnLeft = el('button', {
+            type: 'button',
+            class: 'qacrl-ctrl-method-btn' + (currentValue === 'LEFT' ? ' active' : ''),
+            style: 'flex: 1; min-height: 40px; padding: 8px;'
+          }, [el('span', { class: 'qacrl-ctrl-method-icon', text: '🕹️' }), el('span', { text: T('Stick Gauche') })]);
+          
+          const btnRight = el('button', {
+            type: 'button',
+            class: 'qacrl-ctrl-method-btn' + (currentValue === 'RIGHT' ? ' active' : ''),
+            style: 'flex: 1; min-height: 40px; padding: 8px;'
+          }, [el('span', { class: 'qacrl-ctrl-method-icon', text: '🕹️' }), el('span', { text: T('Stick Droit') })]);
+
+          const updateBtns = () => {
+            btnLeft.classList.toggle('active', currentValue === 'LEFT');
+            btnRight.classList.toggle('active', currentValue === 'RIGHT');
+          };
+
+          btnLeft.addEventListener('click', () => { currentValue = 'LEFT'; updateBtns(); if (opts.onChange) opts.onChange(currentValue); });
+          btnRight.addEventListener('click', () => { currentValue = 'RIGHT'; updateBtns(); if (opts.onChange) opts.onChange(currentValue); });
+
+          wrap.appendChild(btnLeft);
+          wrap.appendChild(btnRight);
+          controlEl = wrap;
+          getValue = () => currentValue;
+          break;
+        }
+
         const sel = el('select', { class: 'ini-select' });
         const options = schema.options || [];
         let matched = false;

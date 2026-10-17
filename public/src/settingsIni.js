@@ -450,6 +450,28 @@
       return;
     }
 
+    // ⭐ v1.6.2 — Tâche 6 : Encart contextuel "Mode Actif"
+    if (ed.file === 'controls.ini') {
+      const m = ed.currentInputMethod || 'WHEEL';
+      const tr = (s) => (window.I18n && window.I18n.tFr) ? window.I18n.tFr(s) : s;
+      
+      const modeMap = {
+        'WHEEL': { icon: '🏎️', label: tr('Mode Volant'), color: 'var(--accent)' },
+        'X360': { icon: '🎮', label: tr('Mode Manette'), color: '#4caf50' },
+        'KEYBOARD': { icon: '⌨️', label: tr('Mode Clavier'), color: '#e6a33b' }
+      };
+      const modeInfo = modeMap[m] || modeMap['WHEEL'];
+      
+      const banner = document.createElement('div');
+      banner.className = 'qacrl-ctrl-device-banner ok';
+      banner.style.marginBottom = '16px';
+      banner.style.borderLeft = `4px solid ${modeInfo.color}`;
+      
+      banner.innerHTML = `${modeInfo.icon} <strong>${tr('Édition du profil')} ${modeInfo.label}</strong> <span class="qacrl-ctrl-device-banner-sub">— ${tr('Les modifications seront sauvegardées dans ce mode.')}</span>`;
+      
+      ed.formEl.appendChild(banner);
+    }
+
     // ⭐ v1.6.0 — Le mode courant est LA source de vérité (mémorisé par ed.currentInputMethod).
     //    On ignore le contenu du fichier au cas où il diverge (profil rechargé,
     //    changement de mode manuel, etc.).
